@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.venv_*/
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.cache/
+scratch/
+
+# Build & Dist
+build/
+dist/
+*.spec
+!OdevTakip_v2.spec
+
+# Logs
+*.log
+backend.log
+frontend.log
+
+# Node / Web UI build artifacts
+web_ui/node_modules/
+web_ui/.next/
+web_ui/out/
+
+# Database temp files
+*-shm
+*-wal
+
+# Archives & Temporary test files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+test_*.png
+test_svg_data.png
+test_tbl.png
+test_lst.png
+test_chk.png
+test_with_indicator_qss.png
+.system_generated/

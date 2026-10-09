@@ -1,0 +1,39 @@
+{
+  "sıkı": {
+    "school": "08:30-15:40",
+    "max": 180,
+    "course": "09:00-13:00",
+    "weekend_mode": "Yoğun",
+    "focus": "tyt_matematik",
+    "empty": "Yok",
+    "note": ""
+  },
+  "zzz": {
+    "profile_idx": 0,
+    "school": "Yok",
+    "max": 307,
+    "weekend_mode": "Yoğun",
+    "biorhythm": "🌙 Gece Kuşu (Zor dersleri akşam/gece saatlerine al)",
+    "blocks": [
+      "Pazartesi [17:00-19:00] Dolu",
+      "Çarşamba [17:00-19:00] Dolu"
+    ],
+    "focus": "Geometri, Fizik",
+    "empty": "Salı",
+    "note": ""
+  },
+  "sds": {
+    "profile_idx": 2,
+    "school": "Yok",
+    "max": 180,
+    "weekend_mode": "Dengeli",
+    "biorhythm": "Standart",
+    "blocks": [
+      "Hafta Sonu [09:00-13:00] Kurs",
+      "Çarşamba [17:00-19:00] Dolu"
+    ],
+    "focus": "tyt_matematik, Türkçe, lgs_matematik",
+    "empty": "Cumartesi",
+    "note": ""
+  }
+}

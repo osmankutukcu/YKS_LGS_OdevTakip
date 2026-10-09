@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>YKS-LGS Mobil Panel</title>
+    <style>
+        /* --- CORE STYLES (Tailwind-like) --- */
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --bg: #f1f5f9;
+            --surface: #ffffff;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            font-size: 14px;
+            padding-bottom: 80px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .flex-col {
+            flex-direction: column;
+        }
+
+        .items-center {
+            align-items: center;
+        }
+
+        .justify-between {
+            justify-content: space-between;
+        }
+
+        .justify-center {
+            justify-content: center;
+        }
+
+        .gap-2 {
+            gap: 0.5rem;
+        }
+
+        .gap-3 {
+            gap: 0.75rem;
+        }
+
+        .gap-4 {
+            gap: 1rem;
+        }
+
+        .p-4 {
+            padding: 1rem;
+        }
+
+        .p-6 {
+            padding: 1.5rem;
+        }
+
+        .px-6 {
+            padding-left: 1.5rem;
+            padding-right: 1.5rem;
+        }
+
+        .py-4 {
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+
+        .rounded-xl {
+            border-radius: 0.75rem;
+        }
+
+        .rounded-2xl {
+            border-radius: 1rem;
+        }
+
+        .rounded-full {
+            border-radius: 9999px;
+        }
+
+        .shadow {
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .shadow-lg {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .text-white {
+            color: white;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .font-bold {
+            font-weight: 700;
+        }
+
+        .font-medium {
+            font-weight: 500;
+        }
+
+        .text-sm {
+            font-size: 0.875rem;
+        }
+
+        .text-xs {
+            font-size: 0.75rem;
+        }
+
+        .text-lg {
+            font-size: 1.125rem;
+        }
+
+        .text-xl {
+            font-size: 1.25rem;
+        }
+
+        .text-2xl {
+            font-size: 1.5rem;
+        }
+
+        .text-3xl {
+            font-size: 1.875rem;
+        }
+
+        .w-full {
+            width: 100%;
+        }
+
+        .h-full {
+            height: 100%;
+        }
+
+        .bg-white {
+            background: var(--surface);
+        }
+
+        .bg-slate-50 {
+            background: #f8fafc;
+        }
+
+        .border {
+            border: 1px solid var(--border);
+        }
+
+        .border-b {
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* --- COMPONENTS --- */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 40;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: 1rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
+            overflow: hidden;
+            transition: transform 0.1s;
+        }
+
+        .card:active {
+            transform: scale(0.98);
+        }
+
+        .btn {
+            border: none;
+            outline: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #f1f5f9;
+            color: var(--text-sub);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            font-weight: 600;
+            width: 100%;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-primary:active {
+            background: var(--primary-dark);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-fab {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4);
+            z-index: 30;
+        }
+
+        /* --- SPECIFIC STYLES --- */
+        .stat-card {
+            padding: 1rem;
+            border-radius: 1rem;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card.blue {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        }
+
+        .stat-card.green {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            border: 1px solid var(--border);
+            background: #f8fafc;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            outline: none;
+        }
+
+        .input-field:focus {
+            border-color: var(--primary);
+            background: white;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(2px);
+        }
+
+        .modal-content {
+            background: white;
+            width: 100%;
+            max-width: 400px;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            margin: 1rem;
+            animation: slideUp 0.3s ease-out;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* Loaders */
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid #e2e8f0;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        #loader-overlay {
+            position: fixed;
+            inset: 0;
+            background: white;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- LOADER -->
+    <div id="loader-overlay">
+        <div class="spinner" style="width: 48px; height: 48px; border-width: 4px;"></div>
+        <div style="color: var(--text-sub); font-weight: 500;">Yükleniyor...</div>
+    </div>
+
+    <!-- ERROR BOX -->
+    <div id="error-box" class="hidden"
+        style="position:fixed; top:0; left:0; width:100%; background:#ef4444; color:white; padding:15px; z-index:101; font-size:12px;">
+    </div>
+
+    <!-- HEADER -->
+    <header class="header px-6 py-4 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-xl text-white shadow">
+                <!-- Cap Icon -->
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 256 256">
+                    <path
+                        d="M251.76,88.94l-120-64a8,8,0,0,0-7.52,0l-120,64a8,8,0,0,0,0,14.12L32,117.87v48.42a15.91,15.91,0,0,0,4.06,10.65C49.16,191.53,78.51,216,128,216a130,130,0,0,0,48-8.76V240a8,8,0,0,0,16,0V199.51a115.63,115.63,0,0,0,27.94-12.57C224.84,182.06,232,171.05,232,166.29V117.87l27.76-14.81a8,8,0,0,0,0-14.12ZM128,200c-43.27,0-72-21.82-80-33.71V126.4l76.24,40.66a8,8,0,0,0,7.52,0L208,126.4v33.71C200,178.18,171.27,200,128,200Zm0-49.07L46.32,108,128,64.44,209.68,108Z">
+                    </path>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-slate-800" style="line-height:1.1;">YKS-LGS</h1>
+                <p class="text-xs text-slate-400 font-medium">Asistan v3.0 (Offline)</p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button id="btn-info" class="btn btn-icon hidden" onclick="openInfo()">
+                <!-- Info Icon -->
+                <svg width="24" height="24" fill="currentColor" viewBox="0 0 256 256">
+                    <path
+                        d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,84a12,12,0,1,1,12,12A12,12,0,0,1,112,84Z">
+                    </path>
+                </svg>
+            </button>
+            <button id="btn-home" class="btn btn-icon hidden" onclick="renderHomeView()">
+                <!-- Home Icon -->
+                <svg width="24" height="24" fill="currentColor" viewBox="0 0 256 256">
+                    <path
+                        d="M224,115.55V208a16,16,0,0,1-16,16H168a16,16,0,0,1-16-16V168a8,8,0,0,0-8-8H112a8,8,0,0,0-8,8v40a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V115.55a16,16,0,0,1,5.17-11.78l80-75.48.11-.11a16,16,0,0,1,21.53,0,1.14,1.14,0,0,0,.11.11l80,75.48A16,16,0,0,1,224,115.55Z">
+                    </path>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- CONTENT ROOT -->
+    <main id="app-root" class="p-6" style="max-width: 500px; margin: 0 auto;"></main>
+
+    <!-- FAB -->
+    <button id="fab-assign" class="btn btn-fab hidden" onclick="openAssignModal()">
+        <svg width="28" height="28" fill="currentColor" viewBox="0 0 256 256">
+            <path
+                d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z">
+            </path>
+        </svg>
+    </button>
+
+    <!-- ASSIGN MODAL -->
+    <div id="modal-assign" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">Yeni Ödev Ver</h3>
+                <button onclick="closeAssignModal()" class="text-slate-400">✕</button>
+            </div>
+            <div id="form-content">
+                <!-- Form dynamically injected -->
+            </div>
+            <button id="btn-submit-hw" onclick="submitHomework()" class="btn-primary" style="margin-top:1rem;"
+                disabled>Kaydet</button>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC (No Frameworks) -->
+    <script>
+        // --- STATE ---
+        const state = {
+            view: 'home',
+            students: [],
+            stats: null,
+            selectedStudent: null,
+            studentInfo: null,
+            clusters: [],
+            trackingItems: [],
+            changes: new Set(),
+            assign: { lesson: '', book: '', manualBook: '', selectedTopics: new Set() },
+            lessons: [],
+            books: [],
+            topics: []
+        };
+
+        // --- DOM HELPERS ---
+        const $ = (id) => document.getElementById(id);
+        const show = (id) => $(id).classList.remove('hidden');
+        const hide = (id) => $(id).classList.add('hidden');
+        const html = (id, html) => $(id).innerHTML = html;
+
+        // --- ERROR HANDLING ---
+        function showError(msg) {
+            const eb = $('error-box');
+            show('error-box');
+            eb.innerText = "Hata: " + msg;
+            setTimeout(() => hide('error-box'), 5000);
+        }
+        window.onerror = (msg) => showError(msg);
+
+        // --- API HELPERS ---
+        async function api(url, method = 'GET', body = null) {
+            try {
+                const opts = { method };
+                if (body) {
+                    opts.headers = { 'Content-Type': 'application/json' };
+                    opts.body = JSON.stringify(body);
+                }
+                const res = await fetch(url, opts);
+                if (!res.ok) throw new Error(res.statusText);
+                const data = await res.json();
+                if (data && data.status === 'error') throw new Error(data.message);
+                return data;
+            } catch (e) {
+                showError(e.message);
+                throw e;
+            }
+        }
+
+        // --- INIT ---
+        async function init() {
+            try {
+                const [stats, students] = await Promise.all([
+                    api('/api/dashboard'),
+                    api('/api/students')
+                ]);
+                state.stats = stats;
+                state.students = students;
+                renderHomeView();
+                hide('loader-overlay');
+            } catch (e) {
+                $('loader-overlay').innerHTML = `<p style="color:red">Bağlantı Hatası.<br>Lütfen sayfayı yenileyin.</p>`;
+            }
+        }
+
+        // --- VIEWS ---
+
+        function renderHomeView() {
+            state.view = 'home';
+            state.selectedStudent = null;
+            hide('btn-home'); hide('btn-info'); hide('fab-assign');
+
+            const s = state.stats;
+            const studentListHtml = state.students.map(std => `
+                <div onclick="selectStudent(${std.id})" class="card p-4 flex justify-between items-center" style="margin-bottom: 0.75rem; cursor:pointer;">
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center justify-center w-12 h-12 bg-slate-50 border rounded-full font-bold text-slate-500">
+                            ${std.ad_soyad.charAt(0)}
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-800 text-lg">${std.ad_soyad}</div>
+                            <div class="text-xs text-slate-400">${std.sinif || '-'} • ${std.okul || '-'}</div>
+                        </div>
+                    </div>
+                    <div style="color:#cbd5e1">›</div>
+                </div>
+            `).join('');
+
+            html('app-root', `
+                <div class="flex gap-4 mb-6">
+                    <div class="stat-card blue w-full">
+                        <div class="text-xs text-white/80">Toplam Öğrenci</div>
+                        <div class="text-3xl font-bold">${s.student_count}</div>
+                    </div>
+                    <div class="stat-card green w-full">
+                        <div class="text-xs text-white/80">Başarı Oranı</div>
+                        <div class="text-3xl font-bold">%${s.success_rate}</div>
+                    </div>
+                </div>
+                <h2 class="text-lg font-bold text-slate-800 mb-4">Öğrenciler</h2>
+                <div>${studentListHtml}</div>
+            `);
+        }
+
+        async function selectStudent(id) {
+            $('loader-overlay').style.opacity = '1'; show('loader-overlay'); // Soft loader
+            state.selectedStudent = state.students.find(s => s.id === id);
+            try {
+                state.clusters = await api(`/api/student/${id}/clusters`);
+                state.studentInfo = null; // Reset info
+                renderStudentView();
+            } catch (e) {
+                alert("Öğrenci verileri yüklenemedi: " + e.message);
+            } finally {
+                hide('loader-overlay');
+            }
+        }
+
+        function renderStudentView() {
+            state.view = 'student';
+            show('btn-home'); show('btn-info'); show('fab-assign');
+
+            const std = state.selectedStudent;
+            const clustersHtml = state.clusters.length ? state.clusters.map(c => `
+                <div onclick="openTracking('Hepsi', '${c.id}')" class="card p-4 mb-3 cursor-pointer">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">${c.status_label}</span>
+                        <span class="text-xs text-slate-400">#${c.id}</span>
+                    </div>
+                    <div class="flex justify-between items-end">
+                        <div class="text-2xl font-bold text-slate-800">%${c.percent}</div>
+                        <div class="text-xs text-slate-500">${c.completed_items}/${c.total_items} Görev</div>
+                    </div>
+                    <div style="height:6px; background:#f1f5f9; border-radius:99px; margin-top:8px; overflow:hidden;">
+                        <div style="height:100%; width:${c.percent}%; background:#3b82f6;"></div>
+                    </div>
+                </div>
+            `).join('') : '<div class="text-center text-slate-400 py-8 border-dashed border-2 rounded-xl">Paket Yok</div>';
+
+            html('app-root', `
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 mx-auto bg-white border-4 border-slate-50 rounded-full flex items-center justify-center text-xl font-bold text-slate-700 shadow-sm mb-2">
+                        ${std.ad_soyad.charAt(0)}
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-800">${std.ad_soyad}</h2>
+                    <p class="text-sm text-slate-400">${std.sinif || ''}</p>
+                </div>
+                <div class="flex gap-3 mb-6">
+                    <button onclick="openTracking('Yapılmayanlar')" class="card p-3 w-full flex flex-col items-center gap-1 active:bg-orange-50">
+                        <div class="text-warning font-bold text-lg">⚠</div>
+                        <div class="text-xs font-bold text-slate-600">Eksikler</div>
+                    </button>
+                    <button onclick="openTracking('Yapılanlar')" class="card p-3 w-full flex flex-col items-center gap-1 active:bg-green-50">
+                        <div class="text-success font-bold text-lg">✓</div>
+                        <div class="text-xs font-bold text-slate-600">Tamamlanan</div>
+                    </button>
+                </div>
+                <h3 class="font-bold text-slate-700 mb-3">Ödev Paketleri</h3>
+                <div>${clustersHtml}</div>
+            `);
+        }
+
+        async function openInfo() {
+            $('loader-overlay').style.opacity = '1'; show('loader-overlay');
+            try {
+                state.studentInfo = await api(`/api/student/${state.selectedStudent.id}/info`);
+                renderInfoView();
+            } finally { hide('loader-overlay'); }
+        }
+
+        function renderInfoView() {
+            state.view = 'info';
+            hide('btn-info'); hide('fab-assign'); show('btn-home');
+            const i = state.studentInfo;
+
+            if (!i) {
+                html('app-root', '<div class="p-6 text-center"><div class="spinner mx-auto mb-2"></div><p class="text-slate-500">Bilgiler yükleniyor veya bulunamadı.</p></div>');
+                return;
+            }
+
+            html('app-root', `
+                <div class="card p-6 mb-4">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">🎓 Öğrenci</h3>
+                    <div class="text-sm text-slate-500 uppercase font-bold text-xs mb-1">Ad Soyad</div>
+                    <div class="text-lg font-medium text-slate-800 mb-4">${i.ad_soyad}</div>
+                    
+                    <div class="flex gap-4 mb-4">
+                        <div class="w-full">
+                            <div class="text-slate-500 font-bold text-xs">Sınıf</div>
+                            <div>${i.sinif}</div>
+                        </div>
+                        <div class="w-full">
+                            <div class="text-slate-500 font-bold text-xs">Okul</div>
+                            <div>${i.okul}</div>
+                        </div>
+                    </div>
+                     <div class="text-slate-500 font-bold text-xs">Telefon</div>
+                    <a href="tel:${i.ogrenci_tel}" class="text-blue-600 font-bold block">${i.ogrenci_tel}</a>
+                </div>
+
+                <div class="card p-6 mb-4">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">👨‍👩‍👧 Veli</h3>
+                    <div class="text-slate-500 font-bold text-xs mb-1">Veli Adı</div>
+                    <div class="text-lg font-medium text-slate-800 mb-4">${i.veli_ad}</div>
+                    
+                    <div class="text-slate-500 font-bold text-xs">Veli Telefon</div>
+                    <a href="tel:${i.veli_tel1}" class="text-blue-600 font-bold block">${i.veli_tel1}</a>
+                </div>
+                
+                ${i.notlar ? `<div class="card p-6"><h3 class="font-bold text-slate-800 mb-2">Notlar</h3><p class="text-slate-600 text-sm whitespace-pre-line">${i.notlar}</p></div>` : ''}
+            `);
+        }
+
+        // --- TRACKING LOGIC ---
+        async function openTracking(filterVal, clusterId = null) {
+            $('loader-overlay').style.opacity = '1'; show('loader-overlay');
+            state.trackingFilter = filterVal;
+            state.changes.clear();
+            try {
+                let url = `/api/student/${state.selectedStudent.id}/tracking?status=${filterVal}`;
+                if (clusterId) url += `&cluster_id=${clusterId}`;
+                const data = await api(url);
+                state.trackingItems = data.items;
+                renderTrackingView();
+            } finally { hide('loader-overlay'); }
+        }
+
+        function renderTrackingView() {
+            state.view = 'tracking';
+            hide('fab-assign'); show('btn-home');
+            const items = state.trackingItems;
+
+            const listHtml = items.length ? items.map(item => `
+                <div class="card p-4 mb-3" style="border-left: 4px solid ${item.status === 'tamam' ? 'var(--success)' : 'var(--warning)'};" id="item-${item.id}">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="font-bold text-slate-800 mb-1">${item.lesson}</div>
+                            <div class="text-xs text-slate-500 mb-1">${item.book}</div>
+                            <span class="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500">${item.topic}</span>
+                        </div>
+                        <button onclick="toggleStatus(${item.id})" class="btn" style="width:32px; height:32px; border-radius:50%; border:2px solid #e2e8f0; ${item.status === 'tamam' ? 'background:var(--success); border-color:var(--success); color:white;' : ''}">
+                            ✓
+                        </button>
+                    </div>
+                </div>
+            `).join('') : '<div class="text-center text-slate-400 py-10">Kayıt Yok</div>';
+
+            html('app-root', `
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-slate-800 text-lg">${state.trackingFilter}</h3>
+                    <span class="bg-slate-200 text-xs font-bold px-2 py-1 rounded-full text-slate-600">${items.length}</span>
+                </div>
+                <div style="padding-bottom: 80px;">${listHtml}</div>
+                <div id="save-bar" class="hidden" style="position:fixed; bottom:20px; left:20px; right:20px; z-index:50;">
+                    <button onclick="saveChanges()" class="btn-primary" style="box-shadow: 0 10px 20px -5px rgba(37,99,235,0.5);">💾 Değişiklikleri Kaydet</button>
+                </div>
+            `);
+        }
+
+        function toggleStatus(id) {
+            const item = state.trackingItems.find(x => x.id === id);
+            if (item) {
+                item.status = item.status === 'tamam' ? 'devam' : 'tamam';
+                state.changes.add(id);
+                renderTrackingView();
+                show('save-bar');
+            }
+        }
+
+        async function saveChanges() {
+            $('loader-overlay').style.opacity = '1'; show('loader-overlay');
+            const toComplete = [], toPending = [];
+            state.changes.forEach(id => {
+                const it = state.trackingItems.find(x => x.id === id);
+                if (it) it.status === 'tamam' ? toComplete.push(id) : toPending.push(id);
+            });
+
+            try {
+                if (toComplete.length) await api('/api/homework/status/bulk', 'POST', { homework_ids: toComplete, status: 'tamam' });
+                if (toPending.length) await api('/api/homework/status/bulk', 'POST', { homework_ids: toPending, status: 'devam' });
+                state.changes.clear();
+                hide('save-bar');
+                alert("Kaydedildi!");
+            } catch (e) {
+                alert("Hata");
+            } finally { hide('loader-overlay'); }
+        }
+
+        // --- ASSIGN MODAL LOGIC ---
+        async function openAssignModal() {
+            show('modal-assign');
+            // Reset form state
+            state.assign = { lesson: '', book: '', manualBook: '', selectedTopics: new Set() };
+
+            html('form-content', '<div class="p-6 text-center"><div class="spinner mx-auto mb-2"></div><p class="text-slate-500">Dersler yükleniyor...</p></div>');
+
+            // Always fetch lessons based on selected student to support dynamic curriculum
+            try {
+                const stdId = state.selectedStudent ? state.selectedStudent.id : '';
+                state.lessons = await api(`/api/lessons/list?student_id=${stdId}`);
+            } catch (e) {
+                console.error("Error loading lessons:", e);
+                state.lessons = [];
+                html('form-content', '<p class="text-center text-red-500">Ders listesi yüklenemedi.</p>');
+                return;
+            }
+
+            renderAssignForm();
+        }
+
+        function closeAssignModal() { hide('modal-assign'); }
+
+        function renderAssignForm() {
+            const f = state.assign;
+            const lessonOpts = state.lessons.map(l => `<option value="${l.id}" ${f.lesson === l.id ? 'selected' : ''}>${l.name}</option>`).join('');
+
+            let bookOpts = '<option value="" disabled selected>Kitap Seçiniz</option>';
+            if (f.lesson) {
+                const list = state.books.length ? state.books : [];
+                bookOpts = list.map(b => `<option value="${b}" ${f.book === b ? 'selected' : ''}>${b}</option>`).join('');
+                bookOpts += `<option value="manual" ${f.book === 'manual' ? 'selected' : ''} style="color:blue; font-weight:bold;">+ Manuel Giriş</option>`;
+                if (!list.length) bookOpts = `<option value="manual" selected>Kitap Yok - Manuel Giriniz</option>` + bookOpts;
+            }
+
+            // Topics Multi-Select UI
+            let topicHtml = '<div class="text-slate-400 text-sm p-2 text-center">Önce Ders Seçiniz</div>';
+            if (f.lesson) {
+                if (state.topics.length) {
+                    topicHtml = state.topics.map((t, i) => {
+                        const isChecked = f.selectedTopics && f.selectedTopics.has(t.name);
+
+                        // Badges for existing statuses
+                        let badges = '';
+                        if (t.assignments && t.assignments.length) {
+                            badges = '<div class="flex flex-wrap gap-1 mt-1 ml-8">';
+                            t.assignments.forEach(a => {
+                                const color = a.status === 'tamam' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700';
+                                const icon = a.status === 'tamam' ? '✓' : '⟳';
+                                badges += `<span class="text-[10px] px-1.5 py-0.5 rounded ${color} border border-black/5 font-medium flex items-center gap-1">${a.book} ${icon}</span>`;
+                            });
+                            badges += '</div>';
+                        }
+
+                        // Use Array Index access to avoid quoting issues with topic names
+                        return `
+                            <div class="mb-2">
+                                <label id="lbl-topic-${i}" class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors w-full ${isChecked ? 'bg-blue-50 border-blue-200' : 'bg-white hover:bg-slate-50'}">
+                                    <input type="checkbox" onchange="toggleTopic(${i})" ${isChecked ? 'checked' : ''} class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500">
+                                    <span class="${isChecked ? 'text-blue-700 font-medium' : 'text-slate-700'}">${t.name}</span>
+                                </label>
+                                ${badges}
+                            </div>
+                         `;
+                    }).join('');
+                    topicHtml = `<div style="max-height: 250px; overflow-y: auto; padding-right:4px;">${topicHtml}</div>`;
+                } else {
+                    topicHtml = '<div class="text-slate-400 text-sm p-2 text-center">Konu Bulunamadı</div>';
+                }
+            }
+
+            html('form-content', `
+                <div class="flex flex-col gap-3">
+                    <div>
+                        <label class="text-xs font-bold text-slate-500">DERS</label>
+                        <select onchange="updateAssign('lesson', this.value)" class="input-field mb-0">
+                            <option value="">Seçiniz</option>
+                            ${lessonOpts}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-500">KİTAP</label>
+                        <select id="sel-book" onchange="updateAssign('book', this.value)" class="input-field mb-0" ${!f.lesson ? 'disabled' : ''}>
+                            ${bookOpts}
+                        </select>
+                        ${(f.book === 'manual' || (f.lesson && !state.books.length)) ?
+                    `<input type="text" placeholder="Kitap Adı..." oninput="updateAssign('manualBook', this.value)" class="input-field mt-2 mb-0" value="${f.manualBook}">` : ''}
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">KONULAR (Çoklu Seçim)</label>
+                        ${topicHtml}
+                    </div>
+                </div>
+            `);
+            checkAssignValidity();
+        }
+
+        function toggleTopic(index) {
+            // Get name from state.topics using index
+            if (!state.topics || !state.topics[index]) return;
+            const topicName = state.topics[index].name;
+
+            if (!state.assign.selectedTopics) state.assign.selectedTopics = new Set();
+            const isSelected = state.assign.selectedTopics.has(topicName);
+
+            if (isSelected) {
+                state.assign.selectedTopics.delete(topicName);
+            } else {
+                state.assign.selectedTopics.add(topicName);
+            }
+
+            // Visual Update (Manual)
+            const lbl = document.getElementById('lbl-topic-' + index);
+            if (lbl) {
+                if (!isSelected) { // Now selected
+                    lbl.classList.add('bg-blue-50', 'border-blue-200');
+                    lbl.classList.remove('bg-white', 'hover:bg-slate-50');
+                    // Find span? Optional but good
+                    const span = lbl.querySelector('span');
+                    if (span) { span.classList.add('text-blue-700', 'font-medium'); span.classList.remove('text-slate-700'); }
+                } else { // Now unselected
+                    lbl.classList.remove('bg-blue-50', 'border-blue-200');
+                    lbl.classList.add('bg-white', 'hover:bg-slate-50');
+                    const span = lbl.querySelector('span');
+                    if (span) { span.classList.remove('text-blue-700', 'font-medium'); span.classList.add('text-slate-700'); }
+                }
+            }
+
+            // Do NOT re-render entire form, just check button validity
+            checkAssignValidity();
+        }
+
+        async function updateAssign(field, val) {
+            state.assign[field] = val;
+
+            // If typing in manual book, DO NOT re-render to keep focus!
+            if (field === 'manualBook') return;
+
+            if (field === 'lesson') {
+                state.assign.book = ''; state.assign.manualBook = ''; state.assign.selectedTopics = new Set();
+                // Fetch books/topics
+                const [b, t] = await Promise.all([
+                    api(`/api/books/list?lesson_id=${val}`),
+                    api(`/api/topics/list?lesson_id=${val}&student_id=${state.selectedStudent.id}`)
+                ]);
+                state.books = b; state.topics = t;
+                // Auto switch to manual if no books
+                if (b.length === 0) { state.assign.book = 'manual'; }
+            }
+            if (field === 'book' && val === 'manual') state.assign.manualBook = '';
+
+            renderAssignForm(); // Re-render only for lesson/book changes
+        }
+
+        function checkAssignValidity() {
+            const f = state.assign;
+            const hasBook = (f.book && f.book !== 'manual') || f.manualBook;
+            const hasTopics = f.selectedTopics && f.selectedTopics.size > 0;
+
+            const valid = f.lesson && hasBook && hasTopics;
+            const btn = $('btn-submit-hw');
+            if (btn) {
+                btn.disabled = !valid;
+                btn.style.opacity = valid ? '1' : '0.5';
+            }
+        }
+
+        async function submitHomework() {
+            const f = state.assign;
+            const finalBook = (f.book === 'manual' || !f.book) ? f.manualBook : f.book;
+            const selectedTopics = Array.from(state.assign.selectedTopics || []);
+
+            if (selectedTopics.length === 0) { alert("Konu seçiniz"); return; }
+
+            $('btn-submit-hw').innerText = 'Kaydediliyor...';
+            try {
+                await api('/api/homework', 'POST', {
+                    student_id: state.selectedStudent.id,
+                    lesson: f.lesson,
+                    book: finalBook,
+                    topic: "",
+                    topics: selectedTopics // THIS IS THE KEY FIX
+                });
+                closeAssignModal();
+                alert("Ödev Verildi!");
+                selectStudent(state.selectedStudent.id); // Refresh view
+                state.assign = { lesson: '', book: '', manualBook: '', selectedTopics: new Set() };
+            } catch (e) {
+                alert("Hata: " + e.message);
+            } finally {
+                if ($('btn-submit-hw')) $('btn-submit-hw').innerText = 'Kaydet';
+            }
+        }
+
+        // --- BOOT ---
+        init();
+
+    </script>
+</body>
+
+</html>

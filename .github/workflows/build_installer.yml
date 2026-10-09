@@ -1,0 +1,55 @@
+name: Windows Setup Uretici (OdevTakip_v2_Kurulum.exe)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Kodlari Cek
+      uses: actions/checkout@v4
+
+    - name: Python 3.11 Kur
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Bagimliliklari Yukle
+      run: |
+        python -m pip install --upgrade pip
+        if (Test-Path requirements_win.txt) {
+            pip install -r requirements_win.txt pyinstaller
+        } else {
+            pip install PyQt6 pandas openpyxl reportlab pillow matplotlib pyinstaller
+        }
+
+    - name: PyInstaller ile Programi Derle
+      run: |
+        python build_app.py
+
+    - name: Inno Setup Kur
+      run: |
+        choco install innosetup --no-progress -y
+
+    - name: Inno Setup ile Kurulum Exe Uret (OdevTakip_v2_Kurulum.exe)
+      run: |
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
+
+    - name: Kurulum Dosyasini Kaydet ve Indirilebilir Yap
+      uses: actions/upload-artifact@v4
+      with:
+        name: OdevTakip_v2_Kurulum_EXE
+        path: dist/OdevTakip_v2_Kurulum.exe
+
+    - name: GitHub Releases Ekle
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/OdevTakip_v2_Kurulum.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

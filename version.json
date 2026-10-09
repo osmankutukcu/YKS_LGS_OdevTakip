@@ -1,0 +1,9 @@
+{
+    "version": "3.5.0",
+    "name": "v3.5.0 Kararlı Sürüm",
+    "changelog": "• Otomatik internet üzerinden tek tıkla güncelleme altyapısı eklendi.\n• Windows ve taşınabilir kurulum desteği iyileştirildi.\n• Performans ve kararlılık geliştirmeleri.",
+    "download_url": "https://github.com/osmankutukcu/YKS_LGS_OdevTakip/releases/download/v3.5.0/OdevTakip_v3.5.0_Update.zip",
+    "file_size": 0,
+    "sha256": "",
+    "published_at": "2026-10-02"
+}
