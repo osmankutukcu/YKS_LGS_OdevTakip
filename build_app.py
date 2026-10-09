@@ -6,15 +6,15 @@ import platform
 from pathlib import Path
 
 def clean_build():
-    """Build klasörlerini temizle."""
+    """Build klasorlerini temizle."""
     dirs = ["build", "dist"]
     for d in dirs:
         if os.path.exists(d):
             shutil.rmtree(d, ignore_errors=True)
-    print("🧹 Temizlik yapıldı.")
+    print("[OK] Temizlik yapildi.")
 
 def ensure_dependencies():
-    """Derleme için gereken tüm bağımlılıkların yüklü olduğundan emin ol."""
+    """Derleme icin gereken tum bagimliliklarin yuklu oldugundan emin ol."""
     needed = ["PyQt6", "PyInstaller"]
     missing = []
     for mod in needed:
@@ -24,8 +24,8 @@ def ensure_dependencies():
             missing.append(mod)
     
     if missing:
-        print(f"⚠️ Eksik derleme bağımlılıkları tespit edildi: {', '.join(missing)}")
-        print("📦 Gerekli paketler derleme ortamına otomatik kuruluyor...")
+        print(f"[UYARI] Eksik derleme bagimliliklari: {', '.join(missing)}")
+        print("[BILGI] Paketler kuruluyor...")
         req_file = "requirements_win.txt" if platform.system() == "Windows" else "requirements.txt"
         if os.path.exists(req_file):
             cmd = [sys.executable, "-m", "pip", "install", "-r", req_file]
@@ -33,12 +33,12 @@ def ensure_dependencies():
             cmd = [sys.executable, "-m", "pip", "install"] + missing
         try:
             subprocess.check_call(cmd)
-            print("✅ Bağımlılıklar başarıyla kuruldu.\n")
+            print("[OK] Bagimliliklar basariyla kuruldu.\n")
         except Exception as e:
-            print(f"⚠️ Paket kurulumu sırasında hata: {e}")
+            print(f"[HATA] Paket kurulumu hatasi: {e}")
 
 def run_build():
-    """Mevcut işletim sistemine göre PyInstaller'ı çalıştır."""
+    """Mevcut isletim sistemine gore PyInstaller'i calistir."""
     ensure_dependencies()
     
     spec_file = "OdevTakip_v2.spec"
@@ -63,10 +63,10 @@ def run_build():
             "app.py"
         ]
 
-    print(f"🚀 Komut çalıştırılıyor:\n{' '.join(args)}\n")
+    print(f"[BILGI] Komut calistiriliyor:\n{' '.join(args)}\n")
     subprocess.check_call(args)
-    print("\n✅ Build Tamamlandı!")
-    print(f"📂 Çıktı konumu: {os.path.abspath('dist')}")
+    print("\n[OK] Build Tamamlandi!")
+    print(f"[BILGI] Cikti konumu: {os.path.abspath('dist')}")
 
 if __name__ == "__main__":
     clean_build()
