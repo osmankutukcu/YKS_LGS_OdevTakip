@@ -13,7 +13,6 @@ datas = [
     ('seed', 'seed'),
     ('services', 'services'),
     ('web_api', 'web_api'),
-    ('YKS_LGS_HomeworkManager.db', '.'),
 ]
 if os.path.exists('fonts'):
     datas.append(('fonts', 'fonts'))

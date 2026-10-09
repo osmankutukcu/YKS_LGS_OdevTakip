@@ -177,25 +177,47 @@ def _pick_db_path() -> Path:
     # 7) Varsayılan: platform app data (Original Desktop default)
     target = (_platform_appdata_dir() / DB_FILE_NAME).resolve()
     if not target.exists():
-        try:
-            candidates = [
-                _exe_dir() / DB_FILE_NAME,
-                Path(sys._MEIPASS) / DB_FILE_NAME if hasattr(sys, "_MEIPASS") else None
-            ]
-            for cand in candidates:
-                if cand and cand.exists():
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copyfile(cand, target)
-                    break
-        except Exception:
-            pass
+        _find_and_migrate_previous_db(target)
     return target
+
+def _find_and_migrate_previous_db(target: Path) -> bool:
+    """Eski sürümlerden kalma veritabanı varsa (VirtualStore veya ~/.yks_lgs_manager),
+    kullanıcının mevcut verilerini kaybetmemesi için güvenle yeni AppData konumuna taşır."""
+    if target.exists():
+        return False
+
+    potential_sources = []
+    
+    # 1. VirtualStore yolları (Windows'ta Program Files'a yazmaya çalışan eski sürümler için)
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            vs_base = Path(local_app_data) / "VirtualStore"
+            for pf_name in ["Program Files", "Program Files (x86)"]:
+                for app_folder in ["YKS-LGS Odev Takip", "YKS_LGS_HomeworkManager", "YKS-LGS Odev Takip v2"]:
+                    potential_sources.append(vs_base / pf_name / app_folder / DB_FILE_NAME)
+                    potential_sources.append(vs_base / pf_name / app_folder / "veritabani.db")
+
+    # 2. Eski ev dizini konumu (~/.yks_lgs_manager/veritabani.db)
+    potential_sources.append(LEGACY_HOME_DB)
+    potential_sources.append(Path.home() / ".yks_lgs_manager" / DB_FILE_NAME)
+
+    for src in potential_sources:
+        try:
+            if src.exists() and src.is_file() and src.stat().st_size > 0:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(src), str(target))
+                return True
+        except Exception:
+            continue
+
+    return False
 
 def _migrate_legacy_db_if_needed(target: Path):
     try:
         if LEGACY_HOME_DB.exists() and not target.exists():
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(LEGACY_HOME_DB), str(target))
+            shutil.copy2(str(LEGACY_HOME_DB), str(target))
     except Exception:
         pass
 
@@ -259,12 +281,16 @@ def _candidate_dirs() -> list[Path]:
     # 1) Aktif DB hedef klasörünüz
     dirs.append(DB_PATH.parent)
 
-    # 2) Çalıştırılan exe/py klasörü
-    try: dirs.append(_exe_dir())
+    # 2) Çalıştırılan exe/py klasörü (Program Files içinde değilse)
+    try:
+        if not _is_in_program_files(_exe_dir()):
+            dirs.append(_exe_dir())
     except Exception: pass
 
-    # 3) Çalışılan dizin
-    try: dirs.append(Path.cwd())
+    # 3) Çalışılan dizin (Program Files içinde değilse)
+    try:
+        if not _is_in_program_files(Path.cwd()):
+            dirs.append(Path.cwd())
     except Exception: pass
 
     # 4) Eski “home gizli” klasör
@@ -275,7 +301,16 @@ def _candidate_dirs() -> list[Path]:
     try: dirs.append(_platform_appdata_dir())
     except Exception: pass
 
-    # 6) Portable data/
+    # 6) VirtualStore (Windows Program Files UAC)
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            vs_base = Path(local_app_data) / "VirtualStore"
+            for pf_name in ["Program Files", "Program Files (x86)"]:
+                for app_folder in ["YKS-LGS Odev Takip", "YKS_LGS_HomeworkManager", "YKS-LGS Odev Takip v2"]:
+                    dirs.append(vs_base / pf_name / app_folder)
+
+    # 7) Portable data/
     try: dirs.append(_portable_data_root())
     except Exception: pass
 

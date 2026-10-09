@@ -43,6 +43,7 @@ class LicenseDialog(QDialog):
         self.machine_id = self.status.get("machine_id", "")
         self.status_msg = self.status.get("message", "")
         self.is_valid = (self.status.get("status") == "valid")
+        self.is_licensed = self.status.get("is_license", False)
 
     def _center_on_screen(self):
         primary_screen = QApplication.primaryScreen()
@@ -97,6 +98,19 @@ class LicenseDialog(QDialog):
             alert_color = "#991b1b"
             alert_title = f"Lisans Gerekli: {self.status_msg}"
             alert_desc = "Kullanıma devam etmek için lütfen geçerli lisans anahtarınızı giriniz."
+        elif not self.is_licensed:
+            alert_frame.setStyleSheet("""
+                QFrame#alertFrame {
+                    background-color: #eff6ff;
+                    border: 1px solid #bfdbfe;
+                    border-radius: 8px;
+                }
+            """)
+            alert_icon = "⏳"
+            alert_color = "#1e40af"
+            days_left = self.status.get("days_left", 14)
+            alert_title = f"14 Günlük Deneme Sürümü Aktif ({days_left} Gün Kaldı)"
+            alert_desc = "Tam lisansa yükseltmek için aşağıdaki alana lisans anahtarınızı girebilirsiniz."
         else:
             alert_frame.setStyleSheet("""
                 QFrame#alertFrame {

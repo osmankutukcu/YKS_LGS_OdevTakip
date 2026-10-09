@@ -107,7 +107,7 @@ class TrialManager:
     K_LAST = "idx_l"
     K_LIC = "idx_k"
     
-    def __init__(self, trial_days=15):
+    def __init__(self, trial_days=14):
         self.trial_days = trial_days
         self._data = self._load()
 

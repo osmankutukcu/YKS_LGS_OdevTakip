@@ -224,6 +224,7 @@ class AnaPencere(QMainWindow):
              if res != 1 or manager.check_status()["status"] != "valid":
                  sys.exit(0)
         # -----------------------
+        self._update_window_title()
 
         # === Ölçüler (tek yerden değiştir) ===
         BUTTON_W, BUTTON_H = 240, 42  # hepsi eşit (Daha kompakt)
@@ -402,11 +403,13 @@ class AnaPencere(QMainWindow):
         self.btnHakkinda = style_sidebar_btn(QPushButton("Hakkında"), "❓")
         self.btnTema = style_sidebar_btn(QPushButton("Tema"), "🎨")
         self.btnGuncelleme = style_sidebar_btn(QPushButton("Güncellemeler"), "🔄")
+        self.btnLisans = style_sidebar_btn(QPushButton("Lisans Bilgisi"), "🔑")
 
         menu_layout.addSpacing(10)
         menu_layout.addWidget(self.btnHakkinda)
         menu_layout.addWidget(self.btnTema)
         menu_layout.addWidget(self.btnGuncelleme)
+        menu_layout.addWidget(self.btnLisans)
 
         menu_layout.addStretch()
         scroll_menu.setWidget(menu_container)
@@ -529,6 +532,7 @@ class AnaPencere(QMainWindow):
         self.btnKonuHaritasi.clicked.connect(self._open_topic_map)
         self.btnPomodoro.clicked.connect(self._open_pomodoro)
         self.btnGuncelleme.clicked.connect(self._manual_check_update)
+        self.btnLisans.clicked.connect(self._lisans_yonetimi_ac)
         try:
              # Lazy analytics load - sadece buton varsa bağla
              if hasattr(self, "btnAnalizYenile"):
@@ -908,8 +912,24 @@ class AnaPencere(QMainWindow):
         except Exception as e:
             from PyQt6.QtWidgets import QMessageBox
             import traceback
-            QMessageBox.critical(self, "Performans Paneli",
-                                 f"Panel açılamadı:\n{e}\n\n{traceback.format_exc()}")
+    def _update_window_title(self):
+        try:
+            from utils.license_manager import manager
+            lic_stat = manager.check_status()
+            if lic_stat.get("is_license"):
+                self.setWindowTitle("YKS/LGS Ödev & Takip Yöneticisi  [Lisanslı]")
+            else:
+                days_left = lic_stat.get("days_left", 0)
+                self.setWindowTitle(f"YKS/LGS Ödev & Takip Yöneticisi  [14 Günlük Deneme Sürümü - {days_left} Gün Kaldı]")
+        except Exception:
+            self.setWindowTitle("YKS/LGS Ödev & Takip Yöneticisi")
+
+    def _lisans_yonetimi_ac(self):
+        from ui.license_dialog import LicenseDialog
+        dlg = LicenseDialog(self, can_cancel=True)
+        dlg.exec()
+        self._update_window_title()
+
     # ---- Hakkında
     def _hakkinda(self):
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QPushButton, QFrame, QHBoxLayout, QGridLayout)
@@ -1189,6 +1209,10 @@ class AnaPencere(QMainWindow):
                 try: cur.execute("PRAGMA foreign_keys=ON")
                 except Exception: pass
                 try: cur.execute("VACUUM")
+                except Exception: pass
+
+                # Müfredat ve varsayılan tabloları sıfırdan yeniden yükle (Fabrika Ayarları)
+                try: db.init_db()
                 except Exception: pass
 
                 QMessageBox.information(
