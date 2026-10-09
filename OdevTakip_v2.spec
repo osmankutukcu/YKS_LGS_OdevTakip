@@ -36,6 +36,8 @@ hiddenimports = [
     'pydantic',
     'multipart',
     'certifi',
+    'unittest',
+    'matplotlib',
 ]
 
 try:
@@ -56,7 +58,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['tkinter', 'unittest'],
+    excludes=['tkinter'],
     noarchive=False,
     optimize=0,
 )

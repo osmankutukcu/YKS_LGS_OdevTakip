@@ -112,6 +112,30 @@ def _platform_appdata_dir():
         base = Path(os.environ.get("XDG_DATA_HOME", home / ".local" / "share"))
         return base / APP_DIR_NAME
 
+def _is_in_program_files(path: Path) -> bool:
+    """Yol Program Files veya sistem korumalı dizin altında mı?"""
+    if os.name != "nt":
+        return False
+    try:
+        p_str = str(path.resolve()).lower()
+        pf = os.environ.get("ProgramFiles", "c:\\program files").lower()
+        pf86 = os.environ.get("ProgramFiles(x86)", "c:\\program files (x86)").lower()
+        return p_str.startswith(pf) or p_str.startswith(pf86)
+    except Exception:
+        return False
+
+def _is_dir_writable(path: Path) -> bool:
+    """Klasöre yazma yetkisi var mı?"""
+    try:
+        test_file = path / f".writable_test_{os.getpid()}.tmp"
+        with open(test_file, "w") as f:
+            f.write("test")
+        if test_file.exists():
+            os.remove(test_file)
+        return True
+    except Exception:
+        return False
+
 def _portable_data_root():
     """Portable modda kullanılacak kök klasör: exe yanında 'data/'."""
     return _exe_dir() / "data"
@@ -129,11 +153,14 @@ def _pick_db_path() -> Path:
     if env_dir:
         return (Path(env_dir).expanduser().resolve() / DB_FILE_NAME)
 
-    # 3) Check locally in exe dir (If file exists, use it!)
-    # Bu sayede zip'i indirip çalıştıran kişi yanındaki DB'yi kullanır.
-    local_db = (_exe_dir() / DB_FILE_NAME).resolve()
-    if local_db.exists():
-        return local_db
+    # 3) Check locally in exe dir (Program Files dışında ve yazılabilir ise)
+    # Bu sayede zip'i masaüstünde çalıştıran kişi yanındaki DB'yi kullanır;
+    # Program Files içine kurulduğunda ise Windows UAC izin hatası vermemesi için
+    # doğrudan AppData/Local konumuna yönlendirilir.
+    if not _is_in_program_files(_exe_dir()) and _is_dir_writable(_exe_dir()):
+        local_db = (_exe_dir() / DB_FILE_NAME).resolve()
+        if local_db.exists():
+            return local_db
 
     # 4) Komut satırı --portable
     if _portable_mode_flag():
