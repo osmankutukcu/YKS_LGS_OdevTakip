@@ -3,6 +3,8 @@ name: Windows Setup Uretici (OdevTakip_v2_Kurulum.exe)
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 

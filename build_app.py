@@ -69,12 +69,15 @@ def run_build():
         f"--add-data=seed{sep}seed",
         f"--add-data=services{sep}services",
         f"--add-data=web_api{sep}web_api",
-        f"--add-data=db.py{sep}.",
         f"--add-data=YKS_LGS_HomeworkManager.db{sep}.",
         
-        # Gerekli importlar (bazen otomatik bulunamaz)
+        # Gerekli importlar
         "--hidden-import=sqlite3",
         "--hidden-import=PyQt6",
+        "--hidden-import=PyQt6.QtCore",
+        "--hidden-import=PyQt6.QtGui",
+        "--hidden-import=PyQt6.QtWidgets",
+        "--hidden-import=PyQt6.QtPrintSupport",
         "--hidden-import=openpyxl",
         "--hidden-import=pandas",
         "--hidden-import=pyautogui",
@@ -83,12 +86,10 @@ def run_build():
         "--hidden-import=uvicorn",
         "--hidden-import=pydantic",
         "--hidden-import=multipart",
+        "--hidden-import=certifi",
         
-        # --- ROBUST BUILD ADDITIONS ---
-        "--collect-all=PyQt6",
-        "--collect-all=sqlite3",
-        "--collect-all=certifi",  # SSL/TLS için
-        "--collect-all=requests", # Varsa
+        # Gerekli veri paketleri
+        "--collect-all=certifi",
     ]
 
     if os.path.exists("fonts"):
