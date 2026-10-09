@@ -29,9 +29,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; Mevcut veritabanı ve lisans dosyalarını koru (asla ezme)
-Source: "dist\OdevTakip_v2\*.db"; DestDir: "{app}"; Flags: onlyifdoesntexist recursesubdirs
-Source: "dist\OdevTakip_v2\*.sqlite"; DestDir: "{app}"; Flags: onlyifdoesntexist recursesubdirs
-Source: "dist\OdevTakip_v2\license.json"; DestDir: "{app}"; Flags: onlyifdoesntexist recursesubdirs
+Source: "dist\OdevTakip_v2\*.db"; DestDir: "{app}"; Flags: onlyifdoesntexist recursesubdirs skipifsourcedoesntexist
+Source: "dist\OdevTakip_v2\*.sqlite"; DestDir: "{app}"; Flags: onlyifdoesntexist recursesubdirs skipifsourcedoesntexist
+Source: "dist\OdevTakip_v2\license.json"; DestDir: "{app}"; Flags: onlyifdoesntexist recursesubdirs skipifsourcedoesntexist
 ; Diğer tüm uygulama dosyalarını güncelle
 Source: "dist\OdevTakip_v2\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 

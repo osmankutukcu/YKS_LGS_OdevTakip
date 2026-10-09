@@ -43,7 +43,19 @@ jobs:
 
     - name: Inno Setup ile Kurulum Exe Uret (OdevTakip_v2_Kurulum.exe)
       run: |
-        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
+        $iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source
+        if (-not $iscc) {
+            $candidates = @(
+                "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+                "C:\Program Files\Inno Setup 6\ISCC.exe",
+                "C:\ProgramData\chocolatey\bin\iscc.exe"
+            )
+            foreach ($c in $candidates) {
+                if (Test-Path $c) { $iscc = $c; break }
+            }
+        }
+        Write-Host "ISCC konumu: $iscc"
+        & "$iscc" setup.iss
 
     - name: Kurulum Dosyasini Kaydet ve Indirilebilir Yap
       uses: actions/upload-artifact@v4
