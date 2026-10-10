@@ -98,9 +98,12 @@ class TestUpdateCore(unittest.TestCase):
                 con.execute('INSERT INTO tasks VALUES(123, "sample")')
                 con.commit()
                 copy=backup_sqlite_for_update(dbp, Path(tmp)/'safe_backups')
-                with sqlite3.connect(str(copy)) as db:
+                db = sqlite3.connect(str(copy))
+                try:
                     self.assertEqual((123,'sample'),db.execute('SELECT id,label FROM tasks').fetchone())
                     self.assertEqual('ok',db.execute('PRAGMA quick_check').fetchone()[0])
+                finally:
+                    db.close()
             finally: con.close()
 
     def test_missing_backup_source_fails_closed(self):

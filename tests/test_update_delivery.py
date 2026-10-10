@@ -89,8 +89,12 @@ class DeliveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             p=Path(tmp)/INSTALLER_NAME;p.write_bytes(FAKE_EXE)
             source=Path(tmp)/'student.db'
-            with sqlite3.connect(str(source)) as db:
-                db.execute('CREATE TABLE student(id int)');db.execute('INSERT INTO student VALUES(1)')
+            con = sqlite3.connect(str(source))
+            try:
+                con.execute('CREATE TABLE student(id int)');con.execute('INSERT INTO student VALUES(1)')
+                con.commit()
+            finally:
+                con.close()
             fake_db=types.SimpleNamespace(DB_PATH=str(source))
             fake_qtwidgets=types.ModuleType('PyQt6.QtWidgets')
             fake_qtwidgets.QApplication=type('App',(),{'instance':staticmethod(lambda:None)})
@@ -107,8 +111,11 @@ class DeliveryTests(unittest.TestCase):
                 self.assertIn('/CLOSEAPPLICATIONS', args)
                 saved=list(Path(tmp).rglob('backups/*/student.db'))
                 self.assertEqual(1,len(saved))
-                with sqlite3.connect(saved[0]) as db:
+                db = sqlite3.connect(saved[0])
+                try:
                     self.assertEqual(1,db.execute('SELECT count(*) FROM student').fetchone()[0])
+                finally:
+                    db.close()
 
     def test_prelaunch_bad_hash_prevents_execution(self):
         with tempfile.TemporaryDirectory() as tmp:
