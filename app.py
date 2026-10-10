@@ -341,7 +341,7 @@ def main() -> None:
     # Login ekranı modülünün import edilmesi de zaman alabilir
     splash.set_progress(50, "Kullanıcı modülleri yükleniyor...")
     try:
-        enable_login = (appset.ayar_get("enable_login", "1") == "1")
+        enable_login = (appset.ayar_get("enable_login", "0") == "1")
         if enable_login:
             # Login varsa Splash kapanır, Login açılır
             from ui.login_window import ModernLoginWindow

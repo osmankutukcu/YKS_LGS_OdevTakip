@@ -402,7 +402,7 @@ class UserManagerDialog(QWidget):
 
     def _load_security_settings(self):
         try:
-            val_enable = appset.ayar_get("enable_login", "1")
+            val_enable = appset.ayar_get("enable_login", "0")
             self.chkEnableLogin.setChecked(str(val_enable) == "1")
 
             val_mode = appset.ayar_get("login_mode", "user_pass")

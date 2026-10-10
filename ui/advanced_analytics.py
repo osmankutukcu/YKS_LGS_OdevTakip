@@ -128,12 +128,23 @@ def get_national_averages(year: int = 2025, is_lgs: bool = False) -> Dict[str, f
         return dict(CACHED_2025_YKS_AVG)
 
 
+def _get_default_history_db_path() -> str:
+    try:
+        import db
+        return str(db.get_db_path().parent / "deneme_history.db")
+    except Exception:
+        from pathlib import Path
+        import os
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "YKS_LGS_HomeworkManager"
+        base.mkdir(parents=True, exist_ok=True)
+        return str(base / "deneme_history.db")
+
 # -----------------------------
 #  B) Deneme Geçmişi Deposu
 # -----------------------------
 class DenemeStore:
-    def __init__(self, db_path: str = "deneme_history.db") -> None:
-        self.db_path = db_path
+    def __init__(self, db_path: Optional[str] = None) -> None:
+        self.db_path = db_path or _get_default_history_db_path()
         self._init_db()
 
     def _conn(self):
@@ -247,7 +258,7 @@ class TrendPlot(QWidget):
 #  D) Ana Analitik Paneli
 # -----------------------------
 class AdvancedNetAndTrendPanel(QWidget):
-    def __init__(self, parent=None, db_path: str = "deneme_history.db", student_id: Optional[int] = None):
+    def __init__(self, parent=None, db_path: Optional[str] = None, student_id: Optional[int] = None):
         super().__init__(parent)
         self.student_id = student_id
         self.store = DenemeStore(db_path)

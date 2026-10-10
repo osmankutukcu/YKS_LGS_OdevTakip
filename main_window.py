@@ -876,9 +876,18 @@ class AnaPencere(QMainWindow):
 
     def _hedef_analiz_open(self):
         """Akıllı Hedef Analizi penceresini açar."""
-        from ui.target_analysis_dialog import TargetAnalysisDialog
-        dlg = TargetAnalysisDialog(self)
-        dlg.exec()
+        try:
+            from ui.target_analysis_dialog import TargetAnalysisDialog
+            dlg = TargetAnalysisDialog(self)
+            dlg.exec()
+        except Exception as e:
+            import traceback
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self,
+                "Hedef Analizi",
+                f"Hedef Analizi modülü açılırken bir hata oluştu:\n{e}\n\n{traceback.format_exc()}"
+            )
 
 
     def _open_topic_map(self):

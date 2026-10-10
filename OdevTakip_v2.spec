@@ -37,10 +37,19 @@ hiddenimports = [
     'certifi',
     'unittest',
     'matplotlib',
+    'matplotlib.backends.backend_qtagg',
+    'matplotlib.backends.backend_qt5agg',
+    'services',
+    'services.exam_data',
+    'ui.target_analysis_dialog',
+    'ui.advanced_analytics',
 ]
 
 try:
-    from PyInstaller.utils.hooks import collect_all
+    from PyInstaller.utils.hooks import collect_submodules, collect_all
+    hiddenimports += collect_submodules('ui')
+    hiddenimports += collect_submodules('services')
+    hiddenimports += collect_submodules('utils')
     ret_cert = collect_all('certifi')
     datas += ret_cert[0]
     binaries += ret_cert[1]
@@ -50,7 +59,7 @@ except Exception:
 
 a = Analysis(
     ['app.py'],
-    pathex=[],
+    pathex=['.'],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

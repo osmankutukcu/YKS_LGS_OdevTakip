@@ -166,14 +166,16 @@ class TargetAnalysisDialog(QDialog):
             self.cmb_student.blockSignals(True)
             self.cmb_student.clear()
             sel_idx = 0
-            for i, r in enumerate(rows):
-                s_id = r[0]
-                ad_soyad = f"{r[1]} {r[2]}".strip()
-                self.cmb_student.addItem(f"{s_id} • {ad_soyad}", s_id)
-                if self.student_id and s_id == self.student_id:
-                    sel_idx = i
-                    
-            self.cmb_student.setCurrentIndex(sel_idx)
+            if not rows:
+                self.cmb_student.addItem("Kayıtlı Öğrenci Yok (Genel Mod)", None)
+            else:
+                for i, r in enumerate(rows):
+                    s_id = r[0]
+                    ad_soyad = f"{r[1]} {r[2]}".strip()
+                    self.cmb_student.addItem(f"{s_id} • {ad_soyad}", s_id)
+                    if self.student_id and s_id == self.student_id:
+                        sel_idx = i
+                self.cmb_student.setCurrentIndex(sel_idx)
             self.cmb_student.blockSignals(False)
         except Exception as e:
             print("Öğrenci listesi hatası:", e)
