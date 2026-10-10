@@ -1357,8 +1357,7 @@ class AnaPencere(QMainWindow):
 
     def _hizli_gorusme(self):
         try:
-            from quick_meet import RandevuTakvimi
-
+            from ui.randevu_takvimi import RandevuTakvimi
         except ModuleNotFoundError:
             from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                                          QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QMessageBox)

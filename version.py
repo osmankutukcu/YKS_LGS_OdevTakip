@@ -7,8 +7,8 @@ import re
 from typing import Tuple
 
 # Mevcut Uygulama Sürümü
-APP_VERSION = "3.5.10"
-APP_BUILD_DATE = "2026-10-10"
+APP_VERSION = "3.5.11"
+APP_BUILD_DATE = "2026-10-11"
 
 # GitHub Deposu (KullanıcıAdı / DepoAdı)
 GITHUB_REPO = "osmankutukcu/YKS_LGS_OdevTakip"
