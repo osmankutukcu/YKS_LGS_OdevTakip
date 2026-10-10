@@ -6,14 +6,11 @@ import os
 # Add parent directory to path to import existing modules like db.py
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# FORCE SYNC: Use the DB in the root directory if environment var is missing
-import os
-from pathlib import Path
-_root_dir = Path(__file__).resolve().parent.parent
-_candidate_db = _root_dir / "YKS_LGS_HomeworkManager.db"
-if "YKS_DB_PATH" not in os.environ and _candidate_db.exists():
-    print(f"[*] Web API forcing DB path to: {_candidate_db}")
-    os.environ["YKS_DB_PATH"] = str(_candidate_db)
+# Masaüstü programının belirlediği db.DB_PATH tek veri kaynağıdır.
+# Web uygulaması kendi kendine kök klasörde deneme veritabanına geçmez.
+from web_api.auth import authorized
+from utils.homework_status import is_completed, mobile_status, status_counts
+from fastapi.responses import JSONResponse
 
 # Import existing DB module (will need to ensure dependencies are met)
 try:
@@ -28,18 +25,56 @@ except ImportError as e:
 app = FastAPI(title="YKS/LGS Manager API", version="1.0.0")
 
 # CORS (Cross-Origin Resource Sharing) - Allow Frontend to access this
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # In production, replace with specific frontend URL
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# SPA ve API aynı adreste çalışıyor. Varsayılan yabancı origin erişimi kapalı.
+allowed_origins = [s.strip() for s in os.getenv('YKS_WEB_ALLOWED_ORIGINS', '').split(',') if s.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=allowed_origins,
+                   allow_credentials=False, allow_methods=['GET','POST'],
+                   allow_headers=['Content-Type','X-Access-Key'])
+
+@app.middleware('http')
+async def protect_personal_data(request, call_next):
+    path = request.url.path
+    # Güvenilir kaynaklardan CORS ön isteği yalnızca yetki ön kontrolüdür;
+    # kişisel veri döndürmez. Gerçek GET/POST çağrısı yine anahtar gerektirir.
+    if (request.method == 'OPTIONS'
+            and request.headers.get('origin') in allowed_origins
+            and request.headers.get('access-control-request-method') in ('GET', 'POST')):
+        return await call_next(request)
+    # İlk HTML ekranı giriş anahtarı ister; statik dosyalarda kişisel veri yok.
+    if path == '/' or path.startswith('/static/'):
+        return await call_next(request)
+    if not authorized(request.headers.get('x-access-key')):
+        return JSONResponse({'detail': 'Giriş anahtarı gerekli veya geçersiz.'}, status_code=401,
+                            headers={'Cache-Control': 'no-store'})
+    response = await call_next(request)
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 import random
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+from datetime import date, timedelta
+from fastapi import HTTPException
+
+
+def _checked_due_date(value):
+    """API tarihini YYYY-MM-DD olarak doğrula; boşsa yedi gün ekle."""
+    if not value:
+        return (date.today() + timedelta(days=7)).isoformat()
+    if len(value) != 10:
+        raise HTTPException(status_code=422, detail='Teslim tarihi YYYY-MM-DD olmalı.')
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError:
+        raise HTTPException(status_code=422, detail='Geçersiz teslim tarihi.') from None
+    if parsed.isoformat() != value:
+        raise HTTPException(status_code=422, detail='Teslim tarihi YYYY-MM-DD olmalı.')
+    return value
+
+
+def _allowed_lesson(value):
+    return value in {lesson for lessons in GRUP_DERSLER.values() for lesson in lessons}
 
 # --- Pydantic Models ---
 class DashboardStats(BaseModel):
@@ -85,39 +120,16 @@ def get_random_quote():
 
 @app.get("/api/dashboard", response_model=DashboardStats)
 def get_dashboard_stats():
-    """
-    Returns statistics for the dashboard cards.
-    """
     con = db.get_conn()
-    cur = con.cursor()
-    
-    # 1. Student Count
-    cur.execute("SELECT COUNT(*) FROM ogrenci")
-    std_count = cur.fetchone()[0]
-    
-    # 2. Pending Tasks
     try:
-        cur.execute("SELECT COUNT(*) FROM odev_satir WHERE tamamlandi=0")
-        pending = cur.fetchone()[0]
-    except:
-        pending = 0
-        
-    # 3. Success Rate (General)
-    ratio = 0
-    try:
-        cur.execute("SELECT COUNT(*), SUM(CASE WHEN tamamlandi=1 THEN 1 ELSE 0 END) FROM odev_satir")
-        row = cur.fetchone()
-        if row and row[0] > 0:
-            ratio = int((row[1] / row[0]) * 100)
-    except:
-        pass
-        
-    return DashboardStats(
-        student_count=std_count,
-        pending_tasks=pending,
-        success_rate=ratio,
-        quote=get_random_quote()
-    )
+        students = con.execute('SELECT COUNT(*) FROM ogrenci').fetchone()[0]
+        summary = status_counts(r[0] for r in con.execute('SELECT durum FROM odev_satir'))
+        return DashboardStats(student_count=students,
+                              pending_tasks=summary['pending'],
+                              success_rate=summary['success_rate'],
+                              quote=get_random_quote())
+    finally:
+        con.close()
 
 @app.get("/api/students", response_model=List[Student])
 def get_students():
@@ -125,24 +137,27 @@ def get_students():
     Returns a list of all active students.
     """
     con = db.get_conn()
-    cur = con.cursor()
-    # Assuming 'aktif' column exists or just grabbing all
-    # Checking db schema effectively allows us to be more precise soon.
-    # For now, select basic columns.
-    # Valid columns: id, ad, soyad, ogr_no, ana_grup, alt_grup, veli_tel1
-    cur.execute("SELECT id, ad, soyad, alt_grup, ana_grup, veli_tel1 FROM ogrenci WHERE aktif=1 ORDER BY ad, soyad")
-    rows = cur.fetchall()
+    try:
+        cur = con.cursor()
+        # Assuming 'aktif' column exists or just grabbing all
+        # Checking db schema effectively allows us to be more precise soon.
+        # For now, select basic columns.
+        # Valid columns: id, ad, soyad, ogr_no, ana_grup, alt_grup, veli_tel1
+        cur.execute("SELECT id, ad, soyad, alt_grup, ana_grup, veli_tel1 FROM ogrenci WHERE aktif=1 ORDER BY ad, soyad")
+        rows = cur.fetchall()
     
-    students = []
-    for r in rows:
-        students.append(Student(
-            id=r[0],
-            ad_soyad=f"{r[1]} {r[2]}", # Combine ad + soyad
-            sinif=r[3], # alt_grup -> sinif
-            okul=r[4],  # ana_grup -> okul
-            telefon=r[5] # veli_tel1
-        ))
-    return students
+        students = []
+        for r in rows:
+            students.append(Student(
+                id=r[0],
+                ad_soyad=f"{r[1]} {r[2]}", # Combine ad + soyad
+                sinif=r[3], # alt_grup -> sinif
+                okul=r[4],  # ana_grup -> okul
+                telefon=r[5] # veli_tel1
+            ))
+        return students
+    finally:
+        con.close()
 
 class Homework(BaseModel):
     id: int
@@ -154,58 +169,53 @@ class Homework(BaseModel):
     is_completed: bool
 
 @app.get("/api/homework", response_model=List[Homework])
-def get_homework_list(limit: int = 50):
-    """
-    Returns latest homework tasks.
-    """
+def get_homework_list(limit: int = Query(50, ge=1, le=500)):
+    """Bitiş tarihi kümeden okunur, tamamlanma tarihi teslim tarihi değildir."""
     con = db.get_conn()
-    cur = con.cursor()
-    
-    # query fields: s.id, o.ad, o.soyad, s.ders, s.kitap, s.konu, s.tamamlanma_tarihi, s.durum
-    # Note: s.durum is 'devam' or 'tamam'. 'tamamlandi' column does not exist.
-    query = """
-        SELECT s.id, o.ad, o.soyad, s.ders, s.kitap, s.konu, s.tamamlanma_tarihi, s.durum
-        FROM odev_satir s
-        JOIN ogrenci o ON s.ogrenci_id = o.id
-        WHERE s.durum != 'tamam'
-        ORDER BY s.id DESC
-        LIMIT ?
-    """
-    cur.execute(query, (limit,))
-    rows = cur.fetchall()
-    
-    homeworks = []
-    for r in rows:
-        homeworks.append(Homework(
-            id=r[0],
-            student_name=f"{r[1]} {r[2]}",
-            lesson=r[3],
-            book=r[4],
-            subject=r[5],
-            due_date=r[6], # tamamlanma_tarihi (or tarih?) - let's use what we have. Actually due_date is usually future. s.tarih is creation.
-            is_completed=(r[7] == 'tamam')
-        ))
-    return homeworks
+    try:
+        cursor = con.execute("""
+            SELECT s.id, o.ad, o.soyad, s.ders, s.kitap, s.konu,
+                   k.bitis_tarihi, s.durum
+            FROM odev_satir s JOIN ogrenci o ON o.id=s.ogrenci_id
+            LEFT JOIN odev_kume k ON k.id=s.kume_id
+            ORDER BY s.id DESC
+        """)
+        result = []
+        while len(result) < limit:
+            batch = cursor.fetchmany(256)
+            if not batch:
+                break
+            for r in batch:
+                if not is_completed(r[7]):
+                    result.append(Homework(id=r[0], student_name=f"{r[1]} {r[2]}",
+                                           lesson=r[3] or '', book=r[4], subject=r[5],
+                                           due_date=r[6], is_completed=False))
+                if len(result) >= limit:
+                    break
+        return result
+    finally:
+        con.close()
 
 class HomeworkUpdate(BaseModel):
     is_completed: bool
 
 @app.post("/api/homework/{homework_id}/complete")
 def complete_homework(homework_id: int):
-    """
-    Marks a specific homework as completed.
-    """
+    """Satırın durumu ve bağlı ödev başlığı birlikte güncellenir."""
+    from web_api.homework_store import set_single_line_done
     con = db.get_conn()
-    cur = con.cursor()
-    
-    # Update durum='tamam' and set tamamlanma_tarihi
     try:
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cur.execute("UPDATE odev_satir SET durum='tamam', tamamlanma_tarihi=? WHERE id=?", (now_str, homework_id))
-        con.commit()
-        return {"status": "success", "message": "Homework marked as completed"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+        with con:
+            # SQLite BEGIN DEFERRED'de iki eşzamanlı okuyucunun yazmaya
+            # geçerken çakışmasını engelle; işlemi baştan sıraya al.
+            con.execute('BEGIN IMMEDIATE')
+            changed = set_single_line_done(con, homework_id, True)
+        if not changed:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail='Ödev bulunamadı')
+        return {'status': 'success', 'updated': changed}
+    finally:
+        con.close()
 
 class HomeworkCreate(BaseModel):
     student_id: int
@@ -224,15 +234,18 @@ def create_homework(hw: HomeworkCreate):
     con = db.get_conn()
     cur = con.cursor()
     try:
+        all_topics = hw.topics if hw.topics is not None else [hw.topic]
+        topic_list = [name.strip() for name in all_topics if isinstance(name, str) and name.strip()]
+        if not topic_list or len(topic_list) > 100:
+            raise HTTPException(status_code=422, detail='1-100 geçerli konu seçilmeli')
+        if not _allowed_lesson(hw.lesson):
+            raise HTTPException(status_code=422, detail='Geçersiz ders')
+        bitis = _checked_due_date(hw.due_date)
+        con.execute('BEGIN IMMEDIATE')
+        if not cur.execute('SELECT 1 FROM ogrenci WHERE id=?', (hw.student_id,)).fetchone():
+            raise HTTPException(status_code=422, detail='Öğrenci bulunamadı')
         # 1. Create odev_kume (Homework Set)
         verilis = datetime.now().strftime("%Y-%m-%d")
-        # Default due date 7 days if not provided
-        if hw.due_date:
-            bitis = hw.due_date
-        else:
-            # Simple 7 days add
-            from datetime import timedelta
-            bitis = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
             
         cur.execute(
             "INSERT INTO odev_kume(ogrenci_id, verilis_tarihi, bitis_tarihi) VALUES(?,?,?)",
@@ -251,14 +264,7 @@ def create_homework(hw: HomeworkCreate):
             pass
             
         # Prepare list of topics
-        topic_list = []
-        if hw.topics:
-            topic_list = hw.topics
-        elif hw.topic:
-            topic_list = [hw.topic]
-            
-        if not topic_list:
-             return {"status": "error", "message": "No topics selected"}
+        # Topic list was normalized before opening the transaction.
 
         # Auto-add book to global pool if provided
         if hw.book and hw.book.strip():
@@ -272,25 +278,23 @@ def create_homework(hw: HomeworkCreate):
         # Or one odev per topic? The schema allows multiple 'odev' rows for one 'kume_id'.
         # Let's create one 'odev' entry per topic to be safe and consistent with desktop app likely structure.
         
+        seen_topic_names = set()
         for t_name in topic_list:
             # Try to resolve real Topic ID to avoid UNIQUE constraint violation on (kume_id, ders, konu_id, kitap_ad)
             # if we use 0 for all topics, only the first one succeeds!
-            real_topic_id = 0
-            try:
-                # Sanitize table name
-                import re
-                table_cand = re.sub(r'[^a-zA-Z0-9_ğüşıöçĞÜŞİÖÇ]', '', hw.lesson)
-                # Check if it is a valid lesson table (simple heuristic: exists in db)
-                cur.execute(f"SELECT id FROM {table_cand} WHERE konu=?", (t_name,))
-                row = cur.fetchone()
-                if row: 
-                    real_topic_id = row[0]
-                else:
-                    # Fallback: Generate a pseudo-unique ID from string hash to avoid collision
-                    # Ensure it fits in integer
-                    real_topic_id = abs(hash(t_name)) % 1000000
-            except:
-                real_topic_id = abs(hash(t_name)) % 1000000
+            # Gerçek ders tablosu yalnızca beyaz listeden seçilir.
+            # Yoksa küme içi eşsiz negatif sıra numarası kullanılır; hash() kararsızdır.
+            real_topic_id = -(len(seen_topic_names) + 1)
+            if t_name in seen_topic_names:
+                continue
+            seen_topic_names.add(t_name)
+            if hw.lesson in {v for grp in GRUP_DERSLER.values() for v in grp}:
+                try:
+                    row = cur.execute(f'SELECT id FROM "{hw.lesson}" WHERE konu=?', (t_name,)).fetchone()
+                    if row:
+                        real_topic_id = row[0]
+                except Exception:
+                    pass
 
             # 3. Insert into odev (Header)
             cur.execute(
@@ -312,12 +316,15 @@ def create_homework(hw: HomeworkCreate):
             )
             
         con.commit()
-        return {"status": "success", "message": f"Homework created for {len(topic_list)} topics", "kume_id": kume_id}
+        return {"status": "success", "message": f"Homework created for {len(seen_topic_names)} topics", "kume_id": kume_id}
         
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"status": "error", "message": str(e)}
+    except HTTPException:
+        con.rollback()
+        raise
+    except Exception:
+        con.rollback()
+        raise HTTPException(status_code=422, detail='Ödev oluşturulamadı; kayıt yapılmadı.')
+
     finally:
         if con: con.close()
 
@@ -367,58 +374,64 @@ class MatrixData(BaseModel):
 @app.get("/api/matrix/{table_name}", response_model=MatrixData)
 def get_matrix_data(table_name: str, student_id: int = Query(None)):
     con = db.get_conn()
-    cur = con.cursor()
-    
-    # 1. Get Topics
     try:
-        cur.execute(f"SELECT id, konu FROM {table_name} ORDER BY id")
-        topics = [Topic(id=r[0], name=r[1]) for r in cur.fetchall()]
-    except Exception:
-        return MatrixData(topics=[], books=[], existing=[])
-
-    # 2. Get Books (from columns AND 'kitap' table)
-    # Hybrid approach: Supports both old-style (column-based) and new-style (row-based) book management
+        cur = con.cursor()
     
-    # A) Column-based (Legacy)
-    cur.execute(f"PRAGMA table_info({table_name})")
-    cols = [r[1] for r in cur.fetchall()]
-    books_cols = [c for c in cols if c not in ('id', 'konu', 'sinif', 'video_suresi', 'Sınıf')]
-    
-    # B) Row-based (New Standard via 'kitap' table)
-    # Ensure we look for the exact table name
-    cur.execute("SELECT ad FROM kitap WHERE ders=? ORDER BY ad", (table_name,))
-    books_rows = [r[0] for r in cur.fetchall()]
-    
-    # Merge and Dedup
-    books = sorted(list(set(books_cols + books_rows)))
-
-    # 3. Get Existing Assignments (if student_id provided)
-    # 3. Get Existing Assignments (if student_id provided)
-    existing = []
-    if student_id:
+        # 1. Get Topics: ders adı yalnızca beyaz listeden alınır.
+        if table_name not in {t for grp in GRUP_DERSLER.values() for t in grp}:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=422, detail='Geçersiz ders')
         try:
-            # Get existing homeworks for this student and this lesson table (normalized name)
-            # The 'ders' column in 'odev' usually matches the table name or a variation.
-            # We strictly compare UPPER(ders) with table_name.
-            clean_name = table_name.upper()
-            cur.execute(
-                "SELECT konu_id, kitap_ad, durum FROM odev WHERE ogrenci_id=? AND REPLACE(UPPER(ders), ' ', '_') = ?", 
-                (student_id, clean_name)
-            )
-            for r in cur.fetchall():
-                existing.append({
-                    "topic_id": r[0],
-                    "book": r[1],
-                    "status": r[2]
-                })
-        except Exception as e:
-            print(f"Error fetching existing: {e}")
+            cur.execute(f"SELECT id, konu FROM {table_name} ORDER BY id")
+            topics = [Topic(id=r[0], name=r[1]) for r in cur.fetchall()]
+        except Exception:
+            return MatrixData(topics=[], books=[], existing=[])
 
-    return {
-        "topics": topics,
-        "books": books,
-        "existing": existing
-    }
+        # 2. Get Books (from columns AND 'kitap' table)
+        # Hybrid approach: Supports both old-style (column-based) and new-style (row-based) book management
+    
+        # A) Column-based (Legacy)
+        cur.execute(f"PRAGMA table_info({table_name})")
+        cols = [r[1] for r in cur.fetchall()]
+        books_cols = [c for c in cols if c not in ('id', 'konu', 'sinif', 'video_suresi', 'Sınıf')]
+    
+        # B) Row-based (New Standard via 'kitap' table)
+        # Ensure we look for the exact table name
+        cur.execute("SELECT ad FROM kitap WHERE ders=? ORDER BY ad", (table_name,))
+        books_rows = [r[0] for r in cur.fetchall()]
+    
+        # Merge and Dedup
+        books = sorted(list(set(books_cols + books_rows)))
+
+        # 3. Get Existing Assignments (if student_id provided)
+        # 3. Get Existing Assignments (if student_id provided)
+        existing = []
+        if student_id:
+            try:
+                # Get existing homeworks for this student and this lesson table (normalized name)
+                # The 'ders' column in 'odev' usually matches the table name or a variation.
+                # We strictly compare UPPER(ders) with table_name.
+                clean_name = table_name.upper()
+                cur.execute(
+                    "SELECT konu_id, kitap_ad, durum FROM odev WHERE ogrenci_id=? AND REPLACE(UPPER(ders), ' ', '_') = ?", 
+                    (student_id, clean_name)
+                )
+                for r in cur.fetchall():
+                    existing.append({
+                        "topic_id": r[0],
+                        "book": r[1],
+                        "status": mobile_status(r[2])
+                    })
+            except Exception as e:
+                print(f"Error fetching existing: {e}")
+
+        return {
+            "topics": topics,
+            "books": books,
+            "existing": existing
+        }
+    finally:
+        con.close()
 
 class BulkHomeworkItem(BaseModel):
     topic_id: int
@@ -440,13 +453,40 @@ def create_bulk_homework(data: BulkHomeworkCreate):
     con = db.get_conn()
     cur = con.cursor()
     try:
+        # İstek doğrulaması hiçbir kayıttan önce yapılır; hatalı girişte
+        # yetim küme, başka derse yazılan satır veya yarım kayıt oluşmaz.
+        if not 1 <= len(data.items) <= 500:
+            raise HTTPException(status_code=422, detail='1-500 ödev satırı seçilmeli.')
+        if not _allowed_lesson(data.lesson_table):
+            raise HTTPException(status_code=422, detail='Geçersiz ders tablosu.')
+        bitis = _checked_due_date(data.due_date)
+        unique = []
+        seen = set()
+        for item in data.items:
+            topic = item.topic_name.strip()
+            book = item.book_name.strip()
+            if item.topic_id <= 0 or not topic or not book:
+                raise HTTPException(status_code=422, detail='Konu veya kitap geçersiz.')
+            key = (item.topic_id, book.casefold())
+            if key not in seen:
+                seen.add(key)
+                unique.append((item.topic_id, topic, book))
+
+        # Yazıcı kilidi doğrulamalardan önce alınır: aynı öğrenciye eşzamanlı
+        # gelen iki farklı istek diğerinin yarım verisini göremez.
+        con.execute('BEGIN IMMEDIATE')
+        if not cur.execute('SELECT 1 FROM ogrenci WHERE id=?', (data.student_id,)).fetchone():
+            raise HTTPException(status_code=422, detail='Öğrenci bulunamadı.')
+        # Dinamik tablo adı yalnızca sabit beyaz listedeki derslerden gelir.
+        try:
+            topics = dict(cur.execute(f'SELECT id, konu FROM "{data.lesson_table}"').fetchall())
+        except Exception:
+            raise HTTPException(status_code=422, detail='Dersin konu tablosu bulunamadı.') from None
+        if any(topics.get(topic_id) != name for topic_id, name, _ in unique):
+            raise HTTPException(status_code=422, detail='Konu seçimi ders kaydıyla uyuşmuyor.')
+
         # 1. Create odev_kume
         verilis = datetime.now().strftime("%Y-%m-%d")
-        if data.due_date:
-            bitis = data.due_date
-        else:
-            from datetime import timedelta
-            bitis = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
             
         cur.execute(
             "INSERT INTO odev_kume(ogrenci_id, verilis_tarihi, bitis_tarihi) VALUES(?,?,?)",
@@ -455,19 +495,16 @@ def create_bulk_homework(data: BulkHomeworkCreate):
         kume_id = cur.lastrowid
         
         count = 0
-        for item in data.items:
+        for topic_id, topic_name, book_name in unique:
             # Auto-save book
-            if item.book_name and item.book_name.strip():
-                 try:
-                     cur.execute("INSERT OR IGNORE INTO kitap(ders, ad) VALUES(?,?)", (data.lesson_table, item.book_name.strip()))
-                 except: pass
+            cur.execute('INSERT OR IGNORE INTO kitap(ders, ad) VALUES(?,?)', (data.lesson_table, book_name))
 
             # Inser into odev
             cur.execute(
                 """INSERT INTO odev
                 (kume_id, ogrenci_id, ders, konu_id, konu_ad, kitap_ad, saat_dk, aciklama, durum, verilis_tarihi)
                 VALUES(?,?,?,?,?,?,?,?,?,?)""",
-                (kume_id, data.student_id, data.lesson_table, item.topic_id, item.topic_name, item.book_name, 0, "", "devam", verilis)
+                (kume_id, data.student_id, data.lesson_table, topic_id, topic_name, book_name, 0, "", "devam", verilis)
             )
             odev_id = cur.lastrowid
             
@@ -476,15 +513,23 @@ def create_bulk_homework(data: BulkHomeworkCreate):
                 """INSERT INTO odev_satir
                 (ogrenci_id, kume_id, odev_id, ders, kitap, konu, tarih, durum)
                 VALUES(?,?,?,?,?,?,?,?)""",
-                (data.student_id, kume_id, odev_id, data.lesson_name, item.book_name, item.topic_name, verilis, "devam")
+                # Görünüm etiketi yerine kalıcı ders anahtarı kullanılır;
+                # başlık/satır eşlemesi aynı dil ve yazıma bağlı kalmaz.
+                (data.student_id, kume_id, odev_id, data.lesson_table, book_name, topic_name, verilis, "devam")
             )
             count += 1
             
         con.commit()
         return {"status": "success", "message": f"{count} homeworks created", "kume_id": kume_id}
         
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    except HTTPException:
+        con.rollback()
+        raise
+    except Exception:
+        con.rollback()
+        raise HTTPException(status_code=422, detail='Toplu ödev kaydı başarısız; kayıtlar geri alındı.')
+    finally:
+        con.close()
 
 # --- Book Management APIs ---
 
@@ -497,18 +542,25 @@ def create_book(book: BookCreate):
     """Adds a new book to the global pool (kitap table)."""
     con = db.get_conn()
     try:
-        con.execute("INSERT OR IGNORE INTO kitap(ders, ad) VALUES(?,?)", (book.lesson_table, book.book_name))
-        con.commit()
-        return {"status": "success"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+        try:
+            con.execute("INSERT OR IGNORE INTO kitap(ders, ad) VALUES(?,?)", (book.lesson_table, book.book_name))
+            con.commit()
+            return {"status": "success"}
+        except Exception as e:
+            con.rollback()
+        return {"status": "error", "message": "İşlem başarısız; kayıt değişmedi."}
+    finally:
+        con.close()
 
 @app.get("/api/books/{lesson_table}")
 def get_books(lesson_table: str):
     """Returns all books for a lesson from the pool."""
     con = db.get_conn()
-    cur = con.execute("SELECT ad FROM kitap WHERE ders=? ORDER BY ad", (lesson_table,))
-    return [r[0] for r in cur.fetchall()]
+    try:
+        cur = con.execute("SELECT ad FROM kitap WHERE ders=? ORDER BY ad", (lesson_table,))
+        return [r[0] for r in cur.fetchall()]
+    finally:
+        con.close()
 
 class StudentBookAssign(BaseModel):
     student_id: int
@@ -521,34 +573,41 @@ def assign_student_book(data: StudentBookAssign):
     """Assigns or removes a book for a student."""
     con = db.get_conn()
     try:
-        if data.action == "add":
-            verilis = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # Ensure column exists (legacy db protection)
-            try:
-                con.execute(f"ALTER TABLE ogrenci_kitap ADD COLUMN eklenme_tarih TEXT")
-            except:
-                pass
+        try:
+            if data.action == "add":
+                verilis = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                # Ensure column exists (legacy db protection)
+                try:
+                    con.execute(f"ALTER TABLE ogrenci_kitap ADD COLUMN eklenme_tarih TEXT")
+                except:
+                    pass
                 
-            con.execute(
-                "INSERT OR IGNORE INTO ogrenci_kitap(ogrenci_id, ders, kitap_ad, eklenme_tarih) VALUES(?,?,?,?)",
-                (data.student_id, data.lesson_table, data.book_name, verilis)
-            )
-        else:
-            con.execute(
-                "DELETE FROM ogrenci_kitap WHERE ogrenci_id=? AND ders=? AND kitap_ad=?",
-                (data.student_id, data.lesson_table, data.book_name)
-            )
-        con.commit()
-        return {"status": "success"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+                con.execute(
+                    "INSERT OR IGNORE INTO ogrenci_kitap(ogrenci_id, ders, kitap_ad, eklenme_tarih) VALUES(?,?,?,?)",
+                    (data.student_id, data.lesson_table, data.book_name, verilis)
+                )
+            else:
+                con.execute(
+                    "DELETE FROM ogrenci_kitap WHERE ogrenci_id=? AND ders=? AND kitap_ad=?",
+                    (data.student_id, data.lesson_table, data.book_name)
+                )
+            con.commit()
+            return {"status": "success"}
+        except Exception as e:
+            con.rollback()
+        return {"status": "error", "message": "İşlem başarısız; kayıt değişmedi."}
+    finally:
+        con.close()
 
 @app.get("/api/student/{student_id}/books/{lesson_table}")
 def get_student_books(student_id: int, lesson_table: str):
     """Returns books assigned to a specific student for a lesson."""
     con = db.get_conn()
-    cur = con.execute("SELECT kitap_ad FROM ogrenci_kitap WHERE ogrenci_id=? AND ders=?", (student_id, lesson_table))
-    return [r[0] for r in cur.fetchall()]
+    try:
+        cur = con.execute("SELECT kitap_ad FROM ogrenci_kitap WHERE ogrenci_id=? AND ders=?", (student_id, lesson_table))
+        return [r[0] for r in cur.fetchall()]
+    finally:
+        con.close()
 
 # --- Homework Tracking & Control (Screenshot 4) ---
 
@@ -574,79 +633,83 @@ def get_student_tracking(student_id: int, lesson: Optional[str] = None, status: 
     Switched to use 'odev' table to match desktop app data.
     """
     con = db.get_conn()
-    cur = con.cursor()
+    try:
+        cur = con.cursor()
     
-    # Base query: odev JOIN odev_kume
-    # odev columns: id, kume_id, ders, kitap_ad, konu_ad, saat_dk, durum
-    # odev_kume columns: verilis_tarihi
-    query = """
-        SELECT d.id, d.ders, d.kitap_ad, d.konu_ad, d.saat_dk, d.durum, k.verilis_tarihi
-        FROM odev d
-        JOIN odev_kume k ON d.kume_id = k.id
-        WHERE d.ogrenci_id = ?
-    """
-    params = [student_id]
+        # Base query: odev JOIN odev_kume
+        # odev columns: id, kume_id, ders, kitap_ad, konu_ad, saat_dk, durum
+        # odev_kume columns: verilis_tarihi
+        query = """
+            SELECT d.id, d.ders, d.kitap_ad, d.konu_ad, d.saat_dk, d.durum, k.verilis_tarihi
+            FROM odev d
+            JOIN odev_kume k ON d.kume_id = k.id
+            WHERE d.ogrenci_id = ?
+        """
+        params = [student_id]
     
-    if cluster_id:
-        query += " AND d.kume_id = ?"
-        params.append(cluster_id)
+        if cluster_id:
+            query += " AND d.kume_id = ?"
+            params.append(cluster_id)
         
-    # Filters
-    if lesson and lesson != "Hepsi":
-        query += " AND d.ders = ?"
-        params.append(lesson)
+        # Filters
+        if lesson and lesson != "Hepsi":
+            query += " AND d.ders = ?"
+            params.append(lesson)
         
-    if status and status != "Hepsi":
-        # Desktop app uses 'yapildi' for done, 'devam' for pending.
-        # Checkboxes in frontend send 'tamam'/'devam'. We need to map properly.
-        # Frontend 'tamam' should map to DB 'yapildi'.
-        if status == "Yapılanlar":
-            query += " AND d.durum = 'yapildi'"
-        elif status == "Yapılmayanlar":
-             query += " AND d.durum != 'yapildi'"
+        if status and status != "Hepsi":
+            # Desktop app uses 'yapildi' for done, 'devam' for pending.
+            # Checkboxes in frontend send 'tamam'/'devam'. We need to map properly.
+            # Frontend 'tamam' should map to DB 'yapildi'.
+            # Durum eşlemesini aşağıdaki Python filtresi yapar.
+            pass
     
-    query += " ORDER BY d.id DESC"
+        query += " ORDER BY d.id DESC"
     
-    cur.execute(query, params)
-    rows = cur.fetchall()
+        cur.execute(query, params)
+        rows = cur.fetchall()
     
-    items = []
-    completed_count = 0
-    total_count = 0
+        items = []
+        completed_count = 0
+        total_count = 0
     
-    for r in rows:
-        # DB 'yapildi' -> Frontend 'tamam' (or keep 'yapildi' if we update frontend)
-        # Let's standardize on Frontend using 'tamam' and API mapping it.
-        # But wait, frontend logic: isDone = currentStatus === 'tamam'.
-        # If DB returns 'yapildi', frontend won't check the box unless we map it.
+        for r in rows:
+            if status in ('Yapılanlar', 'Yapılmayanlar'):
+                if (status == 'Yapılanlar') != is_completed(r[5]):
+                    continue
+            # DB 'yapildi' -> Frontend 'tamam' (or keep 'yapildi' if we update frontend)
+            # Let's standardize on Frontend using 'tamam' and API mapping it.
+            # But wait, frontend logic: isDone = currentStatus === 'tamam'.
+            # If DB returns 'yapildi', frontend won't check the box unless we map it.
         
-        db_status = r[5]
-        status_mapped = "tamam" if db_status == "yapildi" else "devam"
+            db_status = r[5]
+            status_mapped = mobile_status(db_status)
         
-        is_done = (status_mapped == 'tamam')
-        total_count += 1
-        if is_done: completed_count += 1
+            is_done = (status_mapped == 'tamam')
+            total_count += 1
+            if is_done: completed_count += 1
         
-        items.append(HomeworkItemDetail(
-            id=r[0],
-            lesson=r[1] or "",
-            book=r[2] or "",
-            topic=r[3] or "",
-            duration=r[4] or 0,
-            status=status_mapped, 
-            date=r[6] or ""
-        ))
+            items.append(HomeworkItemDetail(
+                id=r[0],
+                lesson=r[1] or "",
+                book=r[2] or "",
+                topic=r[3] or "",
+                duration=r[4] or 0,
+                status=status_mapped, 
+                date=r[6] or ""
+            ))
         
-    percent = int((completed_count / total_count * 100)) if total_count > 0 else 0
+        percent = int((completed_count / total_count * 100)) if total_count > 0 else 0
     
-    stats = TrackingStats(
-        total=total_count,
-        completed=completed_count,
-        percent=percent,
-        active=total_count - completed_count
-    )
+        stats = TrackingStats(
+            total=total_count,
+            completed=completed_count,
+            percent=percent,
+            active=total_count - completed_count
+        )
     
-    return {"stats": stats, "items": items}
+        return {"stats": stats, "items": items}
+    finally:
+        con.close()
 
 class StatusUpdate(BaseModel):
     homework_ids: List[int]
@@ -654,29 +717,20 @@ class StatusUpdate(BaseModel):
 
 @app.post("/api/homework/status/bulk")
 def update_homework_status_bulk(data: StatusUpdate):
-    """
-    Updates status of multiple homework items in 'odev' table.
-    """
+    from web_api.homework_store import set_headers_done
+    from fastapi import HTTPException
+    if data.status not in ('tamam', 'devam'):
+        raise HTTPException(status_code=422, detail='Geçersiz durum')
+    if len(data.homework_ids) > 500:
+        raise HTTPException(status_code=422, detail='Tek seferde en fazla 500 ödev')
     con = db.get_conn()
-    cur = con.cursor()
     try:
-        # Map frontend 'tamam' -> DB 'yapildi'
-        db_status = "yapildi" if data.status == "tamam" else "devam"
-        
-        # Build query
-        ids_placeholder = ",".join("?" for _ in data.homework_ids)
-        if not ids_placeholder:
-            return {"status": "success", "message": "No IDs provided"}
-            
-        params = [db_status]
-        query = f"UPDATE odev SET durum=? WHERE id IN ({ids_placeholder})"
-        params.extend(data.homework_ids)
-        
-        cur.execute(query, params)
-        con.commit()
-        return {"status": "success", "updated": cur.rowcount}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+        with con:
+            con.execute('BEGIN IMMEDIATE')
+            updated = set_headers_done(con, data.homework_ids, data.status == 'tamam')
+        return {'status': 'success', 'updated': updated}
+    finally:
+        con.close()
 
 # --- Clusters API (For Split View) ---
 
@@ -696,39 +750,30 @@ def get_student_clusters(student_id: int):
     Calculates progress for each cluster.
     """
     con = db.get_conn()
-    cur = con.cursor()
-    
-    # Get all clusters for student
-    # Join with odev to calculate stats
-    query = """
-        SELECT k.id, k.verilis_tarihi, k.bitis_tarihi, 
-               COUNT(d.id) as total,
-               SUM(CASE WHEN d.durum='yapildi' THEN 1 ELSE 0 END) as done
-        FROM odev_kume k
-        LEFT JOIN odev d ON d.kume_id = k.id
-        WHERE k.ogrenci_id = ?
-        GROUP BY k.id
-        ORDER BY k.id DESC
-    """
-    cur.execute(query, (student_id,))
-    rows = cur.fetchall()
-    
-    clusters = []
-    for r in rows:
-        total = r[3] or 0
-        done = r[4] or 0
-        pct = int((done / total * 100)) if total > 0 else 0
-        
+    try:
+        # Türkçe/İngilizce eski durumlar tek normalizasyon üzerinden hesaplanır.
+        rows = con.execute("""
+            SELECT k.id, k.verilis_tarihi, k.bitis_tarihi, d.durum
+            FROM odev_kume k LEFT JOIN odev d ON d.kume_id=k.id
+            WHERE k.ogrenci_id=? ORDER BY k.id DESC
+        """,(student_id,)).fetchall()
+    finally:
+        con.close()
+    groups = {}
+    for kid, given, due, status_value in rows:
+        if kid not in groups:
+            groups[kid] = {'given': given, 'due': due, 'statuses': []}
+        if status_value is not None:
+            groups[kid]['statuses'].append(status_value)
+    clusters=[]
+    for kid, data in groups.items():
+        summary = status_counts(data['statuses'])
         clusters.append(ClusterStats(
-            id=r[0],
-            given_date=r[1] or "",
-            due_date=r[2] or "",
-            total_items=total,
-            completed_items=done,
-            percent=pct,
-            status_label=f"Son: {r[2]}" if r[2] else "Süresiz"
-        ))
-        
+            id=kid, given_date=data['given'] or '', due_date=data['due'] or '',
+            total_items=summary['total'], completed_items=summary['completed'],
+            percent=summary['success_rate'],
+            status_label=f"Son: {data['due']}" if data['due'] else 'Süresiz'))
+
     return clusters
 
 # --- Suggestions API (For Homework Tracking Form) ---
@@ -742,52 +787,56 @@ def get_student_suggestions(student_id: int):
     - Active items (Devam) -> Normal/Yellow
     """
     con = db.get_conn()
-    cur = con.cursor()
+    try:
+        cur = con.cursor()
     
-    # 1. Fetch 'Overdue' or 'Active' homeworks
-    # In desktop app, 'gecikmis' means due_date passed and not done.
-    # 'odev_kume' has 'bitis_tarihi'.
-    now_str = datetime.now().strftime("%Y-%m-%d")
+        # 1. Fetch 'Overdue' or 'Active' homeworks
+        # In desktop app, 'gecikmis' means due_date passed and not done.
+        # 'odev_kume' has 'bitis_tarihi'.
+        now_str = datetime.now().strftime("%Y-%m-%d")
     
-    query = """
-        SELECT d.id, d.ders, d.kitap_ad, d.konu_ad, d.saat_dk, d.durum, k.bitis_tarihi
-        FROM odev d
-        JOIN odev_kume k ON d.kume_id = k.id
-        WHERE d.ogrenci_id = ? 
-          AND d.durum != 'yapildi'
-        ORDER BY k.bitis_tarihi ASC
-    """
-    cur.execute(query, (student_id,))
-    rows = cur.fetchall()
+        query = """
+            SELECT d.id, d.ders, d.kitap_ad, d.konu_ad, d.saat_dk, d.durum, k.bitis_tarihi
+            FROM odev d
+            JOIN odev_kume k ON d.kume_id = k.id
+            WHERE d.ogrenci_id = ? 
+            ORDER BY k.bitis_tarihi ASC
+        """
+        cur.execute(query, (student_id,))
+        rows = cur.fetchall()
     
-    suggestions = []
-    seen_keys = set()
+        suggestions = []
+        seen_keys = set()
     
-    for r in rows:
-        # Key for dedup
-        key = f"{r[1]}|{r[2]}|{r[3]}"
-        if key in seen_keys: continue
-        seen_keys.add(key)
+        for r in rows:
+            if is_completed(r[5]):
+                continue
+            # Key for dedup
+            key = f"{r[1]}|{r[2]}|{r[3]}"
+            if key in seen_keys: continue
+            seen_keys.add(key)
         
-        # Determine status/color logic
-        due_date = r[6]
-        status = "normal"
-        if due_date and due_date < now_str:
-            status = "gecikmis"
-        elif due_date and due_date == now_str:
-             status = "yakinda"
+            # Determine status/color logic
+            due_date = r[6]
+            status = "normal"
+            if due_date and due_date < now_str:
+                status = "gecikmis"
+            elif due_date and due_date == now_str:
+                 status = "yakinda"
              
-        suggestions.append({
-            "id": r[0],
-            "lesson": r[1],
-            "book": r[2],
-            "topic": r[3],
-            "duration": r[4],
-            "status": status,
-            "due_date": due_date
-        })
+            suggestions.append({
+                "id": r[0],
+                "lesson": r[1],
+                "book": r[2],
+                "topic": r[3],
+                "duration": r[4],
+                "status": status,
+                "due_date": due_date
+            })
         
-    return suggestions
+        return suggestions
+    finally:
+        con.close()
 
 # --- WhatsApp Reporting (Screenshot 4, Item 58) ---
 @app.post("/api/student/{student_id}/whatsapp")
@@ -797,75 +846,88 @@ def generate_whatsapp_text(student_id: int, lesson: Optional[str] = None, status
     Uses 'odev' table.
     """
     con = db.get_conn()
-    cur = con.cursor()
+    try:
+        cur = con.cursor()
     
-    query = """
-        SELECT d.id, d.ders, d.kitap_ad, d.konu_ad, d.saat_dk, d.durum, k.verilis_tarihi
-        FROM odev d
-        JOIN odev_kume k ON d.kume_id = k.id
-        WHERE d.ogrenci_id = ?
-    """
-    params = [student_id]
+        query = """
+            SELECT d.id, d.ders, d.kitap_ad, d.konu_ad, d.saat_dk, d.durum, k.verilis_tarihi
+            FROM odev d
+            JOIN odev_kume k ON d.kume_id = k.id
+            WHERE d.ogrenci_id = ?
+        """
+        params = [student_id]
     
-    if lesson and lesson != "Hepsi":
-         query += " AND d.ders = ?"
-         params.append(lesson)
+        if lesson and lesson != "Hepsi":
+             query += " AND d.ders = ?"
+             params.append(lesson)
     
-    if status and status != "Hepsi":
-         if status == "Yapılanlar": query += " AND d.durum = 'yapildi'"
-         elif status == "Yapılmayanlar": query += " AND d.durum != 'yapildi'"
+        # Durum filtresi kayıt dilinden bağımsız olarak Python tarafında uygulanır.
          
-    query += " ORDER BY d.id DESC LIMIT 50"
-    
-    cur.execute(query, params)
-    rows = cur.fetchall()
-    
-    if not rows:
-        return {"text": "Gösterilecek ödev bulunamadı."}
+        query += " ORDER BY d.id DESC"
+
+        cur.execute(query, params)
+        # Filtre önce uygulanır; aksi halde son 50 tamamlanmış kayıttan ötürü
+        # daha eski fakat bekleyen ödev rapordan yanlışlıkla kaybolabilir.
+        rows = []
+        while len(rows) < 50:
+            batch = cur.fetchmany(128)
+            if not batch:
+                break
+            for item in batch:
+                if status in ('Yapılanlar', 'Yapılmayanlar') and (status == 'Yapılanlar') != is_completed(item[5]):
+                    continue
+                rows.append(item)
+                if len(rows) >= 50:
+                    break
+        if not rows:
+            return {"text": "Gösterilecek ödev bulunamadı."}
         
-    # Get Student Name
-    s_row = con.execute("SELECT ad, soyad FROM ogrenci WHERE id=?", (student_id,)).fetchone()
-    student_name = f"{s_row[0]} {s_row[1]}" if s_row else "Öğrenci"
+        # Get Student Name
+        s_row = con.execute("SELECT ad, soyad FROM ogrenci WHERE id=?", (student_id,)).fetchone()
+        student_name = f"{s_row[0]} {s_row[1]}" if s_row else "Öğrenci"
     
-    # Build Text
-    parts = []
-    parts.append(f"🎓 *Ödev Özeti* - {student_name}")
-    parts.append(f"📅 *Tarih:* {datetime.now().strftime('%d.%m.%Y')}")
-    parts.append("")
+        # Build Text
+        parts = []
+        parts.append(f"🎓 *Ödev Özeti* - {student_name}")
+        parts.append(f"📅 *Tarih:* {datetime.now().strftime('%d.%m.%Y')}")
+        parts.append("")
     
-    table_lines = []
-    total_minutes = 0
-    completed_count = 0
+        table_lines = []
+        total_minutes = 0
+        completed_count = 0
     
-    for r in rows:
-        db_status = r[5]
-        is_done = (db_status == 'yapildi')
-        icon = "✅" if is_done else "⏳"
+        for r in rows:
+            db_status = r[5]
+            is_done = is_completed(db_status)
+            icon = "✅" if is_done else "⏳"
         
-        line = f"{icon} {r[1]} / {r[2]} / {r[3]}"
-        dk = r[4] or 0
-        if dk > 0:
-            line += f" ({dk} dk)"
-            if is_done: total_minutes += dk
+            line = f"{icon} {r[1]} / {r[2]} / {r[3]}"
+            dk = r[4] or 0
+            if dk > 0:
+                line += f" ({dk} dk)"
+                if is_done: total_minutes += dk
             
-        if is_done: completed_count += 1
-        table_lines.append(line)
+            if is_done: completed_count += 1
+            table_lines.append(line)
         
-    if table_lines:
-        parts.append("```")
-        parts.extend(table_lines)
-        parts.append("```")
+        if table_lines:
+            parts.append("```")
+            parts.extend(table_lines)
+            parts.append("```")
         
-    parts.append("")
+        parts.append("")
     
-    stats_lines = []
-    stats_lines.append(f"📊 *İlerleme:* {completed_count}/{len(rows)}")
-    if total_minutes > 0:
-         stats_lines.append(f"⏱️ *Toplam Süre:* {total_minutes} dk")
+        stats_lines = []
+        stats_lines.append(f"📊 *İlerleme:* {completed_count}/{len(rows)}")
+        if total_minutes > 0:
+             stats_lines.append(f"⏱️ *Toplam Süre:* {total_minutes} dk")
          
-    stats_lines.append("🚀 _Başarılar dileriz._")
+        stats_lines.append("🚀 _Başarılar dileriz._")
     
-    parts.extend(stats_lines)
+        parts.extend(stats_lines)
+        return {"text": "\n".join(parts)}
+    finally:
+        con.close()
     
 # --- Embedded HTML Dashboard (Lite) ---
 from fastapi.responses import HTMLResponse
@@ -1059,12 +1121,26 @@ def get_html_report():
 
 # --- Mobile Assignment Helpers ---
 
+def _load_lesson_configs():
+    """Ders ayarı listelenirken kısa süreli SQLite bağlantısı kapatılır."""
+    con = db.get_conn()
+    try:
+        return list(db.get_lesson_config(con))
+    finally:
+        con.close()
+
 @app.get("/api/lessons/list")
 def get_lessons_list(student_id: Optional[int] = Query(None)):
     """Returns a list of available lessons. If student_id is provided, filters by their curriculum."""
     lessons = []
     seen = set()
-    
+    config_names = {}
+    if hasattr(db, 'get_lesson_config'):
+        try:
+            config_names = {item['id']: item['ad'] for item in _load_lesson_configs()}
+        except Exception:
+            pass
+
     # 1. Try to get lessons for specific student
     if student_id and hasattr(db, 'get_student_curriculum'):
         try:
@@ -1074,14 +1150,7 @@ def get_lessons_list(student_id: Optional[int] = Query(None)):
                     if tbl not in seen:
                         # Try to get display name from db.get_lesson_config if available, else clean_name
                         display_name = clean_lesson_name(tbl)
-                        if hasattr(db, 'get_lesson_config'):
-                            try:
-                                configs = db.get_lesson_config(db.get_conn())
-                                for c in configs:
-                                    if c['id'] == tbl:
-                                        display_name = c['ad']
-                                        break
-                            except: pass
+                        display_name = config_names.get(tbl, display_name)
                         
                         lessons.append({"id": tbl, "name": display_name})
                         seen.add(tbl)
@@ -1101,14 +1170,7 @@ def get_lessons_list(student_id: Optional[int] = Query(None)):
         if tbl not in seen:
             display_name = clean_lesson_name(tbl)
             # Try to get nicer name from DB if possible
-            if hasattr(db, 'get_lesson_config'):
-                try:
-                    configs = db.get_lesson_config(db.get_conn())
-                    for c in configs:
-                        if c['id'] == tbl:
-                            display_name = c['ad']
-                            break
-                except: pass
+            display_name = config_names.get(tbl, display_name)
 
             lessons.append({"id": tbl, "name": display_name})
             seen.add(tbl)
@@ -1124,7 +1186,7 @@ def get_books_for_lesson(lesson_id: str = Query(...)):
     books = []
     
     # Debug info
-    print(f"[*] API Books Request: lesson_id='{lesson_id}' | DB: {db.DB_PATH}")
+    # Dosya konumu ağ günlüklerine yazılmaz.
     
     # 0. Clean input and Normalize (Critical Step)
     # Frontend sends "TYT Matematik" (Display Name) but DB needs "tyt_matematik" (Key)
@@ -1165,11 +1227,11 @@ def get_books_for_lesson(lesson_id: str = Query(...)):
                 break
                 
     if found_key:
-        print(f"[*] RESOLVED: '{raw_input}' -> '{found_key}'")
+        # Eşleme loglanmaz.
         target_key = found_key
     else:
         # Fallback: simple snake_case conversion
-        print(f"[*] FALLBACK: '{raw_input}' -> snake_case")
+        # Geriye dönük adlandırma desteği.
         target_key = raw_input.lower().replace(" ", "_").replace("ı", "i").replace("İ", "i")
 
     
@@ -1239,22 +1301,8 @@ def get_books_for_lesson(lesson_id: str = Query(...)):
     except Exception as e:
         print(f"Error fetching table books for {lesson_id}: {e}")
 
-    # Final check
-    if not books:
-         print("[!] No books found. Adding debug entry.")
-         # Return granular debug info
-         books.append(f"DBG_INPUT: {lesson_id}")
-         books.append(f"DBG_RESOLVED: {target_key}")
-         books.append(f"DBG_DB_PATH: {db.DB_PATH}")
-         
-         # Test a direct query to see if connection is even working on the right DB
-         try:
-             chk = cur.execute("SELECT count(*) FROM kitap").fetchone()
-             books.append(f"DBG_KITAP_COUNT: {chk[0]}")
-             chk2 = cur.execute("SELECT count(*) FROM kitap WHERE ders='tyt_matematik'").fetchone()
-             books.append(f"DBG_TYT_MAT_EXACT: {chk2[0]}")
-         except Exception as e:
-             books.append(f"DBG_ERR: {str(e)}")
+    # Boş listede disk yolu/hata ayıklama bilgisi istemciye verilmez.
+    con.close()
 
     # Tekilleştir ve Sırala
     try:
@@ -1268,32 +1316,35 @@ def get_books_for_lesson(lesson_id: str = Query(...)):
 def get_student_detail(student_id: int):
     """Returns detailed info for the Profile screen."""
     con = db.get_conn()
-    cur = con.cursor()
-    # ogrenci columns: id, ad, soyad, veli_ad, veli_tel1, veli_tel2, ogrenci_tel, notlar, ...
-    # Mevcut şemayı tahmin ederek çekiyoruz, hata olursa handle ederiz.
     try:
-        cur.execute("SELECT * FROM ogrenci WHERE id=?", (student_id,))
-        # Kolon isimlerini al
-        col_names = [description[0] for description in cur.description]
-        row = cur.fetchone()
+        cur = con.cursor()
+        # ogrenci columns: id, ad, soyad, veli_ad, veli_tel1, veli_tel2, ogrenci_tel, notlar, ...
+        # Mevcut şemayı tahmin ederek çekiyoruz, hata olursa handle ederiz.
+        try:
+            cur.execute("SELECT * FROM ogrenci WHERE id=?", (student_id,))
+            # Kolon isimlerini al
+            col_names = [description[0] for description in cur.description]
+            row = cur.fetchone()
         
-        if not row:
-            return {"error": "Öğrenci bulunamadı"}
+            if not row:
+                return {"error": "Öğrenci bulunamadı"}
             
-        data = dict(zip(col_names, row))
+            data = dict(zip(col_names, row))
         
-        # Gereksiz/Hassas olmayan verileri temizle veya formatla
-        return {
-            "ad_soyad": f"{data.get('ad', '')} {data.get('soyad', '')}",
-            "sinif": data.get('alt_grup', '') or data.get('sinif', ''),
-            "okul": data.get('ana_grup', '') or data.get('okul', ''),
-            "ogrenci_tel": data.get('ogrenci_tel', '') or data.get('telefon', '-'),
-            "veli_ad": data.get('veli_ad', '-'),
-            "veli_tel1": data.get('veli_tel1', '-'),
-            "notlar": data.get('aciklama', '') or data.get('notlar', '')
-        }
-    except Exception as e:
-        return {"error": str(e)}
+            # Gereksiz/Hassas olmayan verileri temizle veya formatla
+            return {
+                "ad_soyad": f"{data.get('ad', '')} {data.get('soyad', '')}",
+                "sinif": data.get('alt_grup', '') or data.get('sinif', ''),
+                "okul": data.get('ana_grup', '') or data.get('okul', ''),
+                "ogrenci_tel": data.get('ogrenci_tel', '') or data.get('telefon', '-'),
+                "veli_ad": data.get('veli_ad', '-'),
+                "veli_tel1": data.get('veli_tel1', '-'),
+                "notlar": data.get('aciklama', '') or data.get('notlar', '')
+            }
+        except Exception as e:
+            return {"error": "Öğrenci bilgisi okunamadı."}
+    finally:
+        con.close()
 
 @app.get("/api/topics/list")
 def get_topics_for_lesson(lesson_id: str = Query(...), student_id: Optional[int] = None):
@@ -1325,7 +1376,7 @@ def get_topics_for_lesson(lesson_id: str = Query(...), student_id: Optional[int]
             # Ideally we match by 'ders' column which stores 'lesson_id' (table name) or pretty name?
             # Let's try both exact status match
             cur.execute(
-                "SELECT konu_ad, kitap, durum FROM odev_satir WHERE ogrenci_id=? AND ders=?",
+                "SELECT konu, kitap, durum FROM odev_satir WHERE ogrenci_id=? AND ders=?",
                 (student_id, lesson_id)
             )
             assign_rows = cur.fetchall()

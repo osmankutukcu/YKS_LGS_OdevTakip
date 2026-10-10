@@ -1,72 +1,91 @@
-name: Windows Setup Uretici (OdevTakip_v2_Kurulum.exe)
+name: Windows Installer (Guvenli Release)
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: write
 
 jobs:
   build-windows:
     runs-on: windows-latest
     env:
-      PYTHONUTF8: "1"
-      PYTHONIOENCODING: "utf-8"
-
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
     steps:
-    - name: Kodlari Cek
-      uses: actions/checkout@v4
+      - name: Kaynaklari al
+        uses: actions/checkout@v4
 
-    - name: Python 3.11 Kur
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-    - name: Bagimliliklari Yukle
-      run: |
-        python -m pip install --upgrade pip
-        if (Test-Path requirements_win.txt) {
-            pip install -r requirements_win.txt pyinstaller
-        } else {
-            pip install PyQt6 pandas openpyxl reportlab pillow matplotlib pyinstaller
-        }
+      - name: Surum etiketini ve gizli verileri kontrol et
+        shell: pwsh
+        run: |
+          if ('${{ github.ref_type }}' -eq 'tag') {
+            python tools/validate_release.py --tag '${{ github.ref_name }}' --check-tracked
+          } else {
+            python tools/validate_release.py
+          }
 
-    - name: PyInstaller ile Programi Derle
-      run: |
-        python build_app.py
+      - name: Otomatik testler
+        run: python -m unittest discover -s tests -p "test_update_*.py" -v
 
-    - name: Inno Setup Kur
-      run: |
-        choco install innosetup --no-progress -y
+      - name: Windows bagimliliklari
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements_win.txt
 
-    - name: Inno Setup ile Kurulum Exe Uret (OdevTakip_v2_Kurulum.exe)
-      run: |
-        $iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source
-        if (-not $iscc) {
-            $candidates = @(
-                "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-                "C:\Program Files\Inno Setup 6\ISCC.exe",
-                "C:\ProgramData\chocolatey\bin\iscc.exe"
-            )
-            foreach ($c in $candidates) {
-                if (Test-Path $c) { $iscc = $c; break }
-            }
-        }
-        Write-Host "ISCC konumu: $iscc"
-        & "$iscc" setup.iss
+      - name: Butunlesik guvenlik ve veritabani testleri
+        shell: pwsh
+        run: |
+          python -m pip install pytest httpx
+          python -m pytest -q tests/test_update_core.py tests/test_update_delivery.py tests/test_update_pipeline.py tests/test_backup_manager.py tests/test_backup_extended.py tests/test_unified_core.py tests/test_stabilization_regressions.py tests/test_write_durability_v354.py
 
-    - name: Kurulum Dosyasini Kaydet ve Indirilebilir Yap
-      uses: actions/upload-artifact@v4
-      with:
-        name: OdevTakip_v2_Kurulum_EXE
-        path: dist/OdevTakip_v2_Kurulum.exe
+      - name: PyInstaller uygulama EXE
+        run: python build_app.py
 
-    - name: GitHub Releases Ekle
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: dist/OdevTakip_v2_Kurulum.exe
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Inno Setup kur
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Inno Setup installer
+        shell: pwsh
+        run: |
+          $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) {
+            $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          }
+          if (-not (Test-Path $iscc)) { throw 'ISCC.exe bulunamadi' }
+          & $iscc setup.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup derlemesi basarisiz' }
+
+      - name: SHA256 ve kurulum paketini dogrula
+        shell: pwsh
+        run: |
+          python tools/validate_release.py --installer dist/OdevTakip_v2_Kurulum.exe --checksum
+
+      - name: Main icin indirilebilir build
+        uses: actions/upload-artifact@v4
+        with:
+          name: OdevTakip_v2_Windows_Kurulum
+          path: |
+            dist/OdevTakip_v2_Kurulum.exe
+            dist/OdevTakip_v2_Kurulum.exe.sha256
+          if-no-files-found: error
+
+      - name: v3.5.4 gibi etiketlerde Release yayinla
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/OdevTakip_v2_Kurulum.exe
+            dist/OdevTakip_v2_Kurulum.exe.sha256
+          fail_on_unmatched_files: true
+          generate_release_notes: true

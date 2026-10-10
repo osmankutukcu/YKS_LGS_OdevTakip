@@ -4,6 +4,8 @@ YKS/LGS Ödev & Takip Yöneticisi - Otomatik Güncelleme Diyaloğu (PyQt6)
 """
 
 import re
+import html
+import sys
 import webbrowser
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -13,8 +15,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QColor
 
 from utils.updater import (
-    UpdateDownloaderThread, prepare_staging_directory,
-    apply_update_and_restart, get_application_root
+    UpdateDownloaderThread, apply_update_and_restart
 )
 
 
@@ -30,7 +31,8 @@ class UpdateDialog(QDialog):
         super().__init__(parent)
         self.update_info = update_info
         self.downloader_thread = None
-        self._downloaded_zip = None
+        self._downloaded_installer = None
+        self._install_pending = False
 
         self.setWindowTitle("Yazılım Güncellemesi")
         self.resize(580, 520)
@@ -174,10 +176,14 @@ class UpdateDialog(QDialog):
         self.btnLater.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btnLater.clicked.connect(self.reject)
 
-        self.btnUpdate = QPushButton("🚀 Şimdi Güncelle ve Yeniden Başlat")
+        self.btnUpdate = QPushButton("🚀 Güncellemeyi İndir ve Kur")
         self.btnUpdate.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btnUpdate.setObjectName("btnUpdateAction")
         self.btnUpdate.clicked.connect(self._start_update)
+        if not self.update_info.get("installable", False) or not (sys.platform.startswith("win") and getattr(sys, "frozen", False)):
+            self.btnUpdate.setText("GitHub üzerinden kurulum gerekli")
+            self.btnUpdate.setEnabled(False)
+            self.btnGitHub.setText("🌐 GitHub sürüm sayfası")
 
         self.btnBar.addWidget(self.btnGitHub)
         self.btnBar.addStretch(1)
@@ -256,7 +262,7 @@ class UpdateDialog(QDialog):
         """Markdown benzeri metni şık HTML formatına çevirir."""
         lines = []
         for line in raw.splitlines():
-            s = line.strip()
+            s = html.escape(line.strip())
             # **bold** desteği
             s = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', s)
             if s.startswith("### "):
@@ -280,7 +286,7 @@ class UpdateDialog(QDialog):
 
     def _start_update(self):
         url = self.update_info.get("download_url")
-        if not url:
+        if not url or not self.update_info.get("installable"):
             QMessageBox.warning(
                 self, "İndirme Bağlantısı Yok",
                 "Bu sürüm için otomatik indirme paketi henüz eklenmemiş.\n"
@@ -296,7 +302,7 @@ class UpdateDialog(QDialog):
         self.txtChangelog.setMaximumHeight(130)
 
         # İndirme Thread'ini Başlat
-        self.downloader_thread = UpdateDownloaderThread(url, get_application_root(), self)
+        self.downloader_thread = UpdateDownloaderThread(self.update_info, parent=self)
         self.downloader_thread.progress.connect(self._on_download_progress)
         self.downloader_thread.download_completed.connect(self._on_download_completed)
         self.downloader_thread.download_failed.connect(self._on_download_failed)
@@ -312,23 +318,29 @@ class UpdateDialog(QDialog):
         else:
             self.lblProgressStats.setText(f"{d_mb:.1f} MB indirildi...")
 
-    def _on_download_completed(self, zip_path: str):
-        self._downloaded_zip = zip_path
+    def _on_download_completed(self, installer_path: str):
+        self._downloaded_installer = installer_path
+        self._install_pending = True
         self.lblProgressStatus.setText("⚙️ Güncelleme dosyaları hazırlanıyor (Veritabanı güvenceye alınıyor)...")
         self.progressBar.setValue(100)
-        self.lblProgressStats.setText("Tamamlandı! Uygulama yeniden başlatılıyor...")
+        self.lblProgressStats.setText("İndirme doğrulandı. Windows kurulum sihirbazı açılacak.")
         QApplication.processEvents()
 
         # 1-2 saniye bekletip kurulumu uygula
         QTimer.singleShot(800, self._apply_update_final)
 
     def _apply_update_final(self):
+        if not self._install_pending:
+            return
+        self._install_pending = False
         try:
-            root = get_application_root()
-            # Staging ve Güvenlik Filtresi
-            prepare_staging_directory(self._downloaded_zip, root)
-            # Hot-Swap ve Yeniden Başlatma
-            apply_update_and_restart(root)
+            if self.downloader_thread is None or not self.downloader_thread.verified_digest:
+                raise RuntimeError("Doğrulanmış SHA-256 eksik")
+            apply_update_and_restart(
+                self._downloaded_installer,
+                self.downloader_thread.verified_digest,
+                int(self.update_info["file_size"]),
+            )
         except Exception as e:
             QMessageBox.critical(self, "Kurulum Hatası", f"Güncelleme yüklenirken bir hata oluştu:\n{e}")
             self.btnUpdate.setEnabled(True)
@@ -339,9 +351,14 @@ class UpdateDialog(QDialog):
         self.frProgress.setVisible(False)
         self.btnUpdate.setEnabled(True)
         self.btnLater.setText("Kapat")
+        self.btnLater.setEnabled(True)
         QMessageBox.warning(self, "Güncelleme Hatası", f"{err_msg}\nLütfen internet bağlantınızı kontrol edin veya GitHub sayfasından manuel indirin.")
 
     def reject(self):
+        self._install_pending = False
         if self.downloader_thread and self.downloader_thread.isRunning():
             self.downloader_thread.cancel()
+            self.btnLater.setEnabled(False)
+            self.lblProgressStatus.setText("İndirme iptal ediliyor...")
+            return
         super().reject()

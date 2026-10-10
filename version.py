@@ -7,8 +7,8 @@ import re
 from typing import Tuple
 
 # Mevcut Uygulama Sürümü
-APP_VERSION = "3.5.0"
-APP_BUILD_DATE = "2026-10-02"
+APP_VERSION = "3.5.4"
+APP_BUILD_DATE = "2026-10-10"
 
 # GitHub Deposu (KullanıcıAdı / DepoAdı)
 GITHUB_REPO = "osmankutukcu/YKS_LGS_OdevTakip"
@@ -20,8 +20,8 @@ GITHUB_RAW_VERSION_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/
 
 def parse_version(ver_str: str) -> Tuple[int, ...]:
     """
-    'v3.5.1', '3.5.0', 'v4.0' gibi sürüm dizgelerini tam sayı demetine çevirir.
-    Örnek: 'v3.5.2' -> (3, 5, 2)
+    'v3.5.4', '3.5.0', 'v4.0' gibi sürüm dizgelerini tam sayı demetine çevirir.
+    Örnek: 'v3.5.4' -> (3, 5, 4)
     """
     if not ver_str:
         return (0, 0, 0)

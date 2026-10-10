@@ -494,7 +494,7 @@ def get_conn() -> sqlite3.Connection:
     """
 
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(str(DB_PATH))
+    con = sqlite3.connect(str(DB_PATH), timeout=20)
     con.row_factory = sqlite3.Row
 
     # --- SQLite ayarları ---
@@ -1383,6 +1383,10 @@ def migrate_odev(con):
     _add_column_if_missing(cur, "odev_satir", "koc TEXT")
 
     # Öğrenci ilerleme / AI analizleri için
+    _add_column_if_missing(cur, "odev_satir", "odev_id INTEGER")
+    # Web ve masaüstü ödevlerinin bağlantısı; mevcut NULL kayıtlar korunur.
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_odev_satir_link ON odev_satir(odev_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_odev_satir_ogrenci ON odev_satir(ogrenci_id)")
     _add_column_if_missing(cur, "odev_satir", "tamamlanma_tarihi TEXT")
     _add_column_if_missing(cur, "odev_satir", "sure_dk INTEGER DEFAULT 0")
     _add_column_if_missing(cur, "odev_satir", "puan REAL DEFAULT 0")

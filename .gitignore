@@ -49,3 +49,18 @@ test_lst.png
 test_chk.png
 test_with_indicator_qss.png
 .system_generated/
+
+# Do not publish user/student SQLite databases or local secrets
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.lic
+*.key
+license.json
+config.json
+.env
+.env.*

@@ -421,6 +421,17 @@
     </div>
 
     <!-- JAVASCRIPT LOGIC (No Frameworks) -->
+    <div id="access-layer" style="position:fixed;inset:0;z-index:9999;background:#f1f5f9;display:flex;align-items:center;justify-content:center;padding:20px">
+      <div style="background:#fff;border-radius:18px;max-width:420px;width:100%;padding:28px;box-shadow:0 8px 30px #0002">
+        <h2 style="margin:0 0 12px">🔒 Ödev Takip Web Girişi</h2>
+        <p>Masaüstü programında Mobil & Web Erişim → Güvenlik sekmesinden erişim anahtarını kopyalayın.</p>
+        <input id="access-key" autocomplete="off" type="password" placeholder="Web erişim anahtarı"
+               style="width:100%;padding:14px;border:1px solid #94a3b8;border-radius:9px;margin:10px 0"/>
+        <button id="access-submit" type="button" style="background:#2563eb;color:#fff;border:0;padding:12px;border-radius:9px;width:100%">Giriş Yap</button>
+        <p id="access-error" role="alert" style="color:#b91c1c;font-size:13px"></p>
+        <p style="font-size:12px;color:#64748b">Anahtar yalnızca bu sekmenin belleğinde tutulur; URL'ye eklenmez.</p>
+      </div>
+    </div>
     <script>
         // --- STATE ---
         const state = {
@@ -443,6 +454,9 @@
         const show = (id) => $(id).classList.remove('hidden');
         const hide = (id) => $(id).classList.add('hidden');
         const html = (id, html) => $(id).innerHTML = html;
+        const esc = value => String(value ?? '').replace(/[&<>"']/g,
+            ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        const phoneUrl = value => String(value ?? '').replace(/[^0-9+]/g, '');
 
         // --- ERROR HANDLING ---
         function showError(msg) {
@@ -456,12 +470,17 @@
         // --- API HELPERS ---
         async function api(url, method = 'GET', body = null) {
             try {
-                const opts = { method };
+                const opts = { method, headers: {'X-Access-Key': sessionStorage.getItem('yks_access') || ''} };
                 if (body) {
-                    opts.headers = { 'Content-Type': 'application/json' };
+                    opts.headers['Content-Type'] = 'application/json';
                     opts.body = JSON.stringify(body);
                 }
                 const res = await fetch(url, opts);
+                if (res.status === 401) {
+                    sessionStorage.removeItem('yks_access');
+                    document.getElementById('access-layer').style.display = 'flex';
+                    throw new Error('Erişim anahtarı gerekli veya geçersiz.');
+                }
                 if (!res.ok) throw new Error(res.statusText);
                 const data = await res.json();
                 if (data && data.status === 'error') throw new Error(data.message);
@@ -500,11 +519,11 @@
                 <div onclick="selectStudent(${std.id})" class="card p-4 flex justify-between items-center" style="margin-bottom: 0.75rem; cursor:pointer;">
                     <div class="flex items-center gap-4">
                         <div class="flex items-center justify-center w-12 h-12 bg-slate-50 border rounded-full font-bold text-slate-500">
-                            ${std.ad_soyad.charAt(0)}
+                            ${esc(std.ad_soyad.charAt(0))}
                         </div>
                         <div>
-                            <div class="font-bold text-slate-800 text-lg">${std.ad_soyad}</div>
-                            <div class="text-xs text-slate-400">${std.sinif || '-'} • ${std.okul || '-'}</div>
+                            <div class="font-bold text-slate-800 text-lg">${esc(std.ad_soyad)}</div>
+                            <div class="text-xs text-slate-400">${esc(std.sinif || '-')} • ${esc(std.okul || '-')}</div>
                         </div>
                     </div>
                     <div style="color:#cbd5e1">›</div>
@@ -549,7 +568,7 @@
             const clustersHtml = state.clusters.length ? state.clusters.map(c => `
                 <div onclick="openTracking('Hepsi', '${c.id}')" class="card p-4 mb-3 cursor-pointer">
                     <div class="flex justify-between items-center mb-2">
-                        <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">${c.status_label}</span>
+                        <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">${esc(c.status_label)}</span>
                         <span class="text-xs text-slate-400">#${c.id}</span>
                     </div>
                     <div class="flex justify-between items-end">
@@ -565,10 +584,10 @@
             html('app-root', `
                 <div class="text-center mb-6">
                     <div class="w-16 h-16 mx-auto bg-white border-4 border-slate-50 rounded-full flex items-center justify-center text-xl font-bold text-slate-700 shadow-sm mb-2">
-                        ${std.ad_soyad.charAt(0)}
+                        ${esc(std.ad_soyad.charAt(0))}
                     </div>
-                    <h2 class="text-xl font-bold text-slate-800">${std.ad_soyad}</h2>
-                    <p class="text-sm text-slate-400">${std.sinif || ''}</p>
+                    <h2 class="text-xl font-bold text-slate-800">${esc(std.ad_soyad)}</h2>
+                    <p class="text-sm text-slate-400">${esc(std.sinif || '')}</p>
                 </div>
                 <div class="flex gap-3 mb-6">
                     <button onclick="openTracking('Yapılmayanlar')" class="card p-3 w-full flex flex-col items-center gap-1 active:bg-orange-50">
@@ -607,32 +626,32 @@
                 <div class="card p-6 mb-4">
                     <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">🎓 Öğrenci</h3>
                     <div class="text-sm text-slate-500 uppercase font-bold text-xs mb-1">Ad Soyad</div>
-                    <div class="text-lg font-medium text-slate-800 mb-4">${i.ad_soyad}</div>
+                    <div class="text-lg font-medium text-slate-800 mb-4">${esc(i.ad_soyad)}</div>
                     
                     <div class="flex gap-4 mb-4">
                         <div class="w-full">
                             <div class="text-slate-500 font-bold text-xs">Sınıf</div>
-                            <div>${i.sinif}</div>
+                            <div>${esc(i.sinif)}</div>
                         </div>
                         <div class="w-full">
                             <div class="text-slate-500 font-bold text-xs">Okul</div>
-                            <div>${i.okul}</div>
+                            <div>${esc(i.okul)}</div>
                         </div>
                     </div>
                      <div class="text-slate-500 font-bold text-xs">Telefon</div>
-                    <a href="tel:${i.ogrenci_tel}" class="text-blue-600 font-bold block">${i.ogrenci_tel}</a>
+                    <a href="tel:${phoneUrl(i.ogrenci_tel)}" class="text-blue-600 font-bold block">${esc(i.ogrenci_tel)}</a>
                 </div>
 
                 <div class="card p-6 mb-4">
                     <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">👨‍👩‍👧 Veli</h3>
                     <div class="text-slate-500 font-bold text-xs mb-1">Veli Adı</div>
-                    <div class="text-lg font-medium text-slate-800 mb-4">${i.veli_ad}</div>
+                    <div class="text-lg font-medium text-slate-800 mb-4">${esc(i.veli_ad)}</div>
                     
                     <div class="text-slate-500 font-bold text-xs">Veli Telefon</div>
-                    <a href="tel:${i.veli_tel1}" class="text-blue-600 font-bold block">${i.veli_tel1}</a>
+                    <a href="tel:${phoneUrl(i.veli_tel1)}" class="text-blue-600 font-bold block">${esc(i.veli_tel1)}</a>
                 </div>
                 
-                ${i.notlar ? `<div class="card p-6"><h3 class="font-bold text-slate-800 mb-2">Notlar</h3><p class="text-slate-600 text-sm whitespace-pre-line">${i.notlar}</p></div>` : ''}
+                ${i.notlar ? `<div class="card p-6"><h3 class="font-bold text-slate-800 mb-2">Notlar</h3><p class="text-slate-600 text-sm whitespace-pre-line">${esc(i.notlar)}</p></div>` : ''}
             `);
         }
 
@@ -642,7 +661,7 @@
             state.trackingFilter = filterVal;
             state.changes.clear();
             try {
-                let url = `/api/student/${state.selectedStudent.id}/tracking?status=${filterVal}`;
+                let url = `/api/student/${state.selectedStudent.id}/tracking?status=${encodeURIComponent(filterVal)}`;
                 if (clusterId) url += `&cluster_id=${clusterId}`;
                 const data = await api(url);
                 state.trackingItems = data.items;
@@ -659,9 +678,9 @@
                 <div class="card p-4 mb-3" style="border-left: 4px solid ${item.status === 'tamam' ? 'var(--success)' : 'var(--warning)'};" id="item-${item.id}">
                     <div class="flex justify-between items-start">
                         <div>
-                            <div class="font-bold text-slate-800 mb-1">${item.lesson}</div>
-                            <div class="text-xs text-slate-500 mb-1">${item.book}</div>
-                            <span class="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500">${item.topic}</span>
+                            <div class="font-bold text-slate-800 mb-1">${esc(item.lesson)}</div>
+                            <div class="text-xs text-slate-500 mb-1">${esc(item.book)}</div>
+                            <span class="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500">${esc(item.topic)}</span>
                         </div>
                         <button onclick="toggleStatus(${item.id})" class="btn" style="width:32px; height:32px; border-radius:50%; border:2px solid #e2e8f0; ${item.status === 'tamam' ? 'background:var(--success); border-color:var(--success); color:white;' : ''}">
                             ✓
@@ -672,7 +691,7 @@
 
             html('app-root', `
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-bold text-slate-800 text-lg">${state.trackingFilter}</h3>
+                    <h3 class="font-bold text-slate-800 text-lg">${esc(state.trackingFilter)}</h3>
                     <span class="bg-slate-200 text-xs font-bold px-2 py-1 rounded-full text-slate-600">${items.length}</span>
                 </div>
                 <div style="padding-bottom: 80px;">${listHtml}</div>
@@ -737,12 +756,12 @@
 
         function renderAssignForm() {
             const f = state.assign;
-            const lessonOpts = state.lessons.map(l => `<option value="${l.id}" ${f.lesson === l.id ? 'selected' : ''}>${l.name}</option>`).join('');
+            const lessonOpts = state.lessons.map(l => `<option value="${esc(l.id)}" ${f.lesson === l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
 
             let bookOpts = '<option value="" disabled selected>Kitap Seçiniz</option>';
             if (f.lesson) {
                 const list = state.books.length ? state.books : [];
-                bookOpts = list.map(b => `<option value="${b}" ${f.book === b ? 'selected' : ''}>${b}</option>`).join('');
+                bookOpts = list.map(b => `<option value="${esc(b)}" ${f.book === b ? 'selected' : ''}>${esc(b)}</option>`).join('');
                 bookOpts += `<option value="manual" ${f.book === 'manual' ? 'selected' : ''} style="color:blue; font-weight:bold;">+ Manuel Giriş</option>`;
                 if (!list.length) bookOpts = `<option value="manual" selected>Kitap Yok - Manuel Giriniz</option>` + bookOpts;
             }
@@ -761,7 +780,7 @@
                             t.assignments.forEach(a => {
                                 const color = a.status === 'tamam' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700';
                                 const icon = a.status === 'tamam' ? '✓' : '⟳';
-                                badges += `<span class="text-[10px] px-1.5 py-0.5 rounded ${color} border border-black/5 font-medium flex items-center gap-1">${a.book} ${icon}</span>`;
+                                badges += `<span class="text-[10px] px-1.5 py-0.5 rounded ${color} border border-black/5 font-medium flex items-center gap-1">${esc(a.book)} ${icon}</span>`;
                             });
                             badges += '</div>';
                         }
@@ -771,7 +790,7 @@
                             <div class="mb-2">
                                 <label id="lbl-topic-${i}" class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors w-full ${isChecked ? 'bg-blue-50 border-blue-200' : 'bg-white hover:bg-slate-50'}">
                                     <input type="checkbox" onchange="toggleTopic(${i})" ${isChecked ? 'checked' : ''} class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500">
-                                    <span class="${isChecked ? 'text-blue-700 font-medium' : 'text-slate-700'}">${t.name}</span>
+                                    <span class="${isChecked ? 'text-blue-700 font-medium' : 'text-slate-700'}">${esc(t.name)}</span>
                                 </label>
                                 ${badges}
                             </div>
@@ -798,7 +817,7 @@
                             ${bookOpts}
                         </select>
                         ${(f.book === 'manual' || (f.lesson && !state.books.length)) ?
-                    `<input type="text" placeholder="Kitap Adı..." oninput="updateAssign('manualBook', this.value)" class="input-field mt-2 mb-0" value="${f.manualBook}">` : ''}
+                    `<input type="text" placeholder="Kitap Adı..." oninput="updateAssign('manualBook', this.value)" class="input-field mt-2 mb-0" value="${esc(f.manualBook)}">` : ''}
                     </div>
                     <div>
                         <label class="text-xs font-bold text-slate-500 mb-1 block">KONULAR (Çoklu Seçim)</label>
@@ -854,8 +873,8 @@
                 state.assign.book = ''; state.assign.manualBook = ''; state.assign.selectedTopics = new Set();
                 // Fetch books/topics
                 const [b, t] = await Promise.all([
-                    api(`/api/books/list?lesson_id=${val}`),
-                    api(`/api/topics/list?lesson_id=${val}&student_id=${state.selectedStudent.id}`)
+                    api(`/api/books/list?lesson_id=${encodeURIComponent(val)}`),
+                    api(`/api/topics/list?lesson_id=${encodeURIComponent(val)}&student_id=${state.selectedStudent.id}`)
                 ]);
                 state.books = b; state.topics = t;
                 // Auto switch to manual if no books
@@ -906,8 +925,29 @@
             }
         }
 
-        // --- BOOT ---
-        init();
+        // --- BOOT: erişim anahtarı yoksa kişisel veri isteği başlamaz.
+        async function tryLogin() {
+            const raw = document.getElementById('access-key').value.trim();
+            document.getElementById('access-error').textContent = '';
+            if (!raw) return;
+            sessionStorage.setItem('yks_access', raw);
+            try {
+                const res = await fetch('/api/dashboard', {headers: {'X-Access-Key': raw}});
+                if (!res.ok) throw new Error('Anahtar kabul edilmedi');
+                document.getElementById('access-layer').style.display='none';
+                document.getElementById('access-key').value='';
+                await init();
+            } catch(e) {
+                sessionStorage.removeItem('yks_access');
+                document.getElementById('access-error').textContent=e.message;
+            }
+        }
+        document.getElementById('access-submit').addEventListener('click', tryLogin);
+        document.getElementById('access-key').addEventListener('keydown', e=>{if(e.key==='Enter')tryLogin();});
+        if (sessionStorage.getItem('yks_access')) {
+            document.getElementById('access-layer').style.display='none';
+            init();
+        }
 
     </script>
 </body>

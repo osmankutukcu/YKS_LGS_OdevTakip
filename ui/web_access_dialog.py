@@ -157,6 +157,8 @@ class WebAccessDialog(QDialog):
         self.port = 8085
         self.public_url = None
         self.settings = QSettings("YKS_LGS_Manager", "v2")
+        # Önceki sürümde açık metin olarak saklanan tünel tokenini temizle.
+        self.settings.remove("ngrok_token")
         
         self._apply_styling()
         self._init_ui()
@@ -461,7 +463,7 @@ class WebAccessDialog(QDialog):
         t_row = QHBoxLayout()
         self.txtNgrokToken = QLineEdit()
         self.txtNgrokToken.setPlaceholderText("Ngrok Auth Token yapıştırın...")
-        saved_tok = self.settings.value("ngrok_token", "")
+        saved_tok = ""  # eski düz metin token tekrar gösterilmez
         self.txtNgrokToken.setText(saved_tok)
         t_row.addWidget(self.txtNgrokToken)
 
@@ -488,23 +490,19 @@ class WebAccessDialog(QDialog):
         s_lay = QFormLayout(grp_sec)
         s_lay.setSpacing(12)
 
-        self.chkPin = QCheckBox("Mobil Girişte PIN Kodu Sorulsun")
-        self.chkPin.setStyleSheet("font-weight: 700; color: #1e293b;")
-        saved_pin_enabled = self.settings.value("web_pin_enabled", "false") == "true"
-        self.chkPin.setChecked(saved_pin_enabled)
-        s_lay.addRow(self.chkPin)
-
-        self.txtPin = QLineEdit()
-        self.txtPin.setMaxLength(6)
-        self.txtPin.setPlaceholderText("4 veya 6 haneli PIN (Örn: 1234)")
-        saved_pin = self.settings.value("web_pin_code", "1234")
-        self.txtPin.setText(saved_pin)
-        s_lay.addRow("Güvenlik PIN Kodu:", self.txtPin)
-
-        btn_save_pin = QPushButton("💾 Güvenlik Ayarlarını Kaydet")
-        btn_save_pin.setStyleSheet("background-color: #10b981; color: white; border: none; padding: 8px;")
-        btn_save_pin.clicked.connect(self.save_security_settings)
-        s_lay.addRow(btn_save_pin)
+        from web_api.auth import get_access_token
+        self.txtAccessKey = QLineEdit()
+        self.txtAccessKey.setReadOnly(True)
+        self.txtAccessKey.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txtAccessKey.setText(get_access_token())
+        s_lay.addRow("Web erişim anahtarı:", self.txtAccessKey)
+        btn_copy_key = QPushButton("🔑 Anahtarı Kopyala")
+        btn_copy_key.clicked.connect(lambda: QApplication.clipboard().setText(get_access_token()))
+        s_lay.addRow(btn_copy_key)
+        warning = QLabel("Bu anahtar tüm mobil verilere erişim verir. Yalnızca güvendiğiniz kişilere verin. "
+                         "Ağdaki HTTP bağlantısı şifreli değildir; internette HTTPS kullanın.")
+        warning.setWordWrap(True)
+        s_lay.addRow(warning)
 
         lay.addWidget(grp_sec)
         lay.addStretch()
@@ -564,7 +562,7 @@ class WebAccessDialog(QDialog):
                 QMessageBox.warning(self, "Eksik Token", "Bulut erişimi için lütfen Ngrok Token giriniz.")
                 self._after_stop()
                 return
-            self.settings.setValue("ngrok_token", token)
+            # Ngrok token artık düz metin uygulama ayarına yazılmaz.
             try:
                 from pyngrok import ngrok, conf
                 conf.get_default().auth_token = token
@@ -656,9 +654,7 @@ class WebAccessDialog(QDialog):
         QDesktopServices.openUrl(QUrl(url))
 
     def save_security_settings(self):
-        self.settings.setValue("web_pin_enabled", "true" if self.chkPin.isChecked() else "false")
-        self.settings.setValue("web_pin_code", self.txtPin.text().strip())
-        QMessageBox.information(self, "Kaydedildi", "Mobil güvenlik ve PIN ayarları başarıyla kaydedildi.")
+        QMessageBox.information(self, "Erişim Anahtarı", "Web anahtarını Güvenlik sekmesinden kopyalayabilirsiniz.")
 
     def show_ngrok_help(self):
         msg = QMessageBox(self)

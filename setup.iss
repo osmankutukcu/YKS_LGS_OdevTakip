@@ -1,5 +1,5 @@
 #define MyAppName "YKS-LGS Odev Takip"
-#define MyAppVersion "3.5.0"
+#define MyAppVersion "3.5.4"
 #define MyAppPublisher "Osman Kutukcu"
 #define MyAppExeName "OdevTakip_v2.exe"
 
@@ -19,6 +19,8 @@ UninstallDisplayIcon={app}\app_icon.ico
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
+CloseApplications=yes
+RestartApplications=no
 
 [Languages]
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
@@ -28,13 +30,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
+; Kurulum yalnizca uygulama kodlarini tasir; kisiye ozel veriler ASLA paketlenmez.
 Source: "assets\app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
-; Mevcut veritabanı ve lisans dosyalarını koru (asla ezme)
-Source: "dist\OdevTakip_v2\*.db"; DestDir: "{app}"; Flags: onlyifdoesntexist recursesubdirs skipifsourcedoesntexist
-Source: "dist\OdevTakip_v2\*.sqlite"; DestDir: "{app}"; Flags: onlyifdoesntexist recursesubdirs skipifsourcedoesntexist
-Source: "dist\OdevTakip_v2\license.json"; DestDir: "{app}"; Flags: onlyifdoesntexist recursesubdirs skipifsourcedoesntexist
-; Diğer tüm uygulama dosyalarını güncelle
-Source: "dist\OdevTakip_v2\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\OdevTakip_v2\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.db,*.db-wal,*.db-shm,*.sqlite,*.sqlite3,*.sqlite-wal,*.sqlite-shm,*.lic,*.key,license.json,config.json"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app_icon.ico"

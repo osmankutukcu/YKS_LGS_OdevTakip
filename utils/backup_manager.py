@@ -1,23 +1,31 @@
 # -*- coding: utf-8 -*-
-import os
-import shutil
+"""Reliable SQLite backups for YKS/LGS Ödev Takip.
+
+Drop-in replacement. Public BackupManager API intentionally preserved.
+Backups are ZIP files but are NOT encrypted; choose a trusted destination.
+"""
+from __future__ import annotations
+
 import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import sqlite3
+import tempfile
 import zipfile
+
 from PyQt6.QtCore import QObject, pyqtSignal
 from utils import settings as appset
 
+
 class BackupManager(QObject):
-    """
-    Yedekleme işlemlerini yönetir.
-    Google Drive / OneDrive masaüstü klasörüne otomatik zip atar.
-    """
-    finished = pyqtSignal(bool, str) # success, message
+    finished = pyqtSignal(bool, str)
 
     def __init__(self):
         super().__init__()
-        # Ana veritabanı ve olası ek ayar dosyaları
         self.db_files = ["YKS_LGS_HomeworkManager.db", "settings.db", "data.db"]
-        
+
     def get_backup_path(self):
         return appset.ayar_get("yedek_konumu", "")
 
@@ -30,49 +38,132 @@ class BackupManager(QObject):
     def set_auto_backup(self, val: bool):
         appset.ayar_set("yedek_oto", "true" if val else "false")
 
+    def _collect_databases(self):
+        """Yalnızca uygulamanın GERÇEK aktif veritabanını yedekler.
+
+        Açıkça seçilen/geçerli veritabanı yoksa başka dosyaya sessiz geçmez.
+        Portable/eski kurulumlar ancak aktif DB modülü yoksa tekil olarak aranır.
+        """
+        explicit = os.environ.get("YKS_DB_PATH")
+        candidate = None
+        if explicit:
+            candidate = Path(explicit)
+        else:
+            try:
+                import db
+                candidate = Path(db.DB_PATH) if getattr(db, "DB_PATH", None) else None
+            except ImportError:
+                pass
+        if candidate is not None:
+            candidate = candidate.expanduser().resolve()
+            self._check_sqlite_file(candidate)
+            return [candidate]
+
+        legacy = [Path.cwd() / "YKS_LGS_HomeworkManager.db",
+                  Path.cwd() / "veritabani.db",
+                  Path.home() / ".yks_lgs_manager" / "veritabani.db"]
+        found = []
+        for path in legacy:
+            path = path.expanduser().resolve()
+            if path.exists() and path not in found:
+                self._check_sqlite_file(path)
+                found.append(path)
+        if len(found) != 1:
+            raise ValueError("Etkin veritabanı bulunamadı veya birden fazla eski veritabanı var; doğru kaynak seçilmeli.")
+        return found
+
+    @staticmethod
+    def _check_sqlite_file(path):
+        if not path.is_file() or path.stat().st_size < 100:
+            raise ValueError(f"Etkin veritabanı yok veya boş: {path}")
+        with path.open("rb") as handle:
+            if handle.read(16) != b"SQLite format 3\x00":
+                raise ValueError(f"Etkin dosya SQLite değil: {path}")
+
+    @staticmethod
+    def _consistent_copy(source: Path, destination: Path):
+        """SQLite online-backup API includes committed WAL contents."""
+        uri = source.as_uri() + "?mode=ro"
+        with sqlite3.connect(uri, uri=True, timeout=20) as source_conn:
+            with sqlite3.connect(str(destination), timeout=20) as dest_conn:
+                source_conn.backup(dest_conn, pages=256, sleep=0.05)
+                verdict = dest_conn.execute("PRAGMA quick_check").fetchone()[0]
+                if verdict != "ok":
+                    raise RuntimeError(f"Yedek veritabanı bütünlük kontrolü başarısız: {source.name}")
+
     def create_backup(self, target_dir=None):
-        """
-        Veritabanlarını zipler ve hedef klasöre kopyalar.
-        target_dir verilmezse ayarlardaki konumu kullanır.
-        """
+        dest_value = target_dir if target_dir is not None else self.get_backup_path()
+        if not dest_value or not Path(dest_value).is_dir():
+            return False, "Geçerli bir yedekleme klasörü seçilmemiş."
+
         try:
-            dest = target_dir if target_dir else self.get_backup_path()
-            if not dest or not os.path.isdir(dest):
-                return False, "Geçerli bir yedekleme klasörü seçilmemiş."
+            db_paths = self._collect_databases()
+        except (OSError, ValueError) as exc:
+            return False, f"Yedekleme yapılmadı: {exc}"
+        if not db_paths:
+            return False, "Yedeklenecek geçerli SQLite veritabanı bulunamadı; boş ZIP oluşturulmadı."
 
-            # Dosya adı: YKS_Yedek_2025-10-27_14-30.zip
-            now_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
-            zip_name = f"YKS_Yedek_{now_str}.zip"
-            zip_path = os.path.join(dest, zip_name)
+        dest = Path(dest_value).resolve()
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
+        final_zip = dest / f"YKS_Yedek_{now_str}.zip"
+        partial_zip = None
+        try:
+            with tempfile.TemporaryDirectory(prefix="yks_sqlite_backup_") as temporary:
+                scratch = Path(temporary)
+                metadata = {"format_version": 1,
+                            "created_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                            "files": []}
+                names = set()
+                staged = []
+                for i, source in enumerate(db_paths, 1):
+                    arcname = source.name
+                    if arcname in names:
+                        arcname = f"{i}_{arcname}"
+                    names.add(arcname)
+                    db_copy = scratch / arcname
+                    self._consistent_copy(source, db_copy)
+                    sha256 = hashlib.sha256(db_copy.read_bytes()).hexdigest()
+                    metadata["files"].append({"name": arcname,
+                                              "bytes": db_copy.stat().st_size,
+                                              "sha256": sha256})
+                    staged.append((db_copy, arcname))
 
-            # Geçici bir zip oluştur
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-                for db_file in self.db_files:
-                    if os.path.exists(db_file):
-                        zf.write(db_file)
-            
-            # Eski yedekleri temizle (Opsiyonel: Son 5 yedeği tut)
-            self._cleanup_old_backups(dest)
-            
-            return True, f"Yedek başarıyla oluşturuldu:\n{zip_path}"
-        except Exception as e:
-            return False, str(e)
+                # Create the archive on target volume, then rename atomically.
+                with tempfile.NamedTemporaryFile(prefix=".YKS_Yedek_", suffix=".part",
+                                                 dir=dest, delete=False) as tmp:
+                    partial_zip = Path(tmp.name)
+                with zipfile.ZipFile(partial_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+                    for src, name in staged:
+                        zf.write(src, arcname=name)
+                    zf.writestr("backup_manifest.json", json.dumps(metadata, ensure_ascii=False, indent=2))
+
+                with zipfile.ZipFile(partial_zip, "r") as check:
+                    if check.testzip() is not None:
+                        raise RuntimeError("ZIP bütünlük kontrolü başarısız.")
+                    for entry in metadata["files"]:
+                        if hashlib.sha256(check.read(entry["name"])).hexdigest() != entry["sha256"]:
+                            raise RuntimeError("ZIP içeriği SHA256 doğrulaması başarısız.")
+                os.replace(partial_zip, final_zip)
+                partial_zip = None
+
+            self._cleanup_old_backups(str(dest))
+            return True, f"Yedek başarıyla oluşturuldu ({len(db_paths)} veritabanı):\n{final_zip}"
+        except Exception as exc:
+            return False, f"Yedekleme başarısız: {exc}"
+        finally:
+            if partial_zip is not None:
+                try:
+                    partial_zip.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     def _cleanup_old_backups(self, folder):
-        """Klasördeki eski yedekleri (5 taneden fazlaysa) sil."""
+        # Only prune after creating a verified backup; keep last 10 files.
         try:
-            files = []
-            for f in os.listdir(folder):
-                if f.startswith("YKS_Yedek_") and f.endswith(".zip"):
-                    full = os.path.join(folder, f)
-                    files.append(full)
-            
-            # Tarihe göre sırala (yeni en sonda)
-            files.sort(key=os.path.getmtime)
-            
-            # Son 10 taneyi tut, gerisini sil
-            while len(files) > 10:
-                os.remove(files[0])
-                files.pop(0)
-        except:
+            files = [p for p in Path(folder).iterdir()
+                     if p.is_file() and p.name.startswith("YKS_Yedek_") and p.suffix == ".zip"]
+            files.sort(key=lambda p: p.stat().st_mtime)
+            for old in files[:-10]:
+                old.unlink()
+        except OSError:
             pass

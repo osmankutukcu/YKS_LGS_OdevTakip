@@ -648,6 +648,8 @@ class AnaPencere(QMainWindow):
                 from ui.update_dialog import UpdateDialog
                 dlg = UpdateDialog(res, parent=self)
                 dlg.exec()
+            elif res.get("error"):
+                QMessageBox.warning(self, "Güncelleme Kontrolü", res["error"])
             else:
                 import version
                 QMessageBox.information(
