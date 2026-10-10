@@ -6103,6 +6103,7 @@ class OdevTakipFormu(QWidget):
 
         table._checkbox_flush = _ic_flush
         table._checkbox_pending = pending_checks
+        ic_timer.timeout.connect(_ic_flush)
         table.itemChanged.connect(_ic_proxy)
 
         # ---- delegate’ler: gap + toggle + flash ----

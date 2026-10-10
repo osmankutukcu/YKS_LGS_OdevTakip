@@ -102,6 +102,7 @@ class TestCodeBehaviorGuards(unittest.TestCase):
         src = ast.get_source_segment(self.src, self.method('_ders_tab_olustur'))
         self.assertIn('ic_timer = QtCore.QTimer(table)', src)
         self.assertIn('ic_timer.setInterval(0)', src)
+        self.assertIn('ic_timer.timeout.connect(_ic_flush)', src)
         self.assertIn('table._checkbox_flush = _ic_flush', src)
         self.assertNotIn('self._ic_timer', src)
         self.assertNotIn('self._ic_queue', src)
