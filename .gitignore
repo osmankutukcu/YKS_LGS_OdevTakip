@@ -64,3 +64,9 @@ license.json
 config.json
 .env
 .env.*
+
+# Private admin tools & license generators (do not push to public repo)
+_admin_tools_private/
+*keygen*
+*Lisans_Uretici*
+admin_keygen.py

@@ -6,7 +6,7 @@ from pathlib import Path
 import shutil
 from tools.validate_release import read_versions, emit_checksum
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def create_release_package(ver=None, notes=''):

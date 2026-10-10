@@ -1,5 +1,5 @@
 #define MyAppName "YKS-LGS Odev Takip"
-#define MyAppVersion "3.5.7"
+#define MyAppVersion "3.5.8"
 #define MyAppPublisher "Osman Kutukcu"
 #define MyAppExeName "OdevTakip_v2.exe"
 
