@@ -19,9 +19,12 @@ class WriteDurabilityTests(unittest.TestCase):
         return self.client.post('/api/homework/bulk', headers=self.headers, json=payload)
 
     def _counts(self):
-        with sqlite3.connect(self.path) as con:
+        con = sqlite3.connect(self.path)
+        try:
             return tuple(con.execute(f'SELECT COUNT(*) FROM {name}').fetchone()[0]
                          for name in ('odev_kume','odev','odev_satir','kitap'))
+        finally:
+            con.close()
 
     def test_unknown_student_does_not_leave_orphan_cluster(self):
         before = self._counts()

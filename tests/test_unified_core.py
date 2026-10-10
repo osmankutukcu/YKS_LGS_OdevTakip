@@ -13,10 +13,19 @@ from utils.homework_status import is_completed, status_counts, mobile_status
 from web_api.homework_store import set_single_line_done, set_headers_done
 from web_api.auth import authorized
 
+def cleanup_temp_dir(tdir):
+    import gc
+    gc.collect()
+    try:
+        tdir.cleanup()
+    except OSError:
+        pass
+
+
 class UnifiedTests(unittest.TestCase):
     def setUp(self):
         self.tdir=tempfile.TemporaryDirectory()
-        self.addCleanup(self.tdir.cleanup)
+        self.addCleanup(cleanup_temp_dir, self.tdir)
         self.path=Path(self.tdir.name)/'fake_student.db'
         with sqlite3.connect(self.path) as c:
             c.executescript('''

@@ -87,12 +87,16 @@ class BackupManager(QObject):
     def _consistent_copy(source: Path, destination: Path):
         """SQLite online-backup API includes committed WAL contents."""
         uri = source.as_uri() + "?mode=ro"
-        with sqlite3.connect(uri, uri=True, timeout=20) as source_conn:
-            with sqlite3.connect(str(destination), timeout=20) as dest_conn:
-                source_conn.backup(dest_conn, pages=256, sleep=0.05)
-                verdict = dest_conn.execute("PRAGMA quick_check").fetchone()[0]
-                if verdict != "ok":
-                    raise RuntimeError(f"Yedek veritabanı bütünlük kontrolü başarısız: {source.name}")
+        source_conn = sqlite3.connect(uri, uri=True, timeout=20)
+        dest_conn = sqlite3.connect(str(destination), timeout=20)
+        try:
+            source_conn.backup(dest_conn, pages=256, sleep=0.05)
+            verdict = dest_conn.execute("PRAGMA quick_check").fetchone()[0]
+            if verdict != "ok":
+                raise RuntimeError(f"Yedek veritabanı bütünlük kontrolü başarısız: {source.name}")
+        finally:
+            dest_conn.close()
+            source_conn.close()
 
     def create_backup(self, target_dir=None):
         dest_value = target_dir if target_dir is not None else self.get_backup_path()
