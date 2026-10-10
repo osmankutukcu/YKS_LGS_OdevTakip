@@ -5976,24 +5976,33 @@ class OdevTakipFormu(QWidget):
         table.viewport().setMouseTracking(True)
         table.setShowGrid(True)  # ince grid çizgileri
 
-        # tema–duyarlı ince grid ve başlık çizgileri (ağır değil, stylesheed)
-        pal = table.palette()
-        is_dark = pal.window().color().lightness() < 128
-        grid_clr = "#334155" if is_dark else "#e5e7eb"  # koyu/açık
-        hdr_bg = "#0f172a" if is_dark else "#f8fafc"
-        hdr_bd = "#1f2937" if is_dark else "#e2e8f0"
+        # tema–duyarlı ince grid ve başlık çizgileri (uygulamanın kendi temasını esas alır)
+        is_dark = False
+        try:
+            if appset:
+                tema = (appset.ayar_get("tema", None) or appset.ayar_get("tema_mod", "açık") or "açık").lower()
+                is_dark = tema in ("koyu", "dark")
+        except Exception:
+            is_dark = False
+
+        grid_clr = "#334155" if is_dark else "#e2e8f0"  # koyu/açık
+        hdr_bg = "#1e293b" if is_dark else "#f1f5f9"
+        hdr_fg = "#f8fafc" if is_dark else "#0f172a"
+        hdr_bd = "#334155" if is_dark else "#cbd5e1"
         hov_bg = "rgba(148, 163, 184, 0.15)" if is_dark else "rgba(2, 132, 199, 0.08)"
 
         table.setStyleSheet(f"""
-            QTableWidget {{
+            QTableWidget, QTableView {{
                 gridline-color: {grid_clr};
                 border: none;
             }}
-            QTableWidget::item:hover {{
+            QTableWidget::item:hover, QTableView::item:hover {{
                 background: {hov_bg};                /* zebra üstüne hafif hover */
             }}
             QHeaderView::section {{
                 background: {hdr_bg};
+                color: {hdr_fg};
+                font-weight: 600;
                 padding: 6px;
                 border: 1px solid {hdr_bd};
             }}
@@ -6485,6 +6494,7 @@ class OdevTakipFormu(QWidget):
         leftView.setWordWrap(True)
         leftView.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         leftView.setAlternatingRowColors(table.alternatingRowColors())
+        leftView.setStyleSheet(table.styleSheet())
 
         # Sadece 0. sütun açık
         for c in range(table.model().columnCount()):
