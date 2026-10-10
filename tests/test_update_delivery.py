@@ -101,7 +101,7 @@ class DeliveryTests(unittest.TestCase):
                  patch.object(updater.subprocess,'Popen') as launch:
                 self.assertTrue(updater.apply_update_and_restart(str(p),SHA,len(FAKE_EXE)))
                 args=launch.call_args.args[0]
-                self.assertEqual(str(p),args[0]);self.assertNotIn('python.exe',' '.join(args))
+                self.assertEqual(str(Path(p).resolve()),args[0]);self.assertNotIn('python.exe',' '.join(args))
                 saved=list(Path(tmp).rglob('backups/*/student.db'))
                 self.assertEqual(1,len(saved))
                 with sqlite3.connect(saved[0]) as db:

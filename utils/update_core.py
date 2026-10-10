@@ -157,13 +157,20 @@ def backup_sqlite_for_update(db_path, backup_root=None):
     folder.mkdir()
     dest = folder / source.name
     try:
-        with sqlite3.connect(str(source), timeout=15) as src:
-            with sqlite3.connect(str(dest), timeout=15) as dst:
-                src.backup(dst, pages=128, sleep=.05)
-        with sqlite3.connect(f'file:{dest.as_posix()}?mode=ro', uri=True) as check:
+        src = sqlite3.connect(str(source), timeout=15)
+        dst = sqlite3.connect(str(dest), timeout=15)
+        try:
+            src.backup(dst, pages=128, sleep=.05)
+        finally:
+            dst.close()
+            src.close()
+        check = sqlite3.connect(str(dest), timeout=15)
+        try:
             result = check.execute('PRAGMA quick_check').fetchone()
             if not result or result[0] != 'ok':
                 raise UpdateSecurityError('Yedeklenen veritabanının bütünlük kontrolü başarısız.')
+        finally:
+            check.close()
         return dest
     except Exception:
         shutil.rmtree(folder, ignore_errors=True)

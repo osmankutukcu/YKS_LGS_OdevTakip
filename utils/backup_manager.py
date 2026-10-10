@@ -66,8 +66,11 @@ class BackupManager(QObject):
         for path in legacy:
             path = path.expanduser().resolve()
             if path.exists() and path not in found:
-                self._check_sqlite_file(path)
-                found.append(path)
+                try:
+                    self._check_sqlite_file(path)
+                    found.append(path)
+                except ValueError:
+                    pass
         if len(found) != 1:
             raise ValueError("Etkin veritabanı bulunamadı veya birden fazla eski veritabanı var; doğru kaynak seçilmeli.")
         return found
@@ -75,7 +78,7 @@ class BackupManager(QObject):
     @staticmethod
     def _check_sqlite_file(path):
         if not path.is_file() or path.stat().st_size < 100:
-            raise ValueError(f"Etkin veritabanı yok veya boş: {path}")
+            raise ValueError(f"Etkin veritabanı bulunamadı veya boş: {path}")
         with path.open("rb") as handle:
             if handle.read(16) != b"SQLite format 3\x00":
                 raise ValueError(f"Etkin dosya SQLite değil: {path}")
