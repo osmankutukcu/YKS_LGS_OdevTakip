@@ -33,19 +33,18 @@ jobs:
             python tools/validate_release.py
           }
 
-      - name: Otomatik testler
-        run: python -m unittest discover -s tests -p "test_update_*.py" -v
-
       - name: Windows bagimliliklari
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements_win.txt
+          python -m pip install -r requirements_win.txt pytest httpx
+
+      - name: Otomatik testler
+        run: python -m unittest discover -s tests -p "test_update_*.py" -v
 
       - name: Butunlesik guvenlik ve veritabani testleri
         shell: pwsh
         run: |
-          python -m pip install pytest httpx
           python -m pytest -q tests/test_update_core.py tests/test_update_delivery.py tests/test_update_pipeline.py tests/test_backup_manager.py tests/test_backup_extended.py tests/test_unified_core.py tests/test_stabilization_regressions.py tests/test_write_durability_v354.py
 
       - name: PyInstaller uygulama EXE
