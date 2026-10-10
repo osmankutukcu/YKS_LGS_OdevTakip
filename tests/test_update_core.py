@@ -117,7 +117,7 @@ class TestUpdateCore(unittest.TestCase):
             with self.assertRaises(sqlite3.DatabaseError): backup_sqlite_for_update(p,Path(tmp)/'backup')
 
     def test_release_guard_consistency(self):
-        self.assertEqual('3.5.4',read_versions())
+        self.assertEqual('3.5.5',read_versions())
 
     def test_checksum_sidecar_creation(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -18,7 +18,7 @@ from utils.update_core import (
     user_update_directory, validate_installer, backup_sqlite_for_update,
 )
 
-_HEADERS = {'User-Agent': 'YKS-LGS-HomeworkManager-Updater/3.5.4', 'Accept': 'application/vnd.github+json'}
+_HEADERS = {'User-Agent': f'YKS-LGS-HomeworkManager-Updater/{version.APP_VERSION}', 'Accept': 'application/vnd.github+json'}
 
 
 def _urlopen_https(url, *, timeout=15):
