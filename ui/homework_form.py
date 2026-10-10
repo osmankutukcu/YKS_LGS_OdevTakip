@@ -5728,6 +5728,13 @@ class OdevTakipFormu(QWidget):
     #f--
 
 
+    def _flush_checkbox_queues(self):
+        """Ödev kaydından önce bütün derslerdeki son kutucuk durumlarını uygula."""
+        for table in tuple(getattr(self, "_ders_tablolari", {}).values()):
+            flush = getattr(table, "_checkbox_flush", None)
+            if callable(flush):
+                flush()
+
     def _bilgileri_getir(self):
         """
         Seçili öğrenci için sekmeleri/tabloları yeniler.
@@ -6056,47 +6063,46 @@ class OdevTakipFormu(QWidget):
             table.setUpdatesEnabled(True)
             # Matrix tablolarında sorting genelde istenmez ama gerekirse açılabilir
 
-        # ---- itemChanged mikro-kuyruk (akıcı) ----
-        if not hasattr(self, "_ic_queue"):
-            self._ic_queue = []
-        if not hasattr(self, "_ic_timer"):
-            self._ic_timer = QtCore.QTimer(self)
-            self._ic_timer.setSingleShot(True)
-            self._ic_timer.setInterval(10)
+        # ---- Hücre olayları: her ders tablosu için ayrı, bekletmeyen kuyruk ----
+        # 3.5.8: Önceki ortak 10 ms zamanlayıcının closure'ı ilk tabloyu
+        # tutuyordu; ayrıca her tıklamada süre sıfırlanıyordu. 0 ms single-shot
+        # olay döngüsü boşalır boşalmaz çalışır, checkbox ise anında boyanır.
+        # Aynı hücre peş peşe değişirse yalnızca son durum sağ listeye uygulanır;
+        # diğer hücreler ilk oluşma sırasıyla korunur.
+        from utils.checkbox_dispatch import PendingCheckboxChanges
+        pending_checks = PendingCheckboxChanges()
+        ic_timer = QtCore.QTimer(table)  # Tablo kapanınca kendi zamanlayıcısı da kapanır
+        ic_timer.setSingleShot(True)
+        ic_timer.setInterval(0)
 
-            def _ic_flush():
-                batch = self._ic_queue[:]
-                self._ic_queue.clear()
+        def _ic_flush():
+            ic_timer.stop()
+            for row, col in pending_checks.drain():
                 try:
-                    sort_on = table.isSortingEnabled()
-                    table.setSortingEnabled(False)
-                    table.setUpdatesEnabled(False)
-                    for it, t, d in batch:
-                        try:
-                            self._tik_degisti(it, t, d)
-                        except Exception:
-                            pass
-                finally:
-                    try:
-                        table.setUpdatesEnabled(True)
-                    except Exception:
-                        pass
-                    try:
-                        table.setSortingEnabled(sort_on)
-                    except Exception:
-                        pass
-            
-            self._ic_timer.timeout.connect(_ic_flush)
-
-        try:
-            table.itemChanged.disconnect()
-        except Exception:
-            pass
+                    it = table.item(row, col)
+                    if it is not None:
+                        self._tik_degisti(it, table, ders)
+                except RuntimeError:  # Tablo zaten kapandıysa
+                    return
+                except Exception:
+                    # Bir hücrenin işlenememesi diğerlerini engellemesin.
+                    import traceback
+                    traceback.print_exc()
+            # Eşzamanlı Qt sinyali oluştuysa kuyruk tekrar işlenir.
+            if pending_checks and not ic_timer.isActive():
+                ic_timer.start()
 
         def _ic_proxy(it):
-            self._ic_queue.append((it, table, ders))
-            self._ic_timer.start()
+            if it is None or it.column() == 0:
+                return
+            if not (it.flags() & Qt.ItemFlag.ItemIsUserCheckable):
+                return  # yeşil/sarı kilitler ve konu isimleri atlanır
+            pending_checks.push(it.row(), it.column())
+            if not ic_timer.isActive():
+                ic_timer.start()  # 10 ms beklemeyi ve sürekli ertelemeyi kaldır
 
+        table._checkbox_flush = _ic_flush
+        table._checkbox_pending = pending_checks
         table.itemChanged.connect(_ic_proxy)
 
         # ---- delegate’ler: gap + toggle + flash ----
@@ -6247,9 +6253,8 @@ class OdevTakipFormu(QWidget):
                 if getattr(tbl, "_flash_cells", None) and (index.row(), index.column()) in tbl._flash_cells:
                      painter.save()
                      rect = option.rect.adjusted(GAP_X // 2 + 1, GAP_Y // 2 + 1, -(GAP_X // 2 + 1), -(GAP_Y // 2 + 1))
-                     painter.setPen(Qt.PenStyle.NoPen);
-                     painter.setBrush(QColor("#93C5FD"))
-                     painter.drawRect(rect)
+                     # Opak mavi dolgu, tik işaretini 140 ms saklıyordu.
+                     # Aynı vurgu süresi ve mavi kenarlık korunur; tik görünür.
                      pen = QPen(QColor("#2563EB"));
                      pen.setWidth(2)
                      painter.setPen(pen);
@@ -8271,6 +8276,7 @@ class OdevTakipFormu(QWidget):
     def _kaydet_kume(self):
         """Sağdaki 'verilen' tablosunu yeni bir ödev kümesi olarak KAYDET
            veya VAR OLAN bir kümeye EKLE."""
+        self._flush_checkbox_queues()
         from PyQt6.QtWidgets import QMessageBox, QTableWidgetItem
         from PyQt6.QtGui import QColor
         from PyQt6.QtCore import QDate
@@ -9157,6 +9163,12 @@ class OdevTakipFormu(QWidget):
         except Exception:
             pass
 
+    @staticmethod
+    def _set_style_if_changed(widget, style):
+        """Aynı Qt stilini tekrar tekrar uygulayıp pahalı repolish yapma."""
+        if widget.styleSheet() != style:
+            widget.setStyleSheet(style)
+
     def _toplam_sure_guncelle(self):
         top = 0
         count = 0
@@ -9184,9 +9196,9 @@ class OdevTakipFormu(QWidget):
         self.lblTopSure.setText(sure_str)
         hedef = self.spHedefSure.value()
         if hedef and top > hedef:
-            self.lblTopSure.setStyleSheet("color:#dc2626;font-weight:bold;")
+            self._set_style_if_changed(self.lblTopSure, "color:#dc2626;font-weight:bold;")
         else:
-            self.lblTopSure.setStyleSheet("color:#1e293b;font-weight:bold;")
+            self._set_style_if_changed(self.lblTopSure, "color:#1e293b;font-weight:bold;")
             
         # --- YENİ: Yük Göstergesi Güncelle ---
         if hasattr(self, "progWorkload"):
@@ -9196,11 +9208,11 @@ class OdevTakipFormu(QWidget):
              
              # Renk Skalası
              if perc > 110:
-                 self.progWorkload.setStyleSheet("QProgressBar { border:1px solid #c0392b; border-radius:7px; background:#fadbd8; } QProgressBar::chunk { background-color: #e74c3c; border-radius:7px; }")
+                 self._set_style_if_changed(self.progWorkload, "QProgressBar { border:1px solid #c0392b; border-radius:7px; background:#fadbd8; } QProgressBar::chunk { background-color: #e74c3c; border-radius:7px; }")
              elif perc > 85:
-                 self.progWorkload.setStyleSheet("QProgressBar { border:1px solid #d35400; border-radius:7px; background:#fdebd0; } QProgressBar::chunk { background-color: #f39c12; border-radius:7px; }")
+                 self._set_style_if_changed(self.progWorkload, "QProgressBar { border:1px solid #d35400; border-radius:7px; background:#fdebd0; } QProgressBar::chunk { background-color: #f39c12; border-radius:7px; }")
              else:
-                 self.progWorkload.setStyleSheet("QProgressBar { border:1px solid #27ae60; border-radius:7px; background:#ecf0f1; } QProgressBar::chunk { background-color: #2ecc71; border-radius:7px; }")
+                 self._set_style_if_changed(self.progWorkload, "QProgressBar { border:1px solid #27ae60; border-radius:7px; background:#ecf0f1; } QProgressBar::chunk { background-color: #2ecc71; border-radius:7px; }")
             
         # Akıllı Yük Analizi Tetikle
         self._update_load_analysis(top, count)
@@ -9216,7 +9228,7 @@ class OdevTakipFormu(QWidget):
         # 0 Görev / Sıfır Ödev durumu
         if actual_count == 0 or total_min == 0:
             self.lblLoadAnalysis.setText(" |  📋 Henüz Ödev Eklenmedi  |  —")
-            self.lblLoadAnalysis.setStyleSheet("color: #94a3b8; font-weight: 500; font-size: 11px;")
+            self._set_style_if_changed(self.lblLoadAnalysis, "color: #94a3b8; font-weight: 500; font-size: 11px;")
             self.lblLoadAnalysis.setToolTip("Henüz ödev listesine bir görev eklenmedi.")
             return
 
@@ -9285,7 +9297,7 @@ class OdevTakipFormu(QWidget):
             badge_color = "#64748b"
 
         self.lblLoadAnalysis.setText(f" |  {load_status}  |  {balance}")
-        self.lblLoadAnalysis.setStyleSheet(f"color: {badge_color}; font-weight: 600; font-size: 11px;")
+        self._set_style_if_changed(self.lblLoadAnalysis, f"color: {badge_color}; font-weight: 600; font-size: 11px;")
 
         tooltip_lines = [
             f"📊 Ödev Dağılım Analizi:",
