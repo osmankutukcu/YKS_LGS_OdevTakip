@@ -162,3 +162,34 @@ def test_plan_settings_dialog_flags():
     assert dlg.minimumWidth() <= 500
     assert dlg.minimumHeight() <= 400
 
+
+def test_weekly_plan_landscape_and_single_page_capacity():
+    import os
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtPrintSupport import QPrinter
+    from PyQt6.QtGui import QTextDocument, QPageSize, QPageLayout
+    from PyQt6.QtCore import QMarginsF
+    
+    app = QApplication.instance() or QApplication([])
+    printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+    printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+    printer.setPageOrientation(QPageLayout.Orientation.Landscape)
+    printer.setPageMargins(QMarginsF(5, 5, 5, 5), QPageLayout.Unit.Millimeter)
+
+    hw = [
+        {"ders": "LGS Matematik", "konu": "Eşlik ve Benzerlik", "kitap": "3D", "sure": 75, "zorluk": 4},
+        {"ders": "LGS Fen", "konu": "Mevsimler", "kitap": "Fen Kaynak", "sure": 45, "zorluk": 3},
+        {"ders": "LGS Türkçe", "konu": "Fiilimsiler", "kitap": "Türkçe", "sure": 40, "zorluk": 2},
+    ]
+    html = SmartCalendarService.create_weekly_plan_pdf("ALİ VELİ", hw, {"max": 180, "school": "08:30 - 15:40"})
+    
+    assert "@page { size: A4 landscape;" in html
+    
+    doc = QTextDocument()
+    doc.setDocumentMargin(0)
+    doc.setPageSize(printer.pageRect(QPrinter.Unit.Point).size())
+    doc.setHtml(html)
+    assert doc.pageCount() == 1
+
+

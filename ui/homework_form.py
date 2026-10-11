@@ -8762,7 +8762,8 @@ class OdevTakipFormu(QWidget):
         """
         from PyQt6.QtWidgets import QMessageBox
         from PyQt6.QtPrintSupport import QPrinter, QPrintPreviewDialog
-        from PyQt6.QtGui import QTextDocument, QPageSize
+        from PyQt6.QtGui import QTextDocument, QPageSize, QPageLayout
+        from PyQt6.QtCore import QMarginsF
         
         # 1. Verileri Topla
         if self.verilen.rowCount() == 0:
@@ -8817,27 +8818,21 @@ class OdevTakipFormu(QWidget):
             if not html_content:
                 return
 
-            # 3. Önizleme
+            # 3. Önizleme (A4 Yatay / Landscape)
             printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-            try:
-                printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
-                # Yatay (Landscape) daha iyi olabilir takvim için
-                printer.setPageOrientation(QPageLayout.Orientation.Landscape)
-            except:
-                pass
+            printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+            printer.setPageOrientation(QPageLayout.Orientation.Landscape)
+            printer.setPageMargins(QMarginsF(5, 5, 5, 5), QPageLayout.Unit.Millimeter)
 
             preview = QPrintPreviewDialog(printer, self)
-            preview.setMinimumSize(1100, 800)
-            preview.setWindowTitle("📅 Haftalık Çalışma Programı Oluştur")
+            preview.setMinimumSize(1150, 780)
+            preview.setWindowTitle("📅 Haftalık Çalışma Programı (A4 Yatay Takvim)")
             
             def handle_print(p):
                 doc = QTextDocument()
+                doc.setDocumentMargin(0)
+                doc.setPageSize(p.pageRect(QPrinter.Unit.Point).size())
                 doc.setHtml(html_content)
-                try:
-                    # Sayfa kenar boşlukları ayarlaması
-                    # doc.setPageSize(p.pageRect(QPrinter.Unit.Point).size()) 
-                    pass
-                except: pass
                 doc.print(p)
                 
             preview.paintRequested.connect(handle_print)

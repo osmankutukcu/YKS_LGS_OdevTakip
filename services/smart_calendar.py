@@ -650,6 +650,16 @@ class SmartCalendarService:
             "lgs inkilap": "🏛️", "lgs dinkulturu": "🕌", "lgs ingilizce": "🇬🇧"
         }
 
+        total_tasks = sum(len(d.tasks) for d in days)
+        max_day_tasks = max((len(d.tasks) for d in days), default=0)
+        is_dense = (max_day_tasks >= 5 or total_tasks >= 20)
+
+        task_mb = "1.5px" if is_dense else "2.5px"
+        task_pad = "2px 4px" if is_dense else "3px 5px"
+        f_task_title = "7pt" if is_dense else "7.5pt"
+        f_task_sub = "7pt" if is_dense else "7.5pt"
+        cell_pad = "2px" if is_dense else "2.5px"
+
         cells_html = []
         for i, d in enumerate(days):
             tasks = d.tasks
@@ -661,7 +671,7 @@ class SmartCalendarService:
             raw_date = d.date_.strftime("%d.%m.%Y")
 
             if d.is_holiday:
-                header_bg = "#64748b"
+                header_bg = "#475569"
                 header_sub = "🏖️ TATİL GÜNÜ"
             elif d.date_.weekday() in (5, 6):
                 header_bg = "#4338ca"
@@ -671,38 +681,44 @@ class SmartCalendarService:
                 header_sub = "HAFTA İÇİ"
 
             c_html = f"""
-            <td width="25%" valign="top" style="padding: 5px;">
-                <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #cbd5e1; border-radius: 8px; background-color: #ffffff;">
+            <td width="25%" valign="top" style="padding: {cell_pad};">
+                <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #cbd5e1; border-radius: 6px; background-color: #ffffff;">
                     <tr>
-                        <td style="background-color: {header_bg}; color: #ffffff; padding: 8px 10px; border-top-left-radius: 7px; border-top-right-radius: 7px; text-align: center;">
-                            <div style="font-size: 13pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">{raw_day}</div>
-                            <div style="font-size: 8.5pt; opacity: 0.9; margin-top: 2px;">📅 {raw_date} &nbsp;•&nbsp; {header_sub}</div>
+                        <td style="background-color: {header_bg}; color: #ffffff; padding: 3px 5px; border-top-left-radius: 5px; border-top-right-radius: 5px;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td style="font-size: 9pt; font-weight: 800; text-transform: uppercase; color: #ffffff; letter-spacing: 0.3px;">
+                                        {raw_day}
+                                    </td>
+                                    <td align="right" style="font-size: 7pt; color: #e2e8f0; font-weight: 600;">
+                                        {raw_date} &nbsp;•&nbsp; {header_sub}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="font-size: 7pt; color: #dbeafe; padding-top: 1px;">
+                                        ⏱ <b>{day_mins} dk</b> <span style="opacity: 0.8;">/ {d.day_cap} dk</span> &nbsp;•&nbsp; <b>🎯 {focus}</b>
+                                    </td>
+                                    <td align="right" style="font-size: 7pt; color: #fef08a; font-weight: 600; padding-top: 1px;">
+                                        🕒 {suggest}
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
                     <tr>
-                        <td style="background-color: #f1f5f9; padding: 5px 8px; border-bottom: 1px solid #e2e8f0; font-size: 8.5pt; color: #334155;">
-                            <b>⏱ {day_mins} dk</b> <font color="#64748b">/ {d.day_cap} dk</font> &nbsp;|&nbsp; <b>🎯 {focus}</b>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 6px 8px; font-size: 8pt; color: #64748b; text-align: center; border-bottom: 1px dashed #e2e8f0; background: #fafafa;">
-                            🕒 Önerilen Zaman: <b>{suggest}</b>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px; min-height: 140px;" valign="top">
+                        <td style="padding: 3px;" valign="top">
             """
 
             if not tasks:
                 if d.is_holiday:
                     c_html += """
-                        <div style="text-align: center; color: #64748b; padding: 25px 5px; font-size: 9pt;">
-                            🏖️ <i>Tam Gün Tatil / Zihinsel Dinlenme & Sosyal Vakit</i>
+                        <div style="text-align: center; color: #64748b; padding: 8px 4px; font-size: 7.5pt;">
+                            🏖️ <i>Tam Gün Tatil / Zihinsel Dinlenme</i>
                         </div>
                     """
                 else:
                     c_html += """
-                        <div style="text-align: center; color: #94a3b8; padding: 25px 5px; font-size: 9pt;">
+                        <div style="text-align: center; color: #94a3b8; padding: 8px 4px; font-size: 7.5pt;">
                             ☕ <i>Serbest Gün / Dinlenme & Tekrar</i>
                         </div>
                     """
@@ -712,7 +728,7 @@ class SmartCalendarService:
                     icon = LESSON_ICONS.get(key, "📘")
                     ders = (t.ders or "").replace('_', ' ').title()
 
-                    border_color = "#3b82f6"
+                    border_color = "#2563eb"
                     bg_color = "#f8fafc"
                     if t.zorluk >= 4:
                         border_color = "#ef4444"
@@ -728,19 +744,20 @@ class SmartCalendarService:
                     kitap = t.kitap or "Kaynak Kitap"
 
                     c_html += f"""
-                    <div style="margin-bottom: 6px; padding: 6px 8px; border-left: 3.5px solid {border_color}; background-color: {bg_color}; border-radius: 4px; border-top: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9;">
+                    <div style="margin-bottom: {task_mb}; padding: {task_pad}; border-left: 3.5px solid {border_color}; background-color: {bg_color}; border-radius: 3px; border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
                         <table width="100%" cellpadding="0" cellspacing="0">
                             <tr>
-                                <td style="font-size: 8pt; font-weight: bold; color: #1e293b;">
+                                <td style="font-size: {f_task_title}; font-weight: bold; color: #1e293b;">
                                     {icon} {ders}
                                 </td>
-                                <td align="right" style="font-size: 7.5pt; color: #64748b;">
-                                    ⏳ <b>{t.sure} dk</b> &nbsp; <span style="font-size: 9pt; color: #94a3b8;">☐</span>
+                                <td align="right" style="font-size: {f_task_title}; color: #475569; font-weight: bold;">
+                                    ⏳ {t.sure} dk &nbsp; <span style="font-size: 7.5pt; color: #94a3b8;">☐</span>
                                 </td>
                             </tr>
                         </table>
-                        <div style="font-size: 8.5pt; font-weight: 600; color: #0f172a; margin-top: 2px;">{konu}</div>
-                        <div style="font-size: 7.5pt; color: #64748b; margin-top: 1px;">📚 {kitap}</div>
+                        <div style="font-size: {f_task_sub}; font-weight: 600; color: #0f172a; margin-top: 1px;">
+                            {konu} <span style="font-size: 6.5pt; font-weight: normal; color: #64748b;">({kitap})</span>
+                        </div>
                     </div>
                     """
 
@@ -754,28 +771,31 @@ class SmartCalendarService:
 
         # 8. Hücre: Haftalık Özet Kartı
         summary_cell = f"""
-        <td width="25%" valign="top" style="padding: 5px;">
-            <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #cbd5e1; border-radius: 8px; background-color: #f0fdf4;">
+        <td width="25%" valign="top" style="padding: {cell_pad};">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #cbd5e1; border-radius: 6px; background-color: #f0fdf4;">
                 <tr>
-                    <td style="background-color: #059669; color: #ffffff; padding: 8px 10px; border-top-left-radius: 7px; border-top-right-radius: 7px; text-align: center;">
-                        <div style="font-size: 13pt; font-weight: bold; letter-spacing: 0.5px;">🎯 HAFTALIK ÖZET</div>
-                        <div style="font-size: 8.5pt; opacity: 0.9; margin-top: 2px;">Başarı & Tamamlama Takibi</div>
+                    <td style="background-color: #059669; color: #ffffff; padding: 3px 5px; border-top-left-radius: 5px; border-top-right-radius: 5px;">
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td style="font-size: 9pt; font-weight: 800; letter-spacing: 0.3px; color: #ffffff;">🎯 HAFTALIK ÖZET</td>
+                                <td align="right" style="font-size: 7pt; color: #d1fae5; font-weight: 600;">Başarı Takibi</td>
+                            </tr>
+                        </table>
                     </td>
                 </tr>
                 <tr>
-                    <td style="padding: 10px 12px; font-size: 8.5pt; color: #1e293b; line-height: 1.6;" valign="top">
-                        <div style="margin-bottom: 6px;"><b>📊 Toplam Hedef:</b> {int(total_time/60)} saat {total_time%60} dk</div>
-                        <div style="margin-bottom: 6px;"><b>📋 Görev Sayısı:</b> {sum(len(d.tasks) for d in days)} adet ödev</div>
-                        <hr style="border: none; border-top: 1px dashed #cbd5e1; margin: 8px 0;"/>
-                        <div style="margin-bottom: 6px;"><b>🌟 Öğrenci Tamamlama:</b></div>
+                    <td style="padding: 4px 6px; font-size: 7pt; color: #1e293b; line-height: 1.35;" valign="top">
+                        <div><b>📊 Toplam Hedef:</b> {int(total_time/60)} sa {total_time%60} dk &nbsp;•&nbsp; <b>📋 {total_tasks}</b> ödev</div>
+                        <hr style="border: none; border-top: 1px dashed #bbf7d0; margin: 3px 0;"/>
+                        <div style="margin-bottom: 2px;"><b>🌟 Tamamlama Durumu:</b></div>
                         <div>[ &nbsp; ] Tüm ödevler eksiksiz bitti</div>
                         <div>[ &nbsp; ] %80 ve üzeri tamamlandı</div>
                         <div>[ &nbsp; ] Telafi edilmesi gerekenler var</div>
-                        <hr style="border: none; border-top: 1px dashed #cbd5e1; margin: 8px 0;"/>
-                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 8px;">
+                        <hr style="border: none; border-top: 1px dashed #bbf7d0; margin: 3px 0;"/>
+                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 3px;">
                             <tr>
-                                <td style="font-size: 8pt; color: #64748b;"><b>Öğretmen / Koç:</b><br/>...........................</td>
-                                <td align="right" style="font-size: 8pt; color: #64748b;"><b>Öğrenci / Veli:</b><br/>...........................</td>
+                                <td style="font-size: 6.5pt; color: #64748b;"><b>Koç / Öğretmen:</b><br/>.......................</td>
+                                <td align="right" style="font-size: 6.5pt; color: #64748b;"><b>Öğrenci / Veli:</b><br/>.......................</td>
                             </tr>
                         </table>
                     </td>
@@ -793,84 +813,58 @@ class SmartCalendarService:
         <head>
             <meta charset="utf-8"/>
             <style>
+                @page {{ size: A4 landscape; margin: 5mm; }}
                 body {{
-                    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-                    margin: 15px;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                    margin: 0; padding: 0;
                     color: #1e293b;
                     background-color: #ffffff;
                 }}
-                .header-table {{
-                    width: 100%;
+                .header-banner {{
                     border-bottom: 2px solid #2563eb;
-                    margin-bottom: 12px;
-                    padding-bottom: 8px;
+                    padding-bottom: 2px;
+                    margin-bottom: 3px;
                 }}
-                h1 {{
-                    color: #1e3a8a;
-                    margin: 0;
-                    font-size: 20pt;
-                    font-weight: 800;
-                }}
-                h2 {{
-                    color: #475569;
-                    margin: 2px 0 0 0;
-                    font-size: 12pt;
-                    font-weight: 600;
-                }}
-                .meta-box {{
-                    background-color: #f8fafc;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 6px;
-                    padding: 8px 12px;
-                    font-size: 8.5pt;
-                    color: #334155;
-                    margin-bottom: 10px;
-                    text-align: center;
-                }}
-                .coach-box {{
-                    background-color: #eff6ff;
-                    border-left: 4px solid #2563eb;
+                .meta-strip {{
+                    background-color: #f1f5f9;
                     border-radius: 4px;
-                    padding: 8px 12px;
-                    font-size: 8.5pt;
-                    color: #1e40af;
-                    margin-bottom: 12px;
-                    line-height: 1.4;
+                    padding: 2.5px 6px;
+                    font-size: 7pt;
+                    color: #334155;
+                    margin-top: 2px;
+                    line-height: 1.3;
                 }}
                 .main-table {{
                     width: 100%;
-                    border-collapse: collapse;
+                    border-collapse: separate;
+                    border-spacing: 0px;
                 }}
                 .footer {{
-                    margin-top: 14px;
+                    margin-top: 3px;
                     text-align: center;
-                    font-size: 8pt;
+                    font-size: 6.5pt;
                     color: #94a3b8;
                     border-top: 1px solid #e2e8f0;
-                    padding-top: 6px;
+                    padding-top: 2px;
                 }}
             </style>
         </head>
         <body>
-            <table class="header-table" cellpadding="0" cellspacing="0">
-                <tr>
-                    <td>
-                        <h1>📅 HAFTALIK ÇALIŞMA PLANI & TAKVİMİ</h1>
-                        <h2>Öğrenci: {student_name}</h2>
-                    </td>
-                    <td align="right" valign="bottom" style="font-size: 9pt; color: #64748b;">
-                        <b>Akademik Koçluk & Ödev Takip Sistemi</b><br/>
-                        Düzenleme Tarihi: {date.today().strftime("%d.%m.%Y")}
-                    </td>
-                </tr>
-            </table>
-
-            <div class="meta-box">
-                {meta_html}
-            </div>
-
-            <div class="coach-box">
-                <b>💡 Yapay Zeka Koçluk & Çalışma Tavsiyesi:</b> {coach_note}
+            <div class="header-banner">
+                <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                        <td valign="middle">
+                            <span style="font-size: 13pt; font-weight: 800; color: #1e3a8a;">📅 HAFTALIK ÇALIŞMA PLANI & TAKVİMİ</span>
+                            &nbsp;&nbsp;<span style="font-size: 9.5pt; font-weight: 700; color: #2563eb; background: #eff6ff; padding: 2px 7px; border-radius: 4px; border: 1px solid #bfdbfe;">Öğrenci: {student_name}</span>
+                        </td>
+                        <td align="right" valign="middle" style="font-size: 7.5pt; color: #64748b;">
+                            <b>Akademik Koçluk & Takip Sistemi</b> &nbsp;•&nbsp; 📅 {date.today().strftime("%d.%m.%Y")}
+                        </td>
+                    </tr>
+                </table>
+                <div class="meta-strip">
+                    {meta_html} &nbsp;&nbsp;|&nbsp;&nbsp; <b>💡 Koçluk Tavsiyesi:</b> {coach_note}
+                </div>
             </div>
 
             <table class="main-table" cellpadding="0" cellspacing="0">
@@ -883,9 +877,9 @@ class SmartCalendarService:
             </table>
 
             <div class="footer">
-                Toplam Planlanan Çalışma: <b>{int(total_time/60)} saat {total_time%60} dakika</b> &nbsp;|&nbsp; 
+                Toplam Planlanan Çalışma: <b>{int(total_time/60)} sa {total_time%60} dk</b> &nbsp;|&nbsp; 
                 <i>"Başarı, her gün tekrarlanan küçük disiplinlerin toplamıdır."</i> &nbsp;|&nbsp; 
-                Öğrenci Takip v2.0
+                YKS-LGS Ödev Takip v3.5
             </div>
         </body>
         </html>
