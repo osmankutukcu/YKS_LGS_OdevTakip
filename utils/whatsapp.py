@@ -87,11 +87,14 @@ def _normalize_number(num):
 
 def _open_app_focus():
     """
-    Sadece odağı uygulamaya ver. (Mac: open -a WhatsApp, Win: switch window)
+    Sadece odağı uygulamaya ver. (Mac: open -b net.whatsapp.WhatsApp / open -a WhatsApp, Win: switch window)
     """
     _dlog("_open_app_focus çağrıldı")
     if sys.platform == "darwin":
-        subprocess.run(["open", "-a", "WhatsApp"], check=False)
+        try:
+            subprocess.run(["open", "-b", "net.whatsapp.WhatsApp"], check=False)
+        except Exception:
+            subprocess.run(["open", "-a", "WhatsApp"], check=False)
         _sleep(1.0)
     elif hasattr(os, "startfile"):
         try:
@@ -140,7 +143,9 @@ def _open_deeplink(phone, text=None) -> bool:
         _dlog(f"Deeplink: {base}")
         
         if sys.platform == "darwin":
-            subprocess.run(["open", base], check=False)
+            res = subprocess.run(["open", base], check=False)
+            if res.returncode != 0:
+                subprocess.run(["open", "-b", "net.whatsapp.WhatsApp", base], check=False)
         elif hasattr(os, "startfile"):
             try:
                 os.startfile(base)
@@ -207,17 +212,44 @@ def _after_send_check_and_log(phone, msg, oid=None, success=True, error_msg=None
 def whatsapp_gonder(numaralar: list, mesaj: str, ogrenci_id=None, time_delay=None, image_path=None, **kwargs):
     """
     Basit ve gelişmiş metin/görsel gönderimi.
-    WhatsApp Desktop uygulamasını otomatik açar, mesajı yapıştırır ve Enter ile gönderir.
+    WhatsApp Desktop uygulamasını veya WhatsApp Web'i otomatik açar, mesajı yapıştırır/yükler ve gönderir.
     """
-    # Tekilleştir
+    mode = str(kwargs.get("mode") or kwargs.get("mod") or appset.ayar_get("whatsapp_preferred_mode", "desktop")).strip().lower()
     nums = _unique(numaralar)
     ok, fail = [], []
-    
-    # 1. Uygulama Odaklan
+
+    # 1. WhatsApp Web Modu (Kullanıcı WhatsApp Web'i seçtiyse)
+    if mode == "web":
+        import webbrowser
+        for raw in nums:
+            n = _normalize_number(raw)
+            if not n:
+                fail.append(raw)
+                continue
+            try:
+                pyperclip.copy(mesaj or "")
+            except Exception:
+                pass
+            enc = urllib.parse.quote(mesaj or "")
+            url = f"https://web.whatsapp.com/send?phone={n}&text={enc}"
+            try:
+                webbrowser.open(url)
+                _sleep(1.0)
+                sent = _after_send_check_and_log(n, mesaj, ogrenci_id)
+                if sent:
+                    ok.append(n)
+                else:
+                    fail.append(n)
+            except Exception as e:
+                _dlog(f"Web WhatsApp hata ({n}): {e}")
+                fail.append(n)
+                _after_send_check_and_log(n, mesaj, ogrenci_id, success=False, error_msg=str(e))
+        return {"ok": ok, "gonderilen": len(ok), "fail": fail, "hatali": len(fail)}
+
+    # 2. Masaüstü WhatsApp Modu (Varsayılan)
+    # Uygulama Odaklan
     _focus_whatsapp()
-    
-    # Warm-up (İlk numara atlama sorununa karşı)
-    _sleep(1.5)
+    _sleep(1.2)
 
     burst = int(appset.ayar_get("wa_enter_burst", "1"))
     pause = float(appset.ayar_get("wa_enter_pause", "0.2"))
@@ -250,17 +282,40 @@ def whatsapp_gonder(numaralar: list, mesaj: str, ogrenci_id=None, time_delay=Non
 
         sent = False
         
-        # Yöntem A: Deeplink (Hızlı, text parametresiyle)
+        # Yöntem A: Deeplink (Hızlı, text parametresiyle hazır açar)
         try:
-            # Sadece numarayı aç, texti yapıştıracağız (daha güvenli, karakter sınırı vs.)
-            if _open_deeplink(n, None):
+            # Mesajı panoya da al (güvenlik)
+            try:
+                pyperclip.copy(mesaj or "")
+            except Exception:
+                pass
+
+            if _open_deeplink(n, text=mesaj):
                 # Chat yüklensin
                 _sleep(current_wait)
-                # Yapıştır ve gönder
-                if mesaj:
-                    _paste(mesaj)
-                    _sleep(0.5)
-                    _press_enter(times=burst, pause=pause)
+
+                if sys.platform == "darwin":
+                    # macOS: WhatsApp'ı öne getir ve Enter tuşu gönder
+                    script = """
+                    tell application id "net.whatsapp.WhatsApp" to activate
+                    delay 0.8
+                    tell application "System Events"
+                        key code 36
+                        delay 0.3
+                        key code 36
+                    end tell
+                    """
+                    try:
+                        subprocess.run(["osascript", "-e", script], check=False)
+                    except Exception:
+                        pass
+                else:
+                    # Windows / Linux: yapıştır ve gönder
+                    if mesaj:
+                        _paste(mesaj)
+                        _sleep(0.5)
+                        _press_enter(times=burst, pause=pause)
+
                 if image_path and os.path.exists(str(image_path)):
                     _sleep(0.5)
                     _send_image_to_chat(str(image_path), bekleme)

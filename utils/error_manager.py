@@ -3,10 +3,25 @@ import os, sys, traceback, datetime, threading
 from ui import app_settings as appset
 
 def _log_dir():
-    d = appset.ayar_get('log_dir') or 'logs'
-    try: os.makedirs(d, exist_ok=True)
-    except Exception: pass
-    return d
+    d = appset.ayar_get('log_dir')
+    if d:
+        try:
+            os.makedirs(d, exist_ok=True)
+            return d
+        except Exception:
+            pass
+    try:
+        from db import _platform_appdata_dir
+        p = _platform_appdata_dir() / "logs"
+    except Exception:
+        from pathlib import Path
+        p = Path.home() / ".yks_lgs_manager" / "logs"
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+        return str(p)
+    except Exception:
+        import tempfile
+        return tempfile.gettempdir()
 
 def log_exception(exc_type, exc_value, tb):
     try:

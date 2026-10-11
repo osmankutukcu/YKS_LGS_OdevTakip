@@ -1,7 +1,8 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, 
     QPushButton, QTableWidget, QTableWidgetItem, QAbstractItemView, 
-    QMessageBox, QWidget, QFrame, QHeaderView, QCheckBox, QSpinBox
+    QMessageBox, QWidget, QFrame, QHeaderView, QCheckBox, QSpinBox,
+    QScrollArea
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QColor
@@ -101,6 +102,26 @@ class SmartRemedialDialog(QDialog):
 
         fl.addStretch(1)
 
+        self.btnInfo = QPushButton("ℹ️ Nasıl Çalışır? (Rehber)")
+        self.btnInfo.setStyleSheet("""
+            QPushButton {
+                background: #f0fdf4;
+                border: 1px solid #bbf7d0;
+                border-radius: 6px;
+                padding: 5px 12px;
+                font-size: 11px;
+                font-weight: bold;
+                color: #15803d;
+            }
+            QPushButton:hover {
+                background: #dcfce7;
+                border-color: #86efac;
+            }
+        """)
+        self.btnInfo.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btnInfo.clicked.connect(self._show_info_dialog)
+        fl.addWidget(self.btnInfo)
+
         self.btnToggleAll = QPushButton("Tümünü Seç/Kaldır")
         self.btnToggleAll.setStyleSheet("background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 10px; font-size: 11px; font-weight: bold;")
         self.btnToggleAll.clicked.connect(self._toggle_selection)
@@ -109,9 +130,9 @@ class SmartRemedialDialog(QDialog):
         root.addWidget(filter_frame)
 
         # --- TABLO ---
-        self.table = QTableWidget(0, 6)
+        self.table = QTableWidget(0, 7)
         self.table.setHorizontalHeaderLabels([
-            "Öncelik / Tür", "Ders", "Kitap / Kaynak", "Konu", "Takviye Hedefi", "Gerekçe & Analiz"
+            "Seç", "Öncelik / Tür", "Ders", "Kitap / Kaynak", "Konu", "Takviye Hedefi", "Gerekçe & Analiz"
         ])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setStyleSheet("""
@@ -120,6 +141,7 @@ class SmartRemedialDialog(QDialog):
             QTableWidget::item { padding: 4px 6px; }
         """)
         self.table.verticalHeader().setVisible(False)
+        self.table.cellClicked.connect(self._on_cell_clicked)
         root.addWidget(self.table, 1)
 
         # --- ALT BAR ---
@@ -180,8 +202,7 @@ class SmartRemedialDialog(QDialog):
                     if selected_lesson and ov["ders"] != selected_lesson:
                         continue
                     book = ov.get("kitap") or "Soru Bankası"
-                    if ov["ders"] in self.available_books and self.available_books[ov["ders"]]:
-                        book = self.available_books[ov["ders"]][0]
+                    # Gerçek ödev kitabını başka bir kitabın ilk kaydıyla DEĞİŞTİRME.
                     candidates.append({
                         "type": "overdue",
                         "badge": "🚨 Geciken Telafi",
@@ -260,7 +281,15 @@ class SmartRemedialDialog(QDialog):
                             "reason": f"Sınavda çıkma olasılığı yüksek ({gp['questions_exam']}). {gp.get('tip', '')}"
                         })
 
-            self.candidates = candidates
+            # Aynı ders/kitap/konu için birden fazla gecikmiş satır varsa
+            # telafi olarak üç kez ödev yazmayı önle.
+            from utils.wizard_integrity_v8 import exact_task_key
+            unique = {}
+            for candidate in candidates:
+                key = exact_task_key(candidate.get('ders'), candidate.get('kitap'), candidate.get('konu'))
+                if all(key) and key not in unique:
+                    unique[key] = candidate
+            self.candidates = list(unique.values())
             self._fill_table()
             self._reselect_by_target()
 
@@ -269,88 +298,122 @@ class SmartRemedialDialog(QDialog):
         finally:
             con.close()
 
+    def _is_row_checked(self, row: int) -> bool:
+        w = self.table.cellWidget(row, 0)
+        return bool(w and hasattr(w, "chk") and w.chk.isChecked())
+
+    def _set_row_checked(self, row: int, checked: bool):
+        w = self.table.cellWidget(row, 0)
+        if w and hasattr(w, "chk"):
+            w.chk.blockSignals(True)
+            w.chk.setChecked(checked)
+            w.chk.blockSignals(False)
+
+    def _on_cell_clicked(self, row, col):
+        if col != 0:
+            cur = self._is_row_checked(row)
+            self._set_row_checked(row, not cur)
+            self._update_summary()
+
     def _fill_table(self):
         self.table.setRowCount(0)
         for i, c in enumerate(self.candidates):
             self.table.insertRow(i)
 
-            # Badge
+            # 0: Checkbox (Çoklu Seçim Kutucuğu)
+            chk = QCheckBox()
+            chk.setStyleSheet("QCheckBox { margin-left: 6px; }")
+            w = QWidget()
+            l = QHBoxLayout(w)
+            l.setContentsMargins(0, 0, 0, 0)
+            l.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            l.addWidget(chk)
+            self.table.setCellWidget(i, 0, w)
+            w.chk = chk
+            chk.stateChanged.connect(self._update_summary)
+
+            # 1: Badge
             lbl = QLabel(f" {c['badge']} ")
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             col = c.get("badge_color", "#dc2626")
             lbl.setStyleSheet(f"background: {col}15; color: {col}; border: 1px solid {col}40; border-radius: 4px; font-weight: bold; font-size: 11px;")
-            self.table.setCellWidget(i, 0, lbl)
+            self.table.setCellWidget(i, 1, lbl)
 
-            # Ders
+            # 2: Ders
             it_ders = QTableWidgetItem(c["ders"].replace("_", " ").title())
             it_ders.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-            self.table.setItem(i, 1, it_ders)
+            self.table.setItem(i, 2, it_ders)
 
-            # Kitap
-            self.table.setItem(i, 2, QTableWidgetItem(c.get("kitap", "-")))
+            # 3: Kitap
+            self.table.setItem(i, 3, QTableWidgetItem(c.get("kitap", "-")))
 
-            # Konu
+            # 4: Konu
             it_konu = QTableWidgetItem(c.get("konu", "-"))
             it_konu.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-            self.table.setItem(i, 3, it_konu)
+            self.table.setItem(i, 4, it_konu)
 
-            # Hedef
+            # 5: Hedef
             dk = c.get("dk", 30)
             soru = c.get("soru", 20)
             it_h = QTableWidgetItem(f"🎯 ~{soru} Soru • ⏱️ {dk} dk")
             it_h.setForeground(QColor("#059669"))
-            self.table.setItem(i, 4, it_h)
+            self.table.setItem(i, 5, it_h)
 
-            # Gerekçe
+            # 6: Gerekçe
             it_r = QTableWidgetItem(c.get("reason", ""))
             it_r.setToolTip(c.get("reason", ""))
-            self.table.setItem(i, 5, it_r)
+            self.table.setItem(i, 6, it_r)
 
         self.table.resizeColumnsToContents()
         h = self.table.horizontalHeader()
-        h.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        h.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(0, 50)
         h.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         h.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         h.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         h.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        h.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        h.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        h.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
 
     def _reselect_by_target(self):
         tgt = self.spTarget.value()
         curr_min = 0
-        sel_rows = []
+        sel_rows = set()
         for i, c in enumerate(self.candidates):
             dk = c.get("dk", 30)
             if curr_min + dk <= tgt + 15:
-                sel_rows.append(i)
+                sel_rows.add(i)
                 curr_min += dk
             elif not sel_rows:
-                sel_rows.append(i)
+                sel_rows.add(i)
                 curr_min += dk
                 break
 
-        # Tabloda seç
-        self.table.clearSelection()
-        for r in sel_rows:
-            self.table.selectRow(r)
+        for r in range(self.table.rowCount()):
+            self._set_row_checked(r, r in sel_rows)
 
         self._update_summary()
 
     def _toggle_selection(self):
         if self.table.rowCount() == 0:
             return
-        if len(self.table.selectionModel().selectedRows()) == self.table.rowCount():
-            self.table.clearSelection()
-        else:
-            self.table.selectAll()
+        all_checked = all(self._is_row_checked(r) for r in range(self.table.rowCount()))
+        new_state = not all_checked
+        for r in range(self.table.rowCount()):
+            self._set_row_checked(r, new_state)
         self._update_summary()
 
+    def _get_selected_indices(self) -> list:
+        checked = [r for r in range(self.table.rowCount()) if self._is_row_checked(r)]
+        if checked:
+            return checked
+        return [idx.row() for idx in self.table.selectionModel().selectedRows()]
+
     def _update_summary(self):
-        sel_rows = self.table.selectionModel().selectedRows()
+        sel_rows = self._get_selected_indices()
         tot_min = 0
         tot_q = 0
-        for idx in sel_rows:
-            r = idx.row()
+        for r in sel_rows:
             if r < len(self.candidates):
                 c = self.candidates[r]
                 tot_min += c.get("dk", 30)
@@ -363,14 +426,13 @@ class SmartRemedialDialog(QDialog):
         self.lblSummary.setText(f"Seçilen: {len(sel_rows)} Takviye Ödevi (~{time_str}, ~{tot_q} Soru)")
 
     def _accept_selection(self):
-        sel_rows = self.table.selectionModel().selectedRows()
+        sel_rows = self._get_selected_indices()
         if not sel_rows:
-            QMessageBox.information(self, "Seçim Yapılmadı", "Lütfen eklemek istediğiniz takviye ödevlerini tablodan seçiniz.")
+            QMessageBox.information(self, "Seçim Yapılmadı", "Lütfen eklemek istediğiniz takviye ödevlerini onay kutusunu (☑️) işaretleyerek seçiniz.")
             return
 
         final_list = []
-        for idx in sel_rows:
-            r = idx.row()
+        for r in sel_rows:
             if r < len(self.candidates):
                 c = self.candidates[r]
                 final_list.append({
@@ -383,3 +445,114 @@ class SmartRemedialDialog(QDialog):
 
         self.selected_remedials = final_list
         self.accept()
+
+    def _show_info_dialog(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("ℹ️ Akıllı Takviye & Telafi Sistemi Rehberi")
+        dlg.resize(640, 580)
+        dlg.setStyleSheet("""
+            QDialog { background-color: #f8fafc; font-family: 'Segoe UI', system-ui, sans-serif; }
+        """)
+
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(12)
+
+        # Header banner
+        header = QFrame()
+        header.setStyleSheet("""
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #15803d, stop:1 #059669);
+            border-radius: 8px;
+            padding: 12px 16px;
+        """)
+        h_lay = QVBoxLayout(header)
+        h_lay.setContentsMargins(0, 0, 0, 0)
+        h_lay.setSpacing(2)
+        lbl_h1 = QLabel("🎯 Akıllı Takviye & Telafi Sistemi Rehberi")
+        lbl_h1.setStyleSheet("color: white; font-size: 15px; font-weight: bold;")
+        lbl_h2 = QLabel("Hedef türleri, Ebbinghaus tekrar modeli ve süre/soru belirleme kriterleri")
+        lbl_h2.setStyleSheet("color: #dcfce7; font-size: 11px;")
+        h_lay.addWidget(lbl_h1)
+        h_lay.addWidget(lbl_h2)
+        layout.addWidget(header)
+
+        # Scroll Area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("background: transparent;")
+
+        content = QWidget()
+        cv = QVBoxLayout(content)
+        cv.setContentsMargins(0, 4, 0, 4)
+        cv.setSpacing(10)
+
+        def add_card(title, text):
+            card = QFrame()
+            card.setStyleSheet("background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;")
+            cl = QVBoxLayout(card)
+            cl.setContentsMargins(0, 0, 0, 0)
+            cl.setSpacing(4)
+            t = QLabel(title)
+            t.setStyleSheet("font-size: 13px; font-weight: bold; color: #166534;")
+            b = QLabel(text)
+            b.setStyleSheet("font-size: 12px; color: #334155; line-height: 1.5;")
+            b.setWordWrap(True)
+            cl.addWidget(t)
+            cl.addWidget(b)
+            cv.addWidget(card)
+
+        add_card("1. 🎯 Akıllı Takviye ve Telafi Formunun Amacı",
+                 "Bu form, öğrencinin çalışma geçmişini analiz ederek eksiklerini tespit eder. "
+                 "Amacı öğrenciye rastgele ödev yığmak değil; <b>geciken ödevleri toparlamak</b>, "
+                 "<b>unutulmaya başlayan konuları tazelemek</b> ve <b>zayıf kalınan kazanımları güçlendirmektir</b>.")
+
+        add_card("2. 🧠 'Ebbinghaus Aralıklı Tekrar' Nedir ve Nasıl Çalışır?",
+                 "Alman psikolog Hermann Ebbinghaus'un bilimsel <b>'Unutma Eğrisi'</b> modeline dayanır.<br/>"
+                 "• İnsan beyni yeni öğrendiği bilginin %70'ini ilk günlerde unutur.<br/>"
+                 "• Bilginin kalıcı hafızaya kazınması için sistem öğrencinin tamamladığı ödevlerin tarihlerini takip eder.<br/>"
+                 "• <b>24 saat, 7. gün, 14. gün ve 30. gün</b> kritik eşiklerine gelen konular otomatik olarak "
+                 "<i>'Ebbinghaus Tekrarı'</i> rozetiyle listelenir. Sıfırdan konu çalışmak yerine 20-25 dakikalık hızlı bir testle hafıza kilitlenir.")
+
+        add_card("3. 🚨 'Geciken & Yapılmayan Ödevler' Mantığı",
+                 "Öğrenciye geçmişte verilmiş ancak teslim tarihi geçmesine rağmen henüz tamamlanmamış ödevleri listeler. "
+                 "Öğrencinin ödev borcunu biriktirmeden hızlıca eritmesi için öncelikli telafi olarak sunulur.")
+
+        add_card("4. 📉 'Düşük Başarılı Konular' ve ⚡ 'Sınav Takviyesi'",
+                 "• <b>Düşük Başarılı Konular:</b> Öğrencinin test ve deneme çözümlerinde başarı oranı %65'in altında kalan veya az soru çözülen temel konularıdır.<br/>"
+                 "• <b>Sınav Takviyesi (ÖSYM Odaklı):</b> Müfredatta ÖSYM sınavlarında en çok soru çıkan kritik konuları tarar.")
+
+        add_card("5. ⏱️ Takviye Hedefi (Süre ve Soru) Neye Göre Belirlenir?",
+                 "Takviye ödevlerinde öğrenciyi bunaltmamak için <b>mikro seanslar (1 Pomodoro = ~25-35 dk)</b> hedeflenir:<br/>"
+                 "• <b>Geciken Telafi:</b> ~25 Soru • 30 dk (hızlı borç kapatma).<br/>"
+                 "• <b>Zayıf Konu:</b> ~20 Soru • 30 dk (kavrama ve temel kazanım).<br/>"
+                 "• <b>Ebbinghaus Tekrarı:</b> ~20 Soru • 25 dk (hafıza tetikleme testi).<br/>"
+                 "• <b>Sınav Takviyesi:</b> ~25 Soru • 35 dk (çıkmış soru tarzı pratik).")
+
+        add_card("6. ☑️ Çoklu Seçim ve 'Hedef Süre' Kullanımı",
+                 "• <b>Onay Kutuları (☑️):</b> Dilediğiniz takviye ödevlerini kutucuklara tıklayarak tek tek veya çoklu seçebilirsiniz. Satırın herhangi bir yerine tıklamak da kutucuğu açıp kapatır.<br/>"
+                 "• <b>Hedef Süre (Spinbox):</b> İstediğiniz çalışma süresini (örn: 60 dk) seçtiğinizde sistem süre bütçesine tam sığacak ödevleri otomatik olarak işaretler.<br/>"
+                 "• <b>Tümünü Seç/Kaldır:</b> Listedeki tüm ödevleri tek tıkla topluca işaretler veya temizler.")
+
+        scroll.setWidget(content)
+        layout.addWidget(scroll, 1)
+
+        btnKapat = QPushButton("Anladım, Kapat")
+        btnKapat.setFixedHeight(38)
+        btnKapat.setCursor(Qt.CursorShape.PointingHandCursor)
+        btnKapat.setStyleSheet("""
+            QPushButton {
+                background: #f1f5f9;
+                border: 1px solid #cbd5e1;
+                border-radius: 6px;
+                font-weight: bold;
+                color: #334155;
+            }
+            QPushButton:hover {
+                background: #e2e8f0;
+            }
+        """)
+        btnKapat.clicked.connect(dlg.close)
+        layout.addWidget(btnKapat)
+
+        dlg.exec()

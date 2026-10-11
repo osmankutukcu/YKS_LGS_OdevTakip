@@ -24,8 +24,18 @@ def _get_conn():
         con = get_conn()
     except Exception:
         import sqlite3
-        # Fallback: proje köküne küçük bir settings.db (sadece güvenlik ağı)
-        con = sqlite3.connect("settings.db")
+        from pathlib import Path
+        try:
+            from db import _platform_appdata_dir
+            sp = _platform_appdata_dir() / "settings.db"
+        except Exception:
+            sp = Path.home() / ".yks_lgs_manager" / "settings.db"
+        try:
+            sp.parent.mkdir(parents=True, exist_ok=True)
+            con = sqlite3.connect(str(sp))
+        except Exception:
+            import tempfile
+            con = sqlite3.connect(str(Path(tempfile.gettempdir()) / "yks_settings.db"))
     try:
         import sqlite3 as _sqlite3
         con.row_factory = getattr(_sqlite3, "Row", None) or con.row_factory

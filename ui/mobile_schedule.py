@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QTextEdit, QTextBrowser, QProgressBar, QCheckBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QSplitter, QFrame, QLineEdit, QComboBox, QRadioButton, QButtonGroup,
-    QFileDialog, QMessageBox
+    QFileDialog, QMessageBox, QScrollArea
 )
 from PyQt6.QtGui import QTextDocument, QFont, QColor, QCursor
 from PyQt6.QtCore import QSizeF, QTimer, Qt
@@ -67,23 +67,35 @@ class SmartMobileSchedulePreviewDialog(QDialog):
         super().__init__(parent)
         self.generator = schedule_generator
         self.setWindowTitle("📱 Akıllı Mobil Cep Ajandası - Önizleme & Baskı")
-        self.resize(1000, 780)
+        
+        # Düşük çözünürlüklü Windows ekranları (1366x768 vb.) için dinamik boyutlandırma
+        screen = QApplication.primaryScreen()
+        if screen:
+            avail = screen.availableGeometry()
+            target_w = min(1000, max(760, int(avail.width() * 0.92)))
+            target_h = min(740, max(480, int(avail.height() * 0.88)))
+            self.resize(target_w, target_h)
+            self.move(avail.x() + (avail.width() - target_w) // 2,
+                      avail.y() + (avail.height() - target_h) // 2)
+        else:
+            self.resize(940, 640)
+
         self._current_html = ""
         self._setup_ui()
         self._refresh_preview()
 
     def _setup_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(12)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(14, 14, 14, 14)
 
         # Header Banner
         header = QFrame()
         header.setStyleSheet("""
             QFrame {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1e293b, stop:1 #1e40af);
-                border-radius: 10px;
-                padding: 12px 18px;
+                border-radius: 8px;
+                padding: 10px 14px;
             }
         """)
         h_layout = QHBoxLayout(header)
@@ -278,7 +290,19 @@ class SmartBulkMessageDialog(QDialog):
         super().__init__(parent)
         self.generator = schedule_generator
         self.setWindowTitle("🚀 Akıllı WhatsApp İletişim Merkezi & Gönderim Robotu")
-        self.resize(1050, 720)
+        
+        # Düşük çözünürlüklü ekranlar için dinamik boyut
+        screen = QApplication.primaryScreen()
+        if screen:
+            avail = screen.availableGeometry()
+            target_w = min(1050, max(760, int(avail.width() * 0.92)))
+            target_h = min(720, max(480, int(avail.height() * 0.88)))
+            self.resize(target_w, target_h)
+            self.move(avail.x() + (avail.width() - target_w) // 2,
+                      avail.y() + (avail.height() - target_h) // 2)
+        else:
+            self.resize(960, 600)
+
         self.queue: List[Dict[str, Any]] = []
         self.selected_queue: List[Dict[str, Any]] = []
         self.current_sending_idx = 0
@@ -1310,23 +1334,40 @@ class ScheduleActionDialog(QDialog):
         super().__init__(parent)
         self.generator = generator
         self.setWindowTitle("📱 Akıllı Cep Ajandası & İletişim Merkezi")
-        self.setFixedWidth(540)
+        self.setFixedWidth(520)
 
-        layout = QVBoxLayout(self)
-        layout.setSpacing(14)
-        layout.setContentsMargins(22, 22, 22, 22)
+        # Düşük çözünürlüklü Windows ekranları için dikey sınır ve ortalama
+        screen = QApplication.primaryScreen()
+        if screen:
+            avail = screen.availableGeometry()
+            max_h = min(620, max(440, int(avail.height() * 0.88)))
+            self.setMaximumHeight(max_h)
+
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
+        layout.setSpacing(10)
+        layout.setContentsMargins(16, 16, 16, 16)
 
         # Header Area
         header = QFrame()
         header.setStyleSheet("""
             QFrame {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0f172a, stop:1 #1e3a8a);
-                border-radius: 12px;
-                padding: 16px 20px;
+                border-radius: 10px;
+                padding: 12px 16px;
             }
         """)
         h_layout = QVBoxLayout(header)
-        h_layout.setSpacing(4)
+        h_layout.setSpacing(3)
         h_layout.setContentsMargins(0, 0, 0, 0)
 
         lbl_title = QLabel("📱 Akıllı Cep Ajandası & İletişim Asistanı")
@@ -1458,6 +1499,9 @@ class ScheduleActionDialog(QDialog):
         """)
         btn_cancel.clicked.connect(self.close)
         layout.addWidget(btn_cancel)
+
+        scroll.setWidget(content_widget)
+        root_layout.addWidget(scroll)
 
 
 # =========================================================================
@@ -1949,14 +1993,21 @@ class MobileScheduleGenerator:
 
                 target_num = self._clean(ev["tel_ogr"]) or self._clean(ev["tel_veli"])
                 links_html = ""
-                if target_num and not for_pdf:
+                if target_num:
                     msg = self._build_msg_single(ev, day_name, f"{d_str.split('-')[2]}.{d_str.split('-')[1]}")
                     wa_url = f"https://wa.me/{target_num}?text={urllib.parse.quote(msg)}"
                     links_html = f"""
-                    <div style="margin-top: 10px;">
-                        <a href="{wa_url}" class="btn-link">💬 WhatsApp Raporu</a>
-                        <a href="tel:{target_num}" class="btn-call">📞 Ara</a>
-                    </div>
+                    <table cellpadding="0" cellspacing="0" style="margin-top: 10px;">
+                        <tr>
+                            <td bgcolor="#16a34a" style="border-radius: 6px; padding: 5px 12px;">
+                                <a href="{wa_url}" style="color: #ffffff; text-decoration: none; font-size: 12px; font-weight: bold;">💬 WhatsApp Raporu</a>
+                            </td>
+                            <td width="8">&nbsp;</td>
+                            <td bgcolor="#ffffff" style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 12px;">
+                                <a href="tel:{target_num}" style="color: #334155; text-decoration: none; font-size: 12px; font-weight: bold;">📞 Ara</a>
+                            </td>
+                        </tr>
+                    </table>
                     """
 
                 border_color = ev.get("renk", "#3b82f6")

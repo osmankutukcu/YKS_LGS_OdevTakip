@@ -4,12 +4,18 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QWidget, QMessageBox,
     QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView,
-    QDateTimeEdit, QCalendarWidget, QDialogButtonBox
+    QDateTimeEdit, QCalendarWidget, QDialogButtonBox, QPlainTextEdit, QApplication
 )
 from PyQt6.QtCore import Qt, QSize, QTimer, QDate
 from PyQt6.QtGui import QPainter, QPen, QColor
 import datetime
+import sqlite3
 import db
+from services.daily_coach_v10 import collect_student_facts, make_suggestions, tracking_indicator
+from services.daily_brief_v11 import (ensure_review_table, load_reviewed, set_reviewed,
+                                       review_identity, daily_brief, brief_stats)
+from services.daily_followup_v12 import load_open_homework, make_followup_draft, draft_text
+from services.plan_profile_store import load_profiles, load_assignments
 
 
 # -----------------------------
@@ -59,6 +65,7 @@ class RiskSparkline(QWidget):
         for i in range(n):
             v = self.points[i]
             if v is None:
+                last = None  # Missing day: don't draw a misleading continuous trend.
                 continue
             x, y = xs[i], y_from(v)
             if last is not None:
@@ -86,11 +93,11 @@ class RiskDetailDialog(QDialog):
         super().__init__(parent)
         self.dtype = dtype
         
-        title_text = "Risk Detayı"
-        graph_title = f"📊 {student_name} • Son 7 Gün Risk Grafiği"
+        title_text = "Takip Kaydı Detayı"
+        graph_title = f"📊 {student_name} • Son 7 Gün Takip Göstergesi"
         
         if dtype == "star":
-            title_text = "Başarı Detayı"
+            title_text = "Tamamlanan Ödev Kaydı"
             graph_title = f"🌟 {student_name} • Haftalık Başarı/Risk Grafiği"
         elif dtype == "birthday":
             title_text = "Doğum Günü"
@@ -115,7 +122,7 @@ class RiskDetailDialog(QDialog):
         if vals:
             avg = sum(vals) / len(vals)
             last = vals[-1]
-            info = QLabel(f"Ortalama Risk Puanı: {avg:.1f} • Güncel: {last}")
+            info = QLabel(f"Ortalama Takip Göstergesi: {avg:.1f} • Güncel: {last}")
             info.setStyleSheet("color:#334155;")
             info.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(info)
@@ -215,9 +222,11 @@ class WhatsAppQueueDialog(QDialog):
         btn_row = QHBoxLayout()
         self.btn_refresh = QPushButton("🔄 Yenile")
         self.btn_cancel = QPushButton("🗑️ Seçileni İptal Et")
+        self.btn_retry = QPushButton("↻ Yeniden Onaya Al")
         self.btn_close = QPushButton("Kapat")
         btn_row.addWidget(self.btn_refresh)
         btn_row.addWidget(self.btn_cancel)
+        btn_row.addWidget(self.btn_retry)
         btn_row.addStretch()
         btn_row.addWidget(self.btn_close)
         layout.addLayout(btn_row)
@@ -225,6 +234,7 @@ class WhatsAppQueueDialog(QDialog):
         self.btn_close.clicked.connect(self.accept)
         self.btn_refresh.clicked.connect(self.load)
         self.btn_cancel.clicked.connect(self.cancel_selected)
+        self.btn_retry.clicked.connect(self.retry_selected)
 
         self.load()
 
@@ -258,6 +268,21 @@ class WhatsAppQueueDialog(QDialog):
             for c, val in enumerate(items):
                 self.table.setItem(row_i, c, QTableWidgetItem(val))
 
+    def retry_selected(self):
+        selected = self.table.selectedItems()
+        if not selected:
+            QMessageBox.information(self, "Seçim Yok", "Bir mesaj seçin.")
+            return
+        row = selected[0].row()
+        qid = self.table.item(row, 0).text()
+        con = db.get_conn()
+        try:
+            con.execute("UPDATE whatsapp_queue SET status='pending' WHERE id=? AND status='needs_review'", (qid,))
+            con.commit()
+        finally:
+            con.close()
+        self.load()
+
     def cancel_selected(self):
         selected = self.table.selectedItems()
         if not selected:
@@ -267,7 +292,7 @@ class WhatsAppQueueDialog(QDialog):
         qid = self.table.item(row, 0).text()
 
         con = db.get_conn()
-        con.execute("UPDATE whatsapp_queue SET status='cancelled' WHERE id=?", (qid,))
+        con.execute("UPDATE whatsapp_queue SET status='cancelled' WHERE id=? AND status='pending'", (qid,))
         con.commit()
         self.load()
 
@@ -280,8 +305,8 @@ class SmartAssistantDialog(QDialog):
         super().__init__(parent)
 
         self.setWindowTitle("YKS/LGS Akıllı Koç Asistanı")
-        self.resize(660, 780)
-        self.setMinimumWidth(630)
+        self.resize(780, 800)
+        self.setMinimumWidth(740)
 
         self.setStyleSheet("""
             QDialog { background-color: #F8FAFC; }
@@ -332,6 +357,7 @@ class SmartAssistantDialog(QDialog):
         self._db_watch_timer.timeout.connect(self._db_watch_tick)
         self._db_watch_timer.start(10_000)
 
+        self._watch_conn = db.get_conn()
         self._db_last_data_version = None
         self._snapshot_debounce = QTimer(self)
         self._snapshot_debounce.setSingleShot(True)
@@ -389,10 +415,11 @@ class SmartAssistantDialog(QDialog):
         # 🔽 AKILLI FİLTRELER (Smart Filters)
         # -----------------------------
         filter_layout = QHBoxLayout()
-        filter_layout.setSpacing(10)
+        filter_layout.setSpacing(6)
         
         self.filter_btn_group = {}
         filters = [
+            ("priority", "⭐ Bugünün 5’i"),
             ("all", "Tümü"),
             ("risk", "⚠️ Riskler"),
             ("star", "🌟 Başarılar"),
@@ -400,7 +427,8 @@ class SmartAssistantDialog(QDialog):
             ("silent", "👻 Sessizler")
         ]
         
-        self.active_filter = "all"
+        self.active_filter = "priority"
+        self._reviewed_today = set()
 
         for f_key, f_label in filters:
             btn = QPushButton(f_label)
@@ -410,7 +438,8 @@ class SmartAssistantDialog(QDialog):
             btn.setStyleSheet("""
                 QPushButton {
                     background-color: white; border: 1px solid #CBD5E1; 
-                    border-radius: 15px; padding: 5px 15px; color: #475569; font-weight: 600; font-size: 13px;
+                    border-radius: 14px; padding: 5px 11px; color: #475569; font-weight: 600; font-size: 12px;
+                    white-space: nowrap;
                 }
                 QPushButton:checked {
                     background-color: #3B82F6; border: 1px solid #3B82F6; color: white;
@@ -421,14 +450,19 @@ class SmartAssistantDialog(QDialog):
             filter_layout.addWidget(btn)
             self.filter_btn_group[f_key] = btn
         
-        self.filter_btn_group["all"].setChecked(True)
+        self.filter_btn_group["priority"].setChecked(True)
         filter_layout.addStretch()
         layout.addLayout(filter_layout)
+
+        self.brief_header = QLabel("Öncelikler hazırlanıyor…")
+        self.brief_header.setStyleSheet("color:#475569; font-size:12px; font-weight:600;")
+        self.brief_header.setWordWrap(True)
+        layout.addWidget(self.brief_header)
 
         self.list_widget = QListWidget()
         layout.addWidget(self.list_widget)
 
-        footer_lbl = QLabel("Bu öneriler öğrenci verilerine dayanarak oluşturulmuştur.")
+        footer_lbl = QLabel("Ödev kayıtlarına dayalı öğretmen kontrol listesi. Akademik/psikolojik tanı değildir.")
         footer_lbl.setStyleSheet("color: #94A3B8; font-size: 11px; font-style: italic;")
         footer_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(footer_lbl)
@@ -470,15 +504,46 @@ class SmartAssistantDialog(QDialog):
                 PRIMARY KEY (snapshot_date, student_id)
             )
         """)
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS coach_tracking_snapshot_v10 (
+                snapshot_date TEXT NOT NULL,
+                student_id INTEGER NOT NULL,
+                indicator INTEGER NOT NULL,
+                overdue_count INTEGER NOT NULL DEFAULT 0,
+                assigned_days_ago INTEGER,
+                completed_recent_set INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (snapshot_date, student_id)
+            )
+        """)
+        ensure_review_table(con)
         con.commit()
+        con.close()
+
+    def done(self, result):
+        # Dialog has MainWindow as QObject parent: timers otherwise survive close
+        # and can reprocess the WhatsApp queue on subsequent dialog openings.
+        for name in ("_queue_timer", "_snapshot_timer", "_db_watch_timer", "_snapshot_debounce"):
+            timer = getattr(self, name, None)
+            if timer is not None:
+                timer.stop()
+        conn = getattr(self, "_watch_conn", None)
+        self._watch_conn = None
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        super().done(result)
 
     def notify_data_changed(self):
         self._schedule_force_snapshot(reason="manual-notify")
 
     def _db_watch_tick(self):
         try:
-            con = db.get_conn()
-            r = con.execute("PRAGMA data_version").fetchone()
+            # PRAGMA data_version must be read from the SAME persistent
+            # connection; a new connection on every poll cannot detect changes.
+            r = self._watch_conn.execute("PRAGMA data_version").fetchone()
             if not r: return
             current = None
             try: current = int(r[0])
@@ -492,8 +557,13 @@ class SmartAssistantDialog(QDialog):
             if current != self._db_last_data_version:
                 self._db_last_data_version = current
                 self._schedule_force_snapshot(reason="db-change-detected")
-        except: 
-            pass
+        except Exception:
+            try:
+                self._watch_conn.close()
+            except Exception:
+                pass
+            self._watch_conn = db.get_conn()
+            self._db_last_data_version = None
 
     def _schedule_force_snapshot(self, reason: str = ""):
         self._snapshot_debounce.start(7_000)
@@ -515,7 +585,7 @@ class SmartAssistantDialog(QDialog):
         if next_run <= now:
             next_run = next_run + datetime.timedelta(days=1)
         ms = int((next_run - now).total_seconds() * 1000)
-        self._snapshot_timer.start(ms)
+        self._snapshot_timer.start(min(ms, 2_000_000_000))
 
     def _snapshot_daily_and_reschedule(self):
         try:
@@ -525,58 +595,56 @@ class SmartAssistantDialog(QDialog):
 
     def capture_today_risk_snapshot_if_needed(self, force: bool = False):
         con = db.get_conn()
-        today = datetime.date.today().isoformat()
-        row = con.execute("SELECT 1 FROM risk_snapshot WHERE snapshot_date=? LIMIT 1", (today,)).fetchone()
-        if row and not force:
-            return
-        students = con.execute("SELECT id FROM ogrenci WHERE aktif=1").fetchall()
-        for s in students:
-            sid = int(s["id"])
-            sig = self._compute_signals_for_student(sid)
-            risk = self.compute_risk_score(sig)
-            con.execute("""
-                INSERT INTO risk_snapshot (
-                    snapshot_date, student_id, risk_score,
-                    overdue_count, silent_days, completed_last_week, birthday_today
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(snapshot_date, student_id) DO UPDATE SET
-                    risk_score=excluded.risk_score,
-                    overdue_count=excluded.overdue_count,
-                    silent_days=excluded.silent_days,
-                    completed_last_week=excluded.completed_last_week,
-                    birthday_today=excluded.birthday_today,
-                    created_at=datetime('now')
-            """, (today, sid, int(risk),
-                  int(sig.get("overdue_count", 0)),
-                  int(sig.get("silent_days", 0)),
-                  int(sig.get("completed_last_week", 0)),
-                  1 if sig.get("birthday_today", False) else 0))
-        con.commit()
+        try:
+            today = datetime.date.today().isoformat()
+            if not force:
+                exists = con.execute(
+                    "SELECT 1 FROM coach_tracking_snapshot_v10 WHERE snapshot_date=? LIMIT 1",
+                    (today,)).fetchone()
+                if exists:
+                    return
+            for sig in collect_student_facts(con, datetime.date.today()):
+                score = self.compute_risk_score(sig)
+                if score is None:
+                    continue  # A missing record isn't 0/100 or 20/100 risk.
+                con.execute("""
+                    INSERT INTO coach_tracking_snapshot_v10
+                        (snapshot_date, student_id, indicator, overdue_count,
+                         assigned_days_ago, completed_recent_set)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(snapshot_date, student_id) DO UPDATE SET
+                        indicator=excluded.indicator,
+                        overdue_count=excluded.overdue_count,
+                        assigned_days_ago=excluded.assigned_days_ago,
+                        completed_recent_set=excluded.completed_recent_set
+                    WHERE indicator != excluded.indicator
+                       OR overdue_count != excluded.overdue_count
+                       OR COALESCE(assigned_days_ago, -1) != COALESCE(excluded.assigned_days_ago, -1)
+                       OR completed_recent_set != excluded.completed_recent_set
+                """, (today, int(sig['id']), int(score),
+                      int(sig.get('overdue_recent') or 0) + int(sig.get('overdue_old') or 0),
+                      sig.get('days_since_assigned'),
+                      int(sig.get('completed_in_recent_set') or 0)))
+            con.commit()
+        finally:
+            con.close()
 
-    def compute_risk_score(self, signals: dict) -> int:
-        score = 0
-        overdue = int(signals.get("overdue_count", 0))
-        silent_days = int(signals.get("silent_days", 0))
-        done_week = int(signals.get("completed_last_week", 0))
-        birthday_today = bool(signals.get("birthday_today", False))
-        score += min(overdue * 8, 40)
-        score += 20 if silent_days >= 14 else 0
-        score -= min(done_week * 5, 20)
-        score += 10 if birthday_today else 0
-        return max(0, min(score, 100))
+    def compute_risk_score(self, signals: dict) -> int | None:
+        # Conservative FOLLOW-UP indicator, not academic or psychological risk.
+        return tracking_indicator(signals)
 
     def get_weekly_risk_points(self, student_id: int) -> list:
         con = db.get_conn()
         today = datetime.date.today()
         start = today - datetime.timedelta(days=6)
         rows = con.execute("""
-            SELECT snapshot_date, risk_score
-            FROM risk_snapshot
+            SELECT snapshot_date, indicator
+            FROM coach_tracking_snapshot_v10
             WHERE student_id=?
               AND date(snapshot_date) BETWEEN date(?) AND date(?)
             ORDER BY date(snapshot_date) ASC
         """, (student_id, start.isoformat(), today.isoformat())).fetchall()
-        mp = {r["snapshot_date"]: int(r["risk_score"]) for r in rows}
+        mp = {r["snapshot_date"]: int(r["indicator"]) for r in rows}
         pts = []
         for i in range(7):
             d = (start + datetime.timedelta(days=i)).isoformat()
@@ -585,110 +653,14 @@ class SmartAssistantDialog(QDialog):
 
     def _compute_signals_for_student(self, student_id: int) -> dict:
         con = db.get_conn()
-        row = con.execute("SELECT dogum_tarihi FROM ogrenci WHERE id=?", (student_id,)).fetchone()
-        birthday_today = False
-        if row and row["dogum_tarihi"]:
-            dob_str = row["dogum_tarihi"]
-            try:
-                if "-" in dob_str:
-                    dt_dob = datetime.datetime.strptime(dob_str, "%Y-%m-%d").date()
-                elif "." in dob_str:
-                    dt_dob = datetime.datetime.strptime(dob_str, "%d.%m.%Y").date()
-                else: dt_dob = None
-                if dt_dob:
-                    t = datetime.date.today()
-                    birthday_today = (dt_dob.month == t.month and dt_dob.day == t.day)
-            except: pass
-
-        r_over = con.execute("""
-            SELECT COUNT(*) AS c
-            FROM odev o
-            JOIN odev_kume k ON k.id=o.kume_id
-            WHERE o.ogrenci_id=? AND o.durum='devam'
-              AND date(k.bitis_tarihi) < date('now')
-              AND date(k.bitis_tarihi) > date('now', '-30 days')
-        """, (student_id,)).fetchone()
-        overdue_count = int(r_over["c"]) if r_over else 0
-
-        r_last = con.execute("""
-            SELECT MAX(date(verilis_tarihi)) AS d
-            FROM odev_kume WHERE ogrenci_id=?
-        """, (student_id,)).fetchone()
-        silent_days = 999
-        if r_last and r_last["d"]:
-            try:
-                last_date = datetime.date.fromisoformat(r_last["d"])
-                silent_days = (datetime.date.today() - last_date).days
-            except: silent_days = 999
-
-        r_done = con.execute("""
-            SELECT COUNT(*) AS c
-            FROM odev o
-            WHERE o.ogrenci_id=?
-              AND o.durum IN ('tamam','yapildi','bitti')
-              AND o.kume_id IN (
-                SELECT id FROM odev_kume
-                WHERE date(verilis_tarihi) > date('now', '-7 days')
-              )
-        """, (student_id,)).fetchone()
-        completed_last_week = int(r_done["c"]) if r_done else 0
-
-        r_problem = con.execute("""
-            SELECT o.ders, COUNT(*) as c
-            FROM odev o
-            JOIN odev_kume k ON k.id=o.kume_id
-            WHERE o.ogrenci_id=? AND o.durum='devam'
-              AND date(k.bitis_tarihi) < date('now')
-            GROUP BY o.ders
-            ORDER BY c DESC LIMIT 1
-        """, (student_id,)).fetchone()
-        problem_lesson = r_problem["ders"] if r_problem else None
-        problem_count = int(r_problem["c"]) if r_problem else 0
-
-        r_best = con.execute("""
-            SELECT o.ders, COUNT(*) as c
-            FROM odev o
-            JOIN odev_kume k ON k.id=o.kume_id
-            WHERE o.ogrenci_id=? 
-              AND o.durum IN ('tamam','yapildi','bitti')
-              AND date(k.verilis_tarihi) > date('now', '-7 days')
-            GROUP BY o.ders
-            ORDER BY c DESC LIMIT 1
-        """, (student_id,)).fetchone()
-        best_lesson = r_best["ders"] if r_best else None
-        best_count = int(r_best["c"]) if r_best else 0
-
-        # En son yapılan iş (Tarih ve Ders)
-        last_date_str = None
-        last_lesson_name = None
-        if r_last and r_last["d"]:
-             last_date_str = r_last["d"]
-             # O tarihteki dersi bulalım
-             r_last_d = con.execute("""
-                SELECT ders FROM odev_kume k
-                JOIN odev o ON o.kume_id = k.id
-                WHERE k.ogrenci_id=? AND date(k.verilis_tarihi) = ?
-                LIMIT 1
-             """, (student_id, last_date_str)).fetchone()
-             if r_last_d: last_lesson_name = r_last_d["ders"]
-
-        return {
-            "overdue_count": overdue_count,
-            "silent_days": silent_days,
-            "completed_last_week": completed_last_week,
-            "birthday_today": birthday_today,
-            "problem_lesson": problem_lesson,
-            "problem_count": problem_count,
-            "best_lesson": best_lesson,
-            "best_count": best_count,
-            "last_date": last_date_str,
-            "last_lesson": last_lesson_name
-        }
+        try:
+            return next((f for f in collect_student_facts(con) if int(f['id']) == int(student_id)), {})
+        finally:
+            con.close()
 
     def should_show_today(self, key: str, min_days_gap: int = 3) -> bool:
-        # TEST MODU: Her zaman göster
-        return True
-        """
+        # Geriye uyumluluk için tutuldu; V10 listeleme bu logu kullanmaz.
+        # Görüntülemek bir uyarıyı kapatmaz; yalnızca açık kullanıcı işlemi kapatmalıdır.
         con = db.get_conn()
         row = con.execute(
             "SELECT tarih FROM sistem_log WHERE anahtar=? ORDER BY tarih DESC LIMIT 1",
@@ -698,8 +670,7 @@ class SmartAssistantDialog(QDialog):
         try:
             last = datetime.datetime.fromisoformat(row["tarih"]).date()
             return (datetime.date.today() - last).days >= min_days_gap
-        except: return True
-        """
+        except Exception: return True
 
     def log_shown(self, key: str):
         con = db.get_conn()
@@ -718,9 +689,10 @@ class SmartAssistantDialog(QDialog):
             if not sid:
                 out.append(s)
                 continue
-            if sid in seen:
+            key = (sid, s.get("type"))
+            if key in seen:
                 continue
-            seen.add(sid)
+            seen.add(key)
             out.append(s)
         return out
 
@@ -762,15 +734,22 @@ class SmartAssistantDialog(QDialog):
             if not rows: return
             for r in rows:
                 qid = r["id"]
-                con.execute("UPDATE whatsapp_queue SET status='sending' WHERE id=?", (qid,))
+                claim = con.execute("UPDATE whatsapp_queue SET status='sending' WHERE id=? AND status='pending'", (qid,))
                 con.commit()
+                if claim.rowcount != 1:
+                    continue  # Another active instance claimed this queue item first.
                 try:
                     from ui.whatsapp_sender_dialog import WhatsAppGonderDialog
                     target = [(r["student_name"], r["phone"])]
-                    dlg = WhatsAppGonderDialog(alicilar=target, mesaj=r["message"], parent=self)
-                    dlg.exec()
-                    con.execute("UPDATE whatsapp_queue SET status='sent' WHERE id=?", (qid,))
+                    dlg = WhatsAppGonderDialog(alicilar=target, mesaj=r["message"], parent=self, auto_send=True)
+                    outcome = dlg.exec()
+                    if outcome == QDialog.DialogCode.Accepted and not getattr(dlg, "gonderildi", False):
+                        dlg.mesajlari_gonder()
+                    status = 'sent' if outcome == QDialog.DialogCode.Accepted else 'needs_review'
+                    con.execute("UPDATE whatsapp_queue SET status=? WHERE id=?", (status, qid))
                     con.commit()
+                    if status == 'needs_review':
+                        break  # User did not confirm send; don't immediately re-open.
                 except ImportError:
                     con.execute("UPDATE whatsapp_queue SET status='failed' WHERE id=?", (qid,))
                     con.commit()
@@ -802,239 +781,47 @@ class SmartAssistantDialog(QDialog):
         QTimer.singleShot(100, self._perform_analysis)
 
     def _perform_analysis(self):
-        # self.list_widget.clear()  <-- Artık silmiyoruz, refresh_ui_list silecek
-        suggestions = []
-
-        def to_dict(row):
-            return {k: row[k] for k in row.keys()} if row else {}
-
-        # Trend hesaplama yardimcisi
-        def get_trend_arrow(sid):
-            pts = [p for p in self.get_weekly_risk_points(sid) if p is not None]
-            if len(pts) < 2: return ""
-            prev, curr = pts[-2], pts[-1]
-            if curr > prev + 5: return " 📈" # Kötüye gidiş (Risk arttı)
-            if curr < prev - 5: return " 📉" # İyiye gidiş (Risk azaldı)
-            return "" # " ➖"
-
         try:
             con = db.get_conn()
-            today = datetime.date.today()
-            tomorrow = today + datetime.timedelta(days=1)
-
-            rows = con.execute("SELECT id, ad, soyad, dogum_tarihi, veli_tel1 FROM ogrenci WHERE aktif=1").fetchall()
-            for r_raw in rows:
-                r = to_dict(r_raw)
-                dob_str = r['dogum_tarihi']
-                if not dob_str: continue
-                try:
-                    if "-" in dob_str:
-                        dt_dob = datetime.datetime.strptime(dob_str, "%Y-%m-%d").date()
-                    elif "." in dob_str:
-                        dt_dob = datetime.datetime.strptime(dob_str, "%d.%m.%Y").date()
-                    else: continue
-                    is_today = (dt_dob.month == today.month and dt_dob.day == today.day)
-                    is_tmrw = (dt_dob.month == tomorrow.month and dt_dob.day == tomorrow.day)
-                    if is_today and self.should_show_today(f"birthday_{r['id']}", min_days_gap=1):
-                        suggestions.append({
-                            "type": "birthday",
-                            "priority": 1,
-                            "title": f"İyi ki Doğdun {r['ad']}!",
-                            "desc": f"Bugün {r['ad']} {r['soyad']} öğrencimizin doğum günü.",
-                            "icon": "🎂",
-                            "color": "#FCE7F3",
-                            "border": "#EC4899",
-                            "action": "Kutla",
-                            "data": r,
-                            "reasons": ["Doğum tarihi bugün ile eşleşti"],
-                        })
-                        self.log_shown(f"birthday_{r['id']}")
-                    elif is_tmrw and self.should_show_today(f"birthday_tmrw_{r['id']}", min_days_gap=1):
-                        suggestions.append({
-                            "type": "birthday",
-                            "priority": 2,
-                            "title": f"Yarın {r['ad']}'in Doğum Günü",
-                            "desc": "Yarın için küçük bir sürpriz veya mesaj hazırlayabilirsiniz.",
-                            "icon": "🎁",
-                            "color": "#F3E8FF",
-                            "border": "#A855F7",
-                            "action": "Planla",
-                            "data": r,
-                            "reasons": ["Doğum tarihi yarın ile eşleşti"],
-                        })
-                        self.log_shown(f"birthday_tmrw_{r['id']}")
-                except: pass
-
-            cur = con.execute("""
-                SELECT o.ogrenci_id as id, ogr.ad, ogr.soyad, COUNT(*) as gecikme_sayisi, ogr.veli_tel1
-                FROM odev o
-                JOIN odev_kume k ON k.id = o.kume_id
-                JOIN ogrenci ogr ON ogr.id = o.ogrenci_id
-                WHERE o.durum = 'devam'
-                  AND date(k.bitis_tarihi) < date('now')
-                  AND date(k.bitis_tarihi) > date('now', '-30 days')
-                GROUP BY o.ogrenci_id
-                HAVING gecikme_sayisi >= 5
-                ORDER BY gecikme_sayisi DESC
-            """)
-            for r_raw in cur.fetchall():
-                r = to_dict(r_raw)
-                key = f"overdue_{r['id']}"
-                if not self.should_show_today(key, min_days_gap=3): continue
-                sig = self._compute_signals_for_student(r["id"])
-                risk = self.compute_risk_score(sig)
-                
-                # Akıllı Sebep Üretimi
-                reasons = [f"Son 30 günde toplam {r['gecikme_sayisi']} ödev gecikti."]
-                if sig.get("problem_lesson"):
-                    reasons.append(f"⚠️ En çok aksayan ders: {sig['problem_lesson']} ({sig['problem_count']} eksik).")
-                
-                if sig['silent_days'] >= 7:
-                    if sig['silent_days'] > 365:
-                        reasons.append(f"⏱️ Uzun süredir sisteme veri girişi yapılmadı.")
-                    else:
-                        reasons.append(f"⏱️ Son {sig['silent_days']} gündür sisteme veri girişi yapılmadı.")
-                elif sig['completed_last_week'] > 0:
-                    reasons.append(f"✅ Yine de son 7 günde {sig['completed_last_week']} çalışma tamamladı (Çaba var).")
-
-                trend_icon = get_trend_arrow(r['id'])
-                suggestions.append({
-                    "type": "overdue",
-                    "priority": 3,
-                    "title": f"⚠️ {r['ad']} Ödevleri Biriktiriyor{trend_icon}",
-                    "desc": f"{sig.get('problem_lesson', 'Genel')} dersinde yoğunlaşan eksikler var. (Risk: {risk}/100)",
-                    "icon": "⏳",
-                    "color": "#FFEDD5",
-                    "border": "#F97316",
-                    "action": "Uyar",
-                    "data": r,
-                    "risk": risk,
-                    "reasons": reasons
-                })
-                self.log_shown(key)
-
-            cur = con.execute("""
-                SELECT ogr.id, ogr.ad, ogr.soyad, COUNT(*) as biten, ogr.veli_tel1
-                FROM odev o
-                JOIN ogrenci ogr ON ogr.id = o.ogrenci_id
-                WHERE o.durum IN ('tamam', 'yapildi', 'bitti')
-                  AND o.kume_id IN (SELECT id FROM odev_kume WHERE date(verilis_tarihi) > date('now', '-7 days'))
-                GROUP BY ogr.id
-                ORDER BY biten DESC
-                LIMIT 3
-            """)
-            rank = 1
-            for r_raw in cur.fetchall():
-                r = to_dict(r_raw)
-                if r['biten'] < 5: continue
-                key = f"star_{r['id']}"
-                if not self.should_show_today(key, min_days_gap=2): continue
-                
-                sig = self._compute_signals_for_student(r["id"])
-                risk = self.compute_risk_score(sig)
-                
-                # Akıllı Sebep Üretimi
-                reasons = [f"Bu hafta toplam {r['biten']} çalışma tamamladı."]
-                if sig.get("best_lesson"):
-                    reasons.append(f"🔥 En yüksek performans: {sig['best_lesson']} ({sig['best_count']} tamamlandı).")
-                
-                reasons.append(f"🏆 Haftalık sıralamada {rank}. oldu.")
-                reasons.append("Düzenli çalışma disiplini koruyor.")
-
-                icon = "🥇" if rank == 1 else ("🥈" if rank == 2 else "🥉")
-                trend_icon = get_trend_arrow(r['id'])
-                
-                suggestions.append({
-                    "type": "star",
-                    "priority": 4,
-                    "title": f"{icon} Haftanın Yıldızı: {r['ad']}{trend_icon}",
-                    "desc": f"{sig.get('best_lesson', 'Genel')} dersinde harika gidiyor! (Başarı Puanı: {100-risk})",
-                    "icon": "🌟",
-                    "color": "#FEF3C7",
-                    "border": "#F59E0B",
-                    "action": "Tebrik Et",
-                    "data": r,
-                    "risk": risk,
-                    "reasons": reasons
-                })
-                self.log_shown(key)
-                rank += 1
-
-            cur = con.execute("""
-                SELECT id, ad, soyad, veli_tel1
-                FROM ogrenci
-                WHERE aktif=1
-                  AND id NOT IN (
-                      SELECT DISTINCT ogrenci_id
-                      FROM odev_kume
-                      WHERE date(verilis_tarihi) > date('now', '-14 days')
-                  )
-            """)
-            for r_raw in cur.fetchall():
-                r = to_dict(r_raw)
-                key = f"silent_{r['id']}"
-                if not self.should_show_today(key, min_days_gap=4): continue
-                sig = self._compute_signals_for_student(r["id"])
-                risk = self.compute_risk_score(sig)
-                
-                if sig['silent_days'] > 365:
-                    day_text = "Uzun süredir"
-                    desc_text = "Sisteme henüz veri girişi yapılmamış veya çok eski."
-                else:
-                    day_text = f"Son {sig['silent_days']} gündür"
-                    desc_text = f"Son {sig['silent_days']} gündür hareket yok."
-
-                reasons = [
-                    f"{day_text} yeni ödev/çalışma girişi yok.",
-                ]
-                if sig.get("last_date"):
-                    reasons.append(f"📅 En son işlem: {sig['last_date']} ({sig.get('last_lesson', 'Bilinmeyen Ders')})")
-                else:
-                    reasons.append("⚠️ Öğrenciye ait geçmiş kayıt bulunamadı.")
-                
-                if sig['overdue_count'] > 0:
-                     reasons.append(f"❌ Ayrıca {sig['overdue_count']} birikmiş eski ödevi var.")
-
-                trend_icon = get_trend_arrow(r['id'])
-                suggestions.append({
-                    "type": "silent",
-                    "priority": 2,
-                    "title": f"👻 {r['ad']} Unutuldu mu?{trend_icon}",
-                    "desc": desc_text + (f" En son {sig.get('last_lesson', '')} çalışılmış." if sig.get("last_lesson") else ""),
-                    "icon": "🕸️",
-                    "color": "#F1F5F9",
-                    "border": "#64748B",
-                    "action": "Planla",
-                    "data": r,
-                    "risk": risk,
-                    "reasons": reasons
-                })
-                self.log_shown(key)
-
-        except Exception as e:
-            suggestions.append({
-                "type": "error",
-                "priority": 0,
-                "title": "Sorgu Hatası",
-                "desc": str(e),
-                "icon": "❌",
-                "color": "#FEE2E2",
-                "border": "red",
-                "action": None,
-                "reasons": [str(e)]
-            })
-
-        suggestions = self.suppress_conflicts(suggestions)
-        suggestions.sort(key=lambda x: x['priority'])
-        
-        self.all_suggestions = suggestions
+            try:
+                facts = collect_student_facts(con)
+            finally:
+                con.close()
+            self.all_suggestions = make_suggestions(facts)
+            con = db.get_conn()
+            try:
+                self._reviewed_today = load_reviewed(con)
+            finally:
+                con.close()
+        except Exception as exc:
+            self.all_suggestions = [{
+                "type": "error", "priority": 0, "title": "Analiz yapılamadı",
+                "desc": str(exc), "icon": "❌", "color": "#FEE2E2",
+                "border": "#DC2626", "action": None,
+                "reasons": [str(exc)], "data": {}
+            }]
         self.refresh_ui_list()
 
     def refresh_ui_list(self):
         self.list_widget.clear()
         
+        errors = [s for s in self.all_suggestions if s.get("type") == "error"]
+        if errors:
+            self.brief_header.setText("Analiz yapılamadı; detay ve yeniden deneme için aşağıdaki hata kartını inceleyin.")
+        else:
+            stats = brief_stats(self.all_suggestions, self._reviewed_today)
+            self.brief_header.setText(
+                f"Bugün: {stats['priority_count']} öncelik  •  "
+                f"Gecikme kontrolü: {stats['overdue_students']} öğrenci  •  "
+                f"İncelenen: {stats['reviewed_count']}  •  "
+                f"Verisi olmayan: {stats['no_history_count']} (bilgi)"
+            )
         filtered = []
-        if self.active_filter == "all":
+        if errors:
+            filtered = errors
+        elif self.active_filter == "priority":
+            filtered = daily_brief(self.all_suggestions, self._reviewed_today)
+        elif self.active_filter == "all":
             filtered = self.all_suggestions
         elif self.active_filter == "risk":
             filtered = [s for s in self.all_suggestions if s["type"] == "overdue"]
@@ -1048,6 +835,16 @@ class SmartAssistantDialog(QDialog):
         if not filtered:
             if self.active_filter == "all":
                 self._add_empty_state()
+            elif self.active_filter == "priority":
+                item = QListWidgetItem()
+                lbl = QLabel("Bugün işlem bekleyen öncelikli kayıt yok.\n"
+                             "Diğer kayıtlar için Tümü veya kategori filtrelerini kullanabilirsiniz.")
+                lbl.setWordWrap(True)
+                lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                lbl.setStyleSheet("color:#64748B; padding:18px;")
+                item.setSizeHint(QSize(400, 95))
+                self.list_widget.addItem(item)
+                self.list_widget.setItemWidget(item, lbl)
             else:
                 item = QListWidgetItem()
                 lbl = QLabel("Bu kategoride öneri yok ✅")
@@ -1058,8 +855,16 @@ class SmartAssistantDialog(QDialog):
                 self.list_widget.setItemWidget(item, lbl)
             return
 
-        for data in filtered:
+        max_cards = 5 if self.active_filter == "priority" else (25 if self.active_filter == "all" else 100)
+        for data in filtered[:max_cards]:
             self._add_card(data)
+        if len(filtered) > max_cards:
+            item = QListWidgetItem()
+            label = QLabel(f"{len(filtered) - max_cards} ek kayıt var. Kategori filtresiyle görüntüleyebilirsiniz.")
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            item.setSizeHint(QSize(400, 52))
+            self.list_widget.addItem(item)
+            self.list_widget.setItemWidget(item, label)
 
 
     
@@ -1142,7 +947,7 @@ class SmartAssistantDialog(QDialog):
 
             row = QHBoxLayout()
             row.setSpacing(8)
-            row.addWidget(QLabel("Haftalık Risk:"))
+            row.addWidget(QLabel("Takip geçmişi:"))
 
             if not valid_pts:
                 lbl_info = QLabel("Henüz analiz verisi yok ⏳")
@@ -1151,8 +956,8 @@ class SmartAssistantDialog(QDialog):
             elif len(valid_pts) < 2:
                 # Tek veri var, grafik çizilmez
                 val = valid_pts[-1]
-                lbl_val = QLabel(f"Risk Puanı: {val}/100")
-                lbl_val.setToolTip("Risk Puanı Nedir?\n• 0-30: Düşük Risk (Güvenli)\n• 30-70: Orta Risk (Takip Gerekir)\n• 70-100: Yüksek Risk (Müdahale Gerekir)")
+                lbl_val = QLabel(f"Takip göstergesi: {val}/100")
+                lbl_val.setToolTip("Yalnızca kayıtlardaki açık gecikmelerden türetilen takip göstergesi; akademik başarı ölçümü değildir.")
                 lbl_val.setStyleSheet("font-weight: bold; color: #475569;")
                 row.addWidget(lbl_val)
                 
@@ -1195,7 +1000,10 @@ class SmartAssistantDialog(QDialog):
             right_col.addWidget(btn_why)
 
         if data.get('action'):
-            btn = QPushButton(data['action'])
+            action_label = ('Ödev Formuna Git' if data.get('type') == 'silent'
+                            else 'Kutlama Mesajı' if data.get('type') == 'birthday' and data['action'] == 'Planla'
+                            else data['action'])
+            btn = QPushButton(action_label)
             btn.setObjectName("ActionBtn")
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setFixedSize(110, 28)
@@ -1209,6 +1017,27 @@ class SmartAssistantDialog(QDialog):
             btn_time.clicked.connect(lambda: self.handle_schedule(data))
             right_col.addWidget(btn_time)
 
+        # V12: A calendar preview is a distinct operation, never a WhatsApp send.
+        if data.get('type') in ('overdue', 'silent'):
+            btn_plan = QPushButton('📅 Planla')
+            btn_plan.setObjectName('ActionBtn')
+            btn_plan.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_plan.setFixedSize(110, 28)
+            btn_plan.setToolTip('Kayıtlı öğrenci rutininden salt okunur etüt taslağı hazırlar.')
+            btn_plan.clicked.connect(lambda checked=False, d=data: self.show_followup_draft(d))
+            right_col.addWidget(btn_plan)
+
+        identity = review_identity(data)
+        if identity is not None:
+            was_reviewed = identity in self._reviewed_today
+            btn_review = QPushButton("↶ Geri Al" if was_reviewed else "✓ İnceledim")
+            btn_review.setObjectName("ActionBtn")
+            btn_review.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_review.setToolTip("Yalnızca bugünkü koçluk kontrol listesini işaretler. Ödevin durumunu değiştirmez.")
+            btn_review.setFixedSize(110, 28)
+            btn_review.clicked.connect(lambda checked=False, d=data, mark=not was_reviewed: self._set_card_reviewed(d, mark))
+            right_col.addWidget(btn_review)
+
         h_layout.addLayout(right_col)
 
         # Dinamik boyut hesaplama
@@ -1221,14 +1050,29 @@ class SmartAssistantDialog(QDialog):
         self.list_widget.addItem(item)
         self.list_widget.setItemWidget(item, widget)
 
+    def _set_card_reviewed(self, data, reviewed: bool):
+        # Explicit teacher review; not a completion or status change.
+        con = db.get_conn()
+        try:
+            ensure_review_table(con)
+            if not set_reviewed(con, data, reviewed):
+                QMessageBox.information(self, "Kayıt", "Bu kart inceleme durumuna alınamıyor.")
+                return
+            con.commit()
+            self._reviewed_today = load_reviewed(con)
+        except Exception as exc:
+            QMessageBox.warning(self, "Kaydedilemedi", f"İnceleme işareti kaydedilemedi: {exc}")
+            return
+        finally:
+            con.close()
+        self.refresh_ui_list()
+
     def _add_empty_state(self):
         item = QListWidgetItem()
         w = QLabel(
-            "✨ Harika! Şu an acil bir durum görünmüyor.\n\n"
-            "📘 Proaktif öneri:\n"
-            "• Haftalık tekrar planı oluştur\n"
-            "• Mini deneme + eksik konu analizi\n"
-            "• Bir sonraki ödev setini önceden planla"
+            "Kayıtlı verilerde bu filtre için yeni kontrol bulunamadı.\n\n"
+            "Bu durum öğrencilerin akademik durumunun ölçüldüğü anlamına gelmez.\n"
+            "Dilerseniz ödev ve deneme kayıtlarını gözden geçirin."
         )
         w.setAlignment(Qt.AlignmentFlag.AlignCenter)
         w.setWordWrap(True)
@@ -1268,6 +1112,58 @@ class SmartAssistantDialog(QDialog):
                     f"{ad} öğrencimizin ödev girişlerinde bir durgunluk fark ettik. Her şey yolunda mı?")
         return ""
 
+    def show_followup_draft(self, data):
+        """V12 preview: strictly selected student, no calendar/assignment writes."""
+        if data.get('type') not in ('overdue', 'silent'):
+            return
+        student = data.get('data') or {}
+        try:
+            sid = int(student.get('id') or student.get('ogrenci_id'))
+            if sid <= 0:
+                raise ValueError('Kayıtlı öğrenci kimliği bulunamadı.')
+            con = db.get_conn()
+            try:
+                evidence = load_open_homework(con, sid)
+            finally:
+                con.close()
+            # Do not default to a shared/other student's profile on missing ID.
+            draft = make_followup_draft(sid, evidence, load_profiles(), load_assignments())
+        except (ValueError, OSError, sqlite3.Error, TypeError) as exc:
+            QMessageBox.warning(self, 'Takip Planı Oluşturulamadı',
+                                f'Plan verisi doğrulanamadı. Hiçbir kayıt değiştirilmedi.\n{exc}')
+            return
+        text = draft_text(draft)
+        dlg = QDialog(self)
+        dlg.setWindowTitle('📅 Öğrenciye Özel Takip Planı • Taslak')
+        dlg.resize(660, 520)
+        layout = QVBoxLayout(dlg)
+        notice = QLabel('Bu ekran yalnızca önizlemedir. Mevcut ödevler ve onaylı takvim korunur.')
+        notice.setWordWrap(True)
+        layout.addWidget(notice)
+        preview = QPlainTextEdit()
+        preview.setReadOnly(True)
+        preview.setPlainText(text)
+        layout.addWidget(preview)
+        row = QHBoxLayout()
+        btn_copy = QPushButton('📋 Taslağı Kopyala')
+        btn_copy.clicked.connect(lambda: QApplication.clipboard().setText(text))
+        row.addWidget(btn_copy)
+        parent = self.parent()
+        if parent is not None and hasattr(parent, 'open_homework_for_student'):
+            btn_open = QPushButton('Ödev Takip Formuna Git')
+            def go_to_student():
+                dlg.accept()
+                self.accept()
+                QTimer.singleShot(0, lambda p=parent, student_id=sid:
+                                  p.open_homework_for_student(student_id))
+            btn_open.clicked.connect(go_to_student)
+            row.addWidget(btn_open)
+        btn_close = QPushButton('Kapat')
+        btn_close.clicked.connect(dlg.reject)
+        row.addWidget(btn_close)
+        layout.addLayout(row)
+        dlg.exec()
+
     def handle_action(self, data):
         stype = data.get('type')
         r = data.get('data', {}) or {}
@@ -1279,10 +1175,13 @@ class SmartAssistantDialog(QDialog):
 
         if stype == "silent":
             parent = self.parent()
-            if parent and hasattr(parent, "select_student_by_id"):
-                parent.select_student_by_id(sid)
-                self.close()
+            if sid and parent and hasattr(parent, "open_homework_for_student"):
+                self.accept()
+                # Avoid opening nested modal windows while the brief is still active.
+                QTimer.singleShot(0, lambda p=parent, stid=int(sid): p.open_homework_for_student(stid))
                 return
+            QMessageBox.information(self, "Öğrenciye Git", "Ödev formuna geçiş bağlantısı bulunamadı.")
+            return
 
         if not tel:
             QMessageBox.warning(self, "Eksik Bilgi", f"{ad} öğrencisinin veli telefonu kayıtlı değil.")
@@ -1302,11 +1201,24 @@ class SmartAssistantDialog(QDialog):
 
         try:
             from ui.whatsapp_sender_dialog import WhatsAppGonderDialog
-            target = [(ad, tel)]
-            dlg = WhatsAppGonderDialog(alicilar=target, mesaj=final_msg, parent=self)
-            dlg.exec()
+            target = []
+            if tel:
+                target.append((f"{ad} (Veli)", tel))
+            v2 = (r.get("veli_tel2") or "").strip()
+            if v2 and v2 != tel:
+                target.append((f"{ad} (Veli 2)", v2))
+            ot = (r.get("ogrenci_tel") or "").strip()
+            if ot and ot not in (tel, v2):
+                target.append((f"{ad} (Öğrenci)", ot))
+            if not target and tel:
+                target = [(ad, tel)]
+
+            dlg = WhatsAppGonderDialog(alicilar=target, mesaj=final_msg, parent=self, auto_send=True)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                if not getattr(dlg, "gonderildi", False):
+                    dlg.mesajlari_gonder()
         except ImportError:
-            QMessageBox.warning(self, "Hata", "WhatsApp modülü yüklenemedi (ui.homework_form bulunamadı).")
+            QMessageBox.warning(self, "Hata", "WhatsApp modülü yüklenemedi.")
         except Exception as e:
             QMessageBox.warning(self, "Hata", f"İşlem sırasında hata oluştu:\n{e}")
 
@@ -1350,3 +1262,5 @@ class SmartAssistantDialog(QDialog):
             send_at=send_at
         )
         QMessageBox.information(self, "Planlandı", f"Mesaj kuyruğa eklendi.\nGönderim: {send_at}")
+
+

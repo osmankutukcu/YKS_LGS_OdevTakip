@@ -684,7 +684,8 @@ class AnaPencere(QMainWindow):
             pass
 
     # ------------------ Dialog açıcı yardımcı ------------------
-    def _show_dialog(self, widget_cls, *, mode: str = "max", hide_main: bool = True):
+    def _show_dialog(self, widget_cls, *, mode: str = "max", hide_main: bool = True,
+                     student_id: int | None = None):
         from PyQt6.QtWidgets import (
             QDialog, QVBoxLayout, QMessageBox, QSizePolicy, QApplication
         )
@@ -719,6 +720,10 @@ class AnaPencere(QMainWindow):
 
         try:
             inner = widget_cls(dlg)
+            # V10: Student routing from the daily coaching panel. Existing
+            # callers continue to work because student_id defaults to None.
+            if student_id is not None:
+                inner._pending_student_id = int(student_id)
 
             # --- İÇ FORMU EKRANA GÖRE ESNEK YAP ---
             try:
@@ -818,6 +823,10 @@ class AnaPencere(QMainWindow):
     # ------------------ Buton handler'ları ------------------
     def _ogrenci_ac(self): self._show_dialog(OgrenciFormu)
     def _odev_ac(self):    self._show_dialog(OdevTakipFormu)
+
+    def open_homework_for_student(self, student_id: int):
+        # Same form and loading path as the normal Ödev Takip button.
+        self._show_dialog(OdevTakipFormu, student_id=int(student_id))
     
     def _rapor_ac(self):
         """
@@ -1079,7 +1088,7 @@ class AnaPencere(QMainWindow):
         layout.addWidget(contact_card)
 
         # Footer
-        footer = QLabel("© 2025-2026 Osman Kütükçü. Tüm hakları saklıdır.<br>Özel ders ve koçluk merkezlerinde başarıyı maksimize etmek amacıyla geliştirilmiştir.")
+        footer = QLabel("© 2021 - 2026 Osman Kütükçü. Tüm hakları saklıdır.<br>Özel ders ve koçluk merkezlerinde başarıyı maksimize etmek amacıyla geliştirilmiştir.")
         footer.setObjectName("Footer")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer.setWordWrap(True)

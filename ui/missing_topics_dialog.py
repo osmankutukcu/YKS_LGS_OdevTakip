@@ -45,7 +45,7 @@ class MissingTopicsDialog(QDialog):
         vbox = QVBoxLayout()
         lbl_title = QLabel("Müfredat & Eksik Konu Analiz Paneli")
         lbl_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #b45309;")
-        lbl_sub = QLabel("Öğrencinin tüm müfredattaki eksik, yarım ve çalışılmamış konularını sınav ağırlığına göre listeler.")
+        lbl_sub = QLabel("Kayıtlı ödev geçmişinde tamamlanma kanıtı bulunmayan konuları gösterir; başarı teşhisi değildir.")
         lbl_sub.setStyleSheet("color: #64748b; font-size: 12px;")
         vbox.addWidget(lbl_title)
         vbox.addWidget(lbl_sub)
@@ -124,7 +124,7 @@ class MissingTopicsDialog(QDialog):
         # Eksik Durumu
         fl.addWidget(QLabel("<b>Durum:</b>"))
         self.cmbStatus = QComboBox()
-        self.cmbStatus.addItems(["Tümü (Eksikler)", "🔴 Sadece Hiç Çalışılmamış", "🟡 Sadece Yarım / Düşük Başarı"])
+        self.cmbStatus.addItems(["Tümü (Eksikler)", "⚪ Ödev kaydı olmayanlar", "🟡 Tamamlanmamış ödevi olanlar"])
         self.cmbStatus.setStyleSheet("""
             QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 10px; }
             QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 22px; border: none; background: transparent; }
@@ -143,7 +143,7 @@ class MissingTopicsDialog(QDialog):
         # --- TABLO ---
         self.table = QTableWidget(0, 7)
         self.table.setHorizontalHeaderLabels([
-            "ÖSYM Önemi", "Ders", "Konu Adı", "Mevcut Durum", "Kitap", "Hedef Yük", "Seç"
+            "Tahmini Öncelik*", "Ders", "Konu Adı", "Ödev Kaydı", "Kitap", "Hedef Yük", "Seç"
         ])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setStyleSheet("""
@@ -151,6 +151,7 @@ class MissingTopicsDialog(QDialog):
             QHeaderView::section { background-color: #f8fafc; padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: bold; color: #334155; }
             QTableWidget::item { padding: 4px 6px; }
         """)
+        self.table.setToolTip("* Öncelik göstergeleri resmî ÖSYM soru sıklığı garantisi değildir; öğretmen doğrulamalıdır.")
         self.table.verticalHeader().setVisible(False)
         root.addWidget(self.table, 1)
 
@@ -239,7 +240,7 @@ class MissingTopicsDialog(QDialog):
                         continue # Eksik listesinde tamamlananları varsayılan olarak atla
 
                     is_started = (d_key, k_name) in started_dict
-                    status_text = "🟡 Yarım / Pekiştirilmeli" if is_started else "🔴 Hiç Çalışılmadı"
+                    status_text = "🟡 Tamamlanmamış ödev var" if is_started else "⚪ Ödev kaydı yok"
                     status_type = "started" if is_started else "never"
 
                     c_info = curriculum.get(k_name, {})
@@ -272,7 +273,7 @@ class MissingTopicsDialog(QDialog):
             pct = int(round((total_done_count / total_curr_count * 100))) if total_curr_count > 0 else 0
             self.progressBar.setValue(pct)
             self.lblProgressPercent.setText(f"%{pct}")
-            self.lblProgressText.setText(f"Müfredat İlerlemesi: {total_done_count}/{total_curr_count} Konu Tamamlandı ({len(all_topics)} Konu Eksik)")
+            self.lblProgressText.setText(f"Ödev kayıt kapsamı: {total_done_count}/{total_curr_count} konuda tamamlanmış ödev; {len(all_topics)} konuda tamamlanma kanıtı yok (başarı teşhisi değildir)")
 
             self._apply_filters()
 
@@ -422,7 +423,7 @@ class MissingTopicsDialog(QDialog):
                         "kitap": t["kitap"],
                         "konu": t["konu"],
                         "dk": t["dk"],
-                        "aciklama": f"[Müfredat Eksik] ÖSYM Önemi: {t['importance']}"
+                        "aciklama": f"[Konu kontrol önerisi] Tamamlanmış ödev kaydı yok; önem: {t['importance']}"
                     })
 
         if not picked:

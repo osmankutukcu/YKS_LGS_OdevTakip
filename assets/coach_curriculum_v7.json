@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "coverage_note": "TTKB tarafından yayımlanan araştırma metninden alınmış sınırlı Fizik örnekleri. Öğrencinin tabi olduğu program sürümü öğretmen tarafından kontrol edilmelidir.",
+  "outcomes": [
+    {"subject":"Fizik","grade":9,"code":"FİZ.9.3.1.","outcome":"Basınca yönelik çıkarımlarda bulunabilme","topic_aliases":["Basınç"],"review_status":"official_excerpt","source_url":"https://ttkbyayin.meb.gov.tr/yayin/300"},
+    {"subject":"Fizik","grade":9,"code":"FİZ.9.4.4.","outcome":"Isıl denge durumu hakkında bilimsel gözlem yapabilme","topic_aliases":["Isıl Denge"],"review_status":"official_excerpt","source_url":"https://ttkbyayin.meb.gov.tr/yayin/300"},
+    {"subject":"Fizik","grade":11,"code":"FİZ.11.1.1","outcome":"Newton Hareket Yasaları ile ilgili tümevarımsal akıl yürütebilme","topic_aliases":["Newton Hareket Yasaları"],"review_status":"official_excerpt","source_url":"https://ttkbyayin.meb.gov.tr/yayin/300"},
+    {"subject":"Fizik","grade":11,"code":"FİZ.11.1.3","outcome":"Statik ve kinetik sürtünme kuvvetlerini karşılaştırabilme","topic_aliases":["Statik ve Kinetik Sürtünme"],"review_status":"official_excerpt","source_url":"https://ttkbyayin.meb.gov.tr/yayin/300"}
+  ]
+}

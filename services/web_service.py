@@ -141,8 +141,20 @@ def _try_get_main_db_conn() -> Optional[sqlite3.Connection]:
 
 
 def _fallback_cache_path() -> str:
-    base = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base, "web_cache.db")
+    try:
+        from db import _platform_appdata_dir
+        d = _platform_appdata_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        return str(d / "web_cache.db")
+    except Exception:
+        from pathlib import Path
+        d = Path.home() / ".yks_lgs_manager"
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+            return str(d / "web_cache.db")
+        except Exception:
+            import tempfile
+            return os.path.join(tempfile.gettempdir(), "web_cache.db")
 
 
 def _get_cache_conn() -> sqlite3.Connection:

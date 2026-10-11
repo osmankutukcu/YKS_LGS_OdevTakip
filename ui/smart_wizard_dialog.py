@@ -5,28 +5,39 @@ from PyQt6.QtWidgets import (
     QTabWidget, QTextBrowser, QLineEdit, QSplitter, QSpinBox,
     QProgressBar, QHeaderView, QCheckBox, QApplication
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QIcon, QFont, QColor
 import db
 import random
 import json
+from html import escape as html_escape
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 
+class _OfficialSourceCheckThread(QThread):
+    result_ready = pyqtSignal(object)
+
+    def run(self):
+        from services.coach_official_sources import check_official_sources
+        self.result_ready.emit(check_official_sources())
+
+
 class SmartWizardDialog(QDialog):
     """
-    Akıllı Ödev ve Başarı Sihirbazı v3.0 Pro.
-    Bilimsel Pedagojik Teknikler:
-    - Hermann Ebbinghaus Unutma Eğrisi & Aralıklı Tekrar (1, 7, 14, 30 gün)
-    - Bilişsel Yük Teorisi (%30 Tekrar, %50 Ana Hedef, %20 Telafi)
-    - ÖSYM / LGS Sınav Soru Frekansı Matrisi
-    - Çok Boyutlu Öğrenci Analitiği & Yerel PDR Koçluk Raporlama
+    Akıllı Ödev Sihirbazı V7: kanıta dayalı, öğretmen onaylı koçluk.
+    Gerçek kayıt eksikse iddialı teşhis/ödev üretimi yapılmaz.
+    Öğrenci verileri çevrimdışı analiz edilir; çevrimiçi seçenek sadece
+    resmî kaynakların başlığını ve erişilebilirliğini kontrol eder.
     """
     def __init__(self, ogrenci_id=None, parent=None, available_books=None):
         super().__init__(parent)
-        self.setWindowTitle("🧙‍♂️ Akıllı Ödev ve Başarı Sihirbazı v3.0 Pro")
+        self.setWindowTitle("🧭 Akıllı Sihirbaz – Koç Özeti V7")
         self.resize(1200, 800)
-        self.ogrenci_id = ogrenci_id
+        from utils.wizard_integrity_v8 import normalized_identity
+        self.ogrenci_id = normalized_identity(ogrenci_id)
+        self.fixed_student_id = self.ogrenci_id  # Ana formdan açıldıysa değiştirilemez.
+        self.transfer_student_id = None
+        self._student_scope_error = None
         self.available_books = available_books or {}
         self.suggested_tasks = []
         self.filtered_tasks = []
@@ -34,6 +45,9 @@ class SmartWizardDialog(QDialog):
         self.current_filter_category = "all"
         self.analytics_data = None
         self.weekly_plan_data = None
+        self.coach_brief = None
+        self.curriculum_report = None
+        self._source_thread = None
 
         self._build_ui()
         self._load_students()
@@ -56,9 +70,9 @@ class SmartWizardDialog(QDialog):
         lbl_icon.setStyleSheet("font-size: 38px;")
 
         vbox = QVBoxLayout()
-        lbl_title = QLabel("Yapay Zeka & Pedagojik Başarı Sihirbazı")
+        lbl_title = QLabel("Akıllı Ödev Sihirbazı · Kanıta Dayalı Koç Özeti")
         lbl_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #4338ca;")
-        lbl_desc = QLabel("Ebbinghaus Unutma Eğrisi • Bilişsel Yük Dengesi • ÖSYM/LGS Sınav Öncelikleri")
+        lbl_desc = QLabel("Ödev geçmişi • Deneme verisi • Öğretmen onaylı eylemler • İsteğe bağlı resmî kaynaklar")
         lbl_desc.setStyleSheet("color: #64748b; font-size: 12px;")
         vbox.addWidget(lbl_title)
         vbox.addWidget(lbl_desc)
@@ -86,10 +100,10 @@ class SmartWizardDialog(QDialog):
         kpi_row = QHBoxLayout()
         kpi_row.setSpacing(10)
 
-        self.card_success = self._create_kpi_card("📊 Genel Başarı", "%0", "0/0 Ödev Tamamlandı", "#059669", "#ecfdf5")
+        self.card_success = self._create_kpi_card("📊 Ödev Tamamlama", "%0", "0/0 Ödev Tamamlandı", "#059669", "#ecfdf5")
         self.card_overdue = self._create_kpi_card("⏳ Geciken / Telafi", "0 Ödev", "Acil Telafi Bekliyor", "#dc2626", "#fef2f2")
-        self.card_ebbinghaus = self._create_kpi_card("🧠 Ebbinghaus Tekrarı", "0 Konu", "Hafıza Tazeleyici", "#7c3aed", "#f5f3ff")
-        self.card_exam = self._create_kpi_card("🎯 Sınavda Çok Çıkar", "0 Konu", "ÖSYM/LGS Yüksek Ağırlık", "#d97706", "#fffbeb")
+        self.card_ebbinghaus = self._create_kpi_card("🧠 Tekrar Adayı", "0 Konu", "Öneridir, ölçüm değildir", "#7c3aed", "#f5f3ff")
+        self.card_exam = self._create_kpi_card("📈 Deneme Karşılaştırma", "0 Ders", "Farklı tarihli ölçümler", "#d97706", "#fffbeb")
 
         kpi_row.addWidget(self.card_success)
         kpi_row.addWidget(self.card_overdue)
@@ -105,10 +119,19 @@ class SmartWizardDialog(QDialog):
             QTabBar::tab:selected { background: white; border-bottom-color: white; font-weight: bold; color: #4338ca; }
         """)
 
+        # Tek bakışta, kanıta dayalı koçluk (öğretmen için ilk ekran)
+        self.tabEvidence = QWidget()
+        self._build_evidence_tab(self.tabEvidence)
+        self.tabs.addTab(self.tabEvidence, "🧭 Koç Özeti (1 Tık)")
+
+        self.tabCurriculum = QWidget()
+        self._build_curriculum_tab(self.tabCurriculum)
+        self.tabs.addTab(self.tabCurriculum, "📚 Kazanım & Telafi Kontrolü")
+
         # Tab 1: Akıllı Ödev Önerileri
         self.tabSuggestions = QWidget()
         self._build_suggestions_tab(self.tabSuggestions)
-        self.tabs.addTab(self.tabSuggestions, "🎯 Akıllı Ödev Önerileri")
+        self.tabs.addTab(self.tabSuggestions, "🎯 Doğrulanmış Ödev Önerileri")
 
         # Tab 2: Haftalık Strateji (Pro)
         self.tabStrategy = QWidget()
@@ -118,9 +141,181 @@ class SmartWizardDialog(QDialog):
         # Tab 3: AI Koçluk & PDR Raporu
         self.tabCoach = QWidget()
         self._build_coach_tab(self.tabCoach)
-        self.tabs.addTab(self.tabCoach, "🤖 AI Koçluk & PDR Raporu")
+        self.tabs.addTab(self.tabCoach, "📝 Öğrenci / Veli Mesaj Taslakları")
 
         root.addWidget(self.tabs, 1)
+
+    def _build_evidence_tab(self, parent):
+        layout = QVBoxLayout(parent)
+        layout.setContentsMargins(16, 14, 16, 14)
+        info = QLabel("📌 Kayıtlı ödev ve varsa deneme sonuçlarından otomatik koçluk özeti. "
+                      "Öğretmen onayı olmadan ödev veya profil değişmez.")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+        self.txtEvidence = QTextBrowser()
+        self.txtEvidence.setHtml("<p>Öğrenci verileri inceleniyor...</p>")
+        layout.addWidget(self.txtEvidence, 1)
+        actions = QHBoxLayout()
+        refresh = QPushButton("🔄 Yeniden İncele")
+        refresh.clicked.connect(self._run_analysis)
+        actions.addWidget(refresh)
+        copy = QPushButton("📋 Koç Özetini Kopyala")
+        copy.clicked.connect(self._copy_evidence)
+        actions.addWidget(copy)
+        actions.addStretch(1)
+        layout.addLayout(actions)
+
+        online_info = QLabel("🌐 İnternet modu isteğe bağlıdır. Yalnızca resmî kaynakların sınırlı sayfa verisi "
+                             "ve başlığı okunur; öğrenci bilgileri gönderilmez. "
+                             "Bu işlem kazanım doğrulaması veya otomatik müfredat eşleştirmesi yapmaz.")
+        online_info.setWordWrap(True)
+        layout.addWidget(online_info)
+        online = QHBoxLayout()
+        self.btnOfficial = QPushButton("🌐 Resmî Kaynakları ve Başlıklarını Kontrol Et")
+        self.btnOfficial.clicked.connect(self._check_official_sources)
+        online.addWidget(self.btnOfficial)
+        online.addStretch(1)
+        layout.addLayout(online)
+        self.txtOfficial = QTextBrowser()
+        self.txtOfficial.setMaximumHeight(120)
+        self.txtOfficial.setOpenExternalLinks(True)
+        self.txtOfficial.setHtml("<i>Çevrimdışı çalışma etkin. İsterseniz tek tıkla resmî kaynakları kontrol edin.</i>")
+        layout.addWidget(self.txtOfficial)
+
+    def _build_curriculum_tab(self, parent):
+        layout = QVBoxLayout(parent)
+        layout.setContentsMargins(16, 14, 16, 14)
+        info = QLabel(
+            "Yalnızca sınıfı belli olan ve doğrulanmış katalogda tam konu eşleşmesi bulunan "
+            "öğrenciler için kontrol taslağı. Deneme neti tek başına kazanım eksiği sayılmaz. "
+            "Öneriler öğretmen onayı olmadan hiçbir kaydı değiştirmez.")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+        grade_line = QHBoxLayout()
+        grade_line.addWidget(QLabel("Sınıf doğrulaması:"))
+        self.cmbCurriculumGrade = QComboBox()
+        self.cmbCurriculumGrade.addItem("Öğrencinin kayıtlı sınıfı", None)
+        for grade in range(1, 13):
+            self.cmbCurriculumGrade.addItem(f"{grade}. sınıf (yalnızca önizleme)", grade)
+        self.cmbCurriculumGrade.currentIndexChanged.connect(self._run_curriculum_review)
+        grade_line.addWidget(self.cmbCurriculumGrade)
+        grade_line.addStretch(1)
+        layout.addLayout(grade_line)
+        self.txtCurriculum = QTextBrowser()
+        self.txtCurriculum.setOpenExternalLinks(True)
+        self.txtCurriculum.setHtml("<p>Kazanım kontrolü için öğrenci seçiniz.</p>")
+        layout.addWidget(self.txtCurriculum, 1)
+        line = QHBoxLayout()
+        refresh = QPushButton("🔎 Kazanım Kontrolünü Yenile")
+        refresh.clicked.connect(self._run_curriculum_review)
+        line.addWidget(refresh)
+        copy = QPushButton("📋 Kontrol Taslağını Kopyala")
+        copy.clicked.connect(self._copy_curriculum_review)
+        line.addWidget(copy)
+        line.addStretch(1)
+        layout.addLayout(line)
+        foot = QLabel(
+            "Katalog şu anda sadece kaynaklı örnek Fizik kazanımlarını kapsıyor; "
+            "tüm sınıf ve dersler için otomatik doğrulama iddiası yoktur. "
+            "Resmî öğretim programı sürümü ayrıca kontrol edilmelidir.")
+        foot.setWordWrap(True)
+        layout.addWidget(foot)
+
+    def _run_curriculum_review(self):
+        oid = self._get_current_oid()
+        if not oid:
+            self.curriculum_report = None
+            self.txtCurriculum.setPlainText("Önce öğrenci seçin.")
+            return
+        from services.coach_curriculum_v7 import build_outcome_review, outcome_as_html
+        con = db.get_conn()
+        try:
+            self.curriculum_report = build_outcome_review(
+                con, oid, grade_override=self.cmbCurriculumGrade.currentData())
+            self.txtCurriculum.setHtml(outcome_as_html(self.curriculum_report))
+        except Exception as exc:
+            self.curriculum_report = None
+            self.txtCurriculum.setPlainText("Kazanım kontrolü hazırlanamadı: " + str(exc))
+        finally:
+            con.close()
+
+    def _copy_curriculum_review(self):
+        if self.curriculum_report is None:
+            QMessageBox.information(self, "Veri Yok", "Önce kazanım kontrolünü çalıştırın.")
+            return
+        from services.coach_curriculum_v7 import outcome_as_text
+        QApplication.clipboard().setText(outcome_as_text(self.curriculum_report))
+        QMessageBox.information(self, "Kopyalandı", "Kontrol taslağı panoya kopyalandı.")
+
+    def _run_evidence_brief(self, student_id):
+        from services.coach_evidence_v5 import build_coach_brief, brief_as_html
+        con = db.get_conn()
+        try:
+            self.coach_brief = build_coach_brief(con, student_id)
+            self.txtEvidence.setHtml(brief_as_html(self.coach_brief))
+        except Exception as e:
+            self.coach_brief = None
+            self.txtEvidence.setPlainText("Koç özeti hazırlanamadı: " + str(e))
+        finally:
+            con.close()
+
+    def _copy_evidence(self):
+        if not self.coach_brief:
+            QMessageBox.information(self, "Veri Yok", "Önce öğrenci analizini çalıştırın.")
+            return
+        from services.coach_evidence_v5 import brief_as_text
+        QApplication.clipboard().setText(brief_as_text(self.coach_brief))
+        QMessageBox.information(self, "Kopyalandı", "Koç özeti panoya kopyalandı.")
+
+    def _check_official_sources(self):
+        if self._source_thread is not None and self._source_thread.isRunning():
+            return
+        self.btnOfficial.setEnabled(False)
+        self.txtOfficial.setPlainText("Resmî kaynaklara erişim kontrol ediliyor...")
+        self._source_thread = _OfficialSourceCheckThread(self)
+        self._source_thread.result_ready.connect(self._show_official_sources)
+        self._source_thread.finished.connect(self._official_finished)
+        self._source_thread.start()
+
+    def accept(self):
+        if self._source_thread is not None and self._source_thread.isRunning():
+            QMessageBox.information(self, "Kaynak Kontrolü", "Çevrimiçi kaynak kontrolü bitince işleme devam edebilirsiniz.")
+            return
+        super().accept()
+
+    def reject(self):
+        if self._source_thread is not None and self._source_thread.isRunning():
+            QMessageBox.information(self, "Kaynak Kontrolü", "Çevrimiçi kaynak kontrolü bitince kapatabilirsiniz.")
+            return
+        super().reject()
+
+    def closeEvent(self, event):
+        if self._source_thread is not None and self._source_thread.isRunning():
+            # A QThread must not be destroyed while its HTTPS requests are active.
+            event.ignore()
+            QMessageBox.information(self, "Kaynak Kontrolü", "Bağlantı kontrolü bitince pencere kapatılabilir.")
+            return
+        super().closeEvent(event)
+
+    def _official_finished(self):
+        self.btnOfficial.setEnabled(True)
+        # Destroy once Qt safely returns to the main thread.
+        if self._source_thread is not None:
+            self._source_thread.deleteLater()
+            self._source_thread = None
+
+    def _show_official_sources(self, items):
+        html = ['<b>Resmî eğitim kaynakları</b><ul>']
+        for v in items:
+            label = html_escape(v['name'])
+            url = html_escape(v['url'], quote=True)
+            status = html_escape(v['status'])
+            title = html_escape(v.get('title') or 'Başlık okunamadı')
+            when = html_escape(v.get('checked_at', '')[:16].replace('T', ' '))
+            html.append(f'<li><a href="{url}">{label}</a> — {status}<br/>'
+                        f'<small>Sayfa başlığı: {title} · UTC kontrol: {when}</small></li>')
+        html.append('</ul><small>Bağlantı kontrolü içerik doğruluğunu veya kazanım eşleşmesini kanıtlamaz.</small>')
+        self.txtOfficial.setHtml(''.join(html))
 
     def _create_kpi_card(self, title: str, main_val: str, subtitle: str, color: str, bg_color: str) -> QFrame:
         card = QFrame()
@@ -199,10 +394,10 @@ class SmartWizardDialog(QDialog):
         self.cmbStrategyMode = QComboBox()
         self.cmbStrategyMode.addItems([
             "🌟 Dengeli Karma (Tavsiye Edilen)",
-            "🚨 Acil Telafi & Gecikenler",
-            "🧠 Ebbinghaus Aralıklı Tekrar",
-            "🔥 ÖSYM Sınav & Net Artırma",
-            "📘 Müfredat İlerleme"
+            "🎯 Kayıtlı Koçluk Ölçümüne Göre Telafi",
+            "🧠 Kaydı Doğrulanmış Kısa Tekrar",
+            "📈 Deneme Analizi (Koç Özeti)",
+            "📘 Müfredat Kontrolü (Koç Özeti)"
         ])
         self.cmbStrategyMode.setStyleSheet("""
             QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; font-size: 12px; }
@@ -286,6 +481,11 @@ class SmartWizardDialog(QDialog):
 
         lay_right.addLayout(tools_lay)
 
+        self.lblSuggestionStatus = QLabel("Öneriler yalnızca doğrulanmış öğrenci kaynağına göre sunulur.")
+        self.lblSuggestionStatus.setWordWrap(True)
+        self.lblSuggestionStatus.setStyleSheet("color:#64748b;font-size:11px;")
+        lay_right.addWidget(self.lblSuggestionStatus)
+
         # Tablo
         self.tableSuggestions = QTableWidget(0, 7)
         self.tableSuggestions.setHorizontalHeaderLabels([
@@ -337,7 +537,7 @@ class SmartWizardDialog(QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
 
-        info = QLabel("📅 <b>Bilişsel Yük & Pomodoro Dengeli Haftalık Çalışma Matrisi:</b> Ödevleri ve aralıklı tekrarları günlere dengeli şekilde yayar.")
+        info = QLabel("📅 <b>Öğrenci Profiline Göre Önizleme:</b> Kayıtlı rutin, etüt süresi, mola ve boş zamanlar esas alınır. Mevcut ödev planı değişmez.")
         info.setStyleSheet("color: #475569; font-size: 13px;")
         layout.addWidget(info)
 
@@ -364,7 +564,7 @@ class SmartWizardDialog(QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
 
-        top_info = QLabel("🤖 <b>Pedagojik PDR Koçluk ve Motivasyon Analizi:</b> Öğrencinin geçmiş ödev performansı ve öğrenme eğrisine göre bilimsel koçluk değerlendirmesi üretir.")
+        top_info = QLabel("📝 <b>Öğretmen için bilgilendirme taslağı:</b> Kayıtlı ödev verilerine dayanır; psikolojik değerlendirme veya başarı tanısı değildir.")
         top_info.setStyleSheet("color: #475569; font-size: 13px;")
         layout.addWidget(top_info)
 
@@ -374,7 +574,7 @@ class SmartWizardDialog(QDialog):
         pdr_box = QFrame()
         pdr_box.setStyleSheet("background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;")
         lay_pdr = QVBoxLayout(pdr_box)
-        lay_pdr.addWidget(QLabel("<b>📋 Pedagojik Durum Değerlendirmesi:</b>"))
+        lay_pdr.addWidget(QLabel("<b>📋 Kanıta Dayalı Takip Özeti:</b>"))
         self.txtPdrSummary = QTextBrowser()
         self.txtPdrSummary.setStyleSheet("background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; font-size: 13px;")
         lay_pdr.addWidget(self.txtPdrSummary)
@@ -411,36 +611,70 @@ class SmartWizardDialog(QDialog):
     # ---------------- LOGIC & DATA LOADING ----------------
 
     def _load_students(self):
+        """Gönderilen öğrenci ID'si bulunamazsa ASLA ilk öğrenciyi seçme."""
+        from utils.wizard_integrity_v8 import normalized_identity, same_student
         con = db.get_conn()
+        was_blocked = self.cmbStudent.blockSignals(True)
         try:
-            rows = con.execute("SELECT id, ad, soyad FROM ogrenci WHERE aktif=1 ORDER BY ad").fetchall()
-            for r in rows:
-                name = f"{r['ad']} {r['soyad']}".strip()
-                self.cmbStudent.addItem(name, r['id'])
-                if self.ogrenci_id and r['id'] == self.ogrenci_id:
-                    self.cmbStudent.setCurrentText(name)
+            self.cmbStudent.clear()
+            rows = con.execute(
+                "SELECT id, ad, soyad FROM ogrenci WHERE aktif=1 ORDER BY ad, soyad, id"
+            ).fetchall()
+            if self.fixed_student_id is not None:
+                selected = next((r for r in rows
+                                 if same_student(r['id'], self.fixed_student_id)), None)
+                if selected is None:
+                    # Önceden pasife alınan bir öğrenciyi de yanlış kişiye döndürme.
+                    selected = con.execute(
+                        "SELECT id, ad, soyad FROM ogrenci WHERE id=?",
+                        (self.fixed_student_id,)
+                    ).fetchone()
+                if selected is None:
+                    self._student_scope_error = (
+                        "Sihirbaz için seçilen öğrenci kaydı bulunamadı. "
+                        "Ödev önerileri ve aktarım durduruldu."
+                    )
+                    self.cmbStudent.addItem("Öğrenci bulunamadı", None)
+                else:
+                    name = f"{selected['ad'] or ''} {selected['soyad'] or ''}".strip()
+                    self.cmbStudent.addItem(name, normalized_identity(selected['id']))
+                    self.cmbStudent.setCurrentIndex(0)
+            else:
+                self.cmbStudent.addItem("Öğrenci seçiniz", None)
+                for r in rows:
+                    name = f"{r['ad'] or ''} {r['soyad'] or ''}".strip()
+                    self.cmbStudent.addItem(name, normalized_identity(r['id']))
+                self.cmbStudent.setCurrentIndex(0)
         finally:
+            self.cmbStudent.blockSignals(was_blocked)
             con.close()
 
     def _get_current_oid(self):
-        if self.ogrenci_id:
-            return self.ogrenci_id
-        idx = self.cmbStudent.currentIndex()
-        if idx >= 0:
-            return self.cmbStudent.itemData(idx)
-        return None
+        from utils.wizard_integrity_v8 import normalized_identity, same_student
+        selected_id = normalized_identity(self.cmbStudent.currentData())
+        if self._student_scope_error:
+            return None
+        if self.fixed_student_id is not None:
+            return self.fixed_student_id if same_student(selected_id, self.fixed_student_id) else None
+        return selected_id
 
     def _on_student_combo_changed(self, idx):
-        if idx >= 0:
-            self.ogrenci_id = self.cmbStudent.itemData(idx)
+        if self.fixed_student_id is not None:
+            return
+        self.ogrenci_id = self._get_current_oid()
+        if self.ogrenci_id is not None:
             self._run_analysis()
 
     def _run_analysis(self):
         oid = self._get_current_oid()
         if not oid:
             return
+        # Independent read-only brief remains available if the legacy suggestion
+        # generator fails; it never writes assignments or student records.
+        self._run_evidence_brief(oid)
+        self._run_curriculum_review()
 
-        progress = QProgressDialog("Öğrenci geçmişi, Ebbinghaus eğrisi ve sınav hedefleri analiz ediliyor...", "İptal", 0, 100, self)
+        progress = QProgressDialog("Öğrencinin kayıtlı ödev ve deneme verileri inceleniyor...", "İptal", 0, 100, self)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.show()
         progress.setValue(20)
@@ -455,28 +689,37 @@ class SmartWizardDialog(QDialog):
             progress.setValue(50)
 
             # 2. KPI Kartlarını Güncelle
-            ratio = analytics["overall"]["completion_ratio"]
-            done = analytics["overall"]["completed_count"]
-            total = analytics["overall"]["total_assigned"]
-            overdue = analytics["overall"]["overdue_count"]
-            ebbinghaus_cnt = len(analytics["ebbinghaus_reviews"])
-            gaps_cnt = len(analytics["curriculum_gaps"])
+            evidence_stats = self.coach_brief.get('stats', {}) if self.coach_brief else {}
+            ratio = evidence_stats.get('completion_percent')
+            done = evidence_stats.get('completed', 0)
+            total = evidence_stats.get('assigned', 0)
+            overdue = evidence_stats.get('overdue', 0)
+            ratio = ratio if ratio is not None else '—'
+            ebbinghaus_cnt = 0
+            gaps_cnt = len(self.coach_brief.get('exam_notes', [])) if self.coach_brief else 0
 
             self.card_success.findChild(QLabel, "kpi_main").setText(f"%{ratio}")
             self.card_success.findChild(QLabel, "kpi_sub").setText(f"{done}/{total} Ödev Tamamlandı")
 
             self.card_overdue.findChild(QLabel, "kpi_main").setText(f"{overdue} Ödev")
-            self.card_overdue.findChild(QLabel, "kpi_sub").setText("Acil Telafi Bekliyor" if overdue > 0 else "Gecikmiş Ödev Yok")
+            self.card_overdue.findChild(QLabel, "kpi_sub").setText("Teslim tarihi geçmiş; kontrol gerekli" if overdue > 0 else "Teslim tarihi geçmiş kayıt yok")
 
             self.card_ebbinghaus.findChild(QLabel, "kpi_main").setText(f"{ebbinghaus_cnt} Konu")
-            self.card_ebbinghaus.findChild(QLabel, "kpi_sub").setText("Hafıza Tazeleyici" if ebbinghaus_cnt > 0 else "Tekrar Eşiği Temiz")
+            self.card_ebbinghaus.findChild(QLabel, "kpi_sub").setText("Ölçüm değil, tekrar önerisi")
 
-            self.card_exam.findChild(QLabel, "kpi_main").setText(f"{gaps_cnt} Konu")
-            self.card_exam.findChild(QLabel, "kpi_sub").setText("ÖSYM/LGS Yüksek Ağırlık")
+            self.card_exam.findChild(QLabel, "kpi_main").setText(f"{gaps_cnt} Ders")
+            self.card_exam.findChild(QLabel, "kpi_sub").setText("Yalnızca kaydedilmiş denemeler")
 
             # 3. Sol Panel Profil ve İlerleme Çubukları
-            self.lblProfileBadge.setText(f"🎯 Profil: {analytics['cognitive_profile']}")
-            self._update_lesson_progress_bars(analytics["lesson_stats"])
+            self.lblProfileBadge.setText("🎯 Ödev takibi: Akademik başarı ayrıca ölçülmelidir")
+            safe_lessons = {}
+            for d, item in (self.coach_brief or {}).get('subjects', {}).items():
+                total_d = item['assigned']
+                done_d = item['completed']
+                ratio_d = round(100 * done_d / total_d) if total_d else 0
+                safe_lessons[d] = {'name': d, 'ratio': ratio_d, 'done':done_d,
+                                   'total':total_d, 'color': '#059669' if ratio_d>=70 else '#d97706'}
+            self._update_lesson_progress_bars(safe_lessons)
             progress.setValue(70)
 
             # 4. Akıllı Ödev Önerilerini Üret
@@ -490,15 +733,15 @@ class SmartWizardDialog(QDialog):
             curr_mode = mode_map.get(self.cmbStrategyMode.currentIndex(), "balanced")
             tgt_min = self.spTargetMinutes.value()
 
-            suggestions = ai_recommend.generate_smart_homework_suggestions(
-                con, oid,
-                available_books=self.available_books,
-                mode=curr_mode,
-                target_minutes=tgt_min,
-                limit=14
+            from services.coach_evidence_v5 import build_safe_homework_suggestions
+            suggestions = build_safe_homework_suggestions(
+                con, oid, available_books=self.available_books,
+                mode=curr_mode, target_minutes=tgt_min, limit=14
             )
             self.suggested_tasks = suggestions
             self.filtered_tasks = list(suggestions)
+            ebbinghaus_cnt = sum(1 for x in suggestions if x['type']=='ebbinghaus')
+            self.card_ebbinghaus.findChild(QLabel, "kpi_main").setText(f"{ebbinghaus_cnt} Konu")
             self._fill_table()
             progress.setValue(85)
 
@@ -552,6 +795,14 @@ class SmartWizardDialog(QDialog):
             self.lay_lessons_bars.insertWidget(self.lay_lessons_bars.count() - 1, box)
 
     def _fill_table(self):
+        if not self.filtered_tasks:
+            self.lblSuggestionStatus.setText(
+                "Doğrulanmış yeni ödev önerisi bulunamadı. Geciken görevler, deneme karşılaştırmaları "
+                "ve müfredat kontrolü için ilk sekmedeki Koç Özetine bakın. Eksiklik tahmin edilmedi.")
+        else:
+            self.lblSuggestionStatus.setText(
+                "Öneriler öğretmen onayı bekliyor. Varsayılan olarak hiçbiri işaretli değildir; "
+                "öğrencinin çalışma profilindeki gerçek boş zamanı da kontrol edin.")
         self.tableSuggestions.setRowCount(0)
         for i, task in enumerate(self.filtered_tasks):
             self.tableSuggestions.insertRow(i)
@@ -602,7 +853,7 @@ class SmartWizardDialog(QDialog):
 
             # 6: Checkbox
             chk = QCheckBox()
-            chk.setChecked(True)
+            chk.setChecked(bool(task.get('auto_selected', False)))
             w = QWidget()
             l = QHBoxLayout(w)
             l.setContentsMargins(0, 0, 0, 0)
@@ -645,14 +896,12 @@ class SmartWizardDialog(QDialog):
             time_str = f"{saat} sa {dk_mod} dk ({total_min} dk)"
 
         # Bilişsel Yük Seviyesi
-        if total_min <= 180:
-            load_txt = "🟢 Bilişsel Yük: İdeal & Dengeli"
+        tgt = self.spTargetMinutes.value()
+        if total_min <= tgt:
+            load_txt = "✅ Seçim hedef süre içinde (gerçek öğrenci rutini ayrıca kontrol edilmeli)"
             c_code = "#059669"
-        elif total_min <= 300:
-            load_txt = "🟡 Bilişsel Yük: Yoğun (Mola Tavsiye Edilir)"
-            c_code = "#d97706"
         else:
-            load_txt = "🔴 Bilişsel Yük: Aşırı (Öğrenciyi Yormayacak Şekilde Yayın)"
+            load_txt = "⚠️ Seçim hedef süreyi aşıyor"
             c_code = "#dc2626"
 
         self.lblLiveSummary.setText(f"Seçilen: {count} Ödev (~{time_str}, ~{total_q} Soru) | {load_txt}")
@@ -726,6 +975,21 @@ class SmartWizardDialog(QDialog):
             QMessageBox.information(self, "Seçim Yapılmadı", "Lütfen listeye eklemek için en az bir ödev seçiniz.")
             return
 
+        total = sum(int(x.get('dk') or 0) for x in final_list)
+        if total > self.spTargetMinutes.value():
+            QMessageBox.warning(self, "Süre Aşıldı", "Seçilen ödevler hedef süreyi aşıyor. Seçimi azaltın.")
+            return
+        from utils.wizard_integrity_v8 import same_student
+        oid = self._get_current_oid()
+        if oid is None or (self.fixed_student_id is not None and not same_student(oid, self.fixed_student_id)):
+            QMessageBox.warning(self, "Öğrenci Uyumsuzluğu", "Seçili öğrenci doğrulanamadı. Aktarım iptal edildi.")
+            return
+        parent = self.parent()
+        if parent is not None and callable(getattr(parent, "_secili_ogrenci_id", None)):
+            if not same_student(oid, parent._secili_ogrenci_id()):
+                QMessageBox.warning(self, "Öğrenci Değişti", "Ana formdaki öğrenci değişti. Lütfen sihirbazı yeniden açın.")
+                return
+        self.transfer_student_id = oid
         self.selected_homeworks = final_list
         self.accept()
 
@@ -733,100 +997,77 @@ class SmartWizardDialog(QDialog):
         oid = self._get_current_oid()
         if not oid:
             return
-
-        con = db.get_conn()
         try:
-            from utils import ai_recommend
-            plan = ai_recommend.weekly_strategy_plan(con, oid, available_books=self.available_books)
+            from services.plan_profile_store import load_profiles, load_assignments
+            from services.coach_evidence_v5 import build_profile_weekly_preview
+            profile_name = load_assignments().get(str(oid))
+            saved = load_profiles()
+            profile = saved.get(profile_name) if profile_name else None
+            if not isinstance(profile, dict):
+                self.weekly_plan_data = None
+                self.txtStrategy.setPlainText(
+                    "Öğrenciye atanmış kayıtlı bir çalışma profili bulunmuyor. "
+                    "Önce Akıllı Haftalık Planlama ekranında öğrencinin rutin profilini kaydedip ilişkilendirin. "
+                    "Profil olmadan rastgele saatlere çalışma yerleştirilmez.")
+                return
+            con = db.get_conn()
+            try:
+                plan = build_profile_weekly_preview(con, oid, profile, self.available_books)
+            finally:
+                con.close()
             self.weekly_plan_data = plan
-
-            days_tr = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
-            html = """
-            <style>
-                body { font-family: 'Segoe UI', Tahoma, sans-serif; color: #1e293b; margin: 10px; }
-                .day-card { border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 12px; background: white; overflow: hidden; }
-                .day-header { background: #f1f5f9; padding: 8px 14px; font-weight: bold; border-bottom: 1px solid #e2e8f0; display: flex; }
-                .day-title { font-size: 14px; color: #334155; }
-                .day-badge { float: right; background: #e0e7ff; color: #4338ca; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
-                .task-row { padding: 8px 14px; border-bottom: 1px solid #f8fafc; font-size: 12px; }
-                .task-row:last-child { border-bottom: none; }
-                .badge-task { background: #dcfce7; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; margin-right: 6px; }
-            </style>
-            """
-
-            schedule = plan.get("schedule", [])
-            for day in schedule:
-                d_str = day.get("date", "")
-                try:
-                    dt = datetime.strptime(d_str, "%Y-%m-%d")
-                    d_name = days_tr[dt.weekday()]
-                except Exception:
-                    d_name = d_str
-
-                items = day.get("items", [])
-                tot_dk = sum(it.get("dk", 30) for it in items)
-
-                html += f"""
-                <div class="day-card">
-                    <div class="day-header">
-                        <span class="day-title">📅 {d_name} <small style="color:#64748b;">({d_str})</small></span>
-                        <span class="day-badge">{tot_dk} dk Hedef</span>
-                    </div>
-                """
-                if not items:
-                    html += "<div style='padding: 10px 14px; color: #94a3b8; font-style: italic;'>Bu gün için planlanan özel çalışma yok (Dinlenme & Genel Tekrar).</div>"
+            parts = ['<div style="font:13px Segoe UI;line-height:1.55">',
+                     '<h3>📅 Kayıtlı öğrenci rutinine göre çalışma taslağı</h3>',
+                     '<p><b>Önemli:</b> Bu, yalnızca doğrulanmış tekrar önerilerinin taslağıdır; mevcut ödevleri ve onaylı takvimi değiştirmez.</p>']
+            for day in plan['schedule']:
+                parts.append(f'<h4>{html_escape(day["date"])} · '
+                             f'{day["planned_minutes"]}/{day["available_minutes"]} dk</h4>')
+                if not day['items']:
+                    parts.append('<p style="color:#64748b">Yerleştirilmiş yeni öneri yok.</p>')
                 else:
-                    for it in items:
-                        ders = it.get("ders", "").replace("_", " ").title()
-                        konu = it.get("konu", "")
-                        dk = it.get("dk", 30)
-                        neden = it.get("neden", "")
-                        html += f"""
-                        <div class="task-row">
-                            <span class="badge-task">⏱️ {dk} dk</span>
-                            <b>{ders}:</b> {konu} — <span style="color: #64748b; font-style: italic;">{neden}</span>
-                        </div>
-                        """
-                html += "</div>"
-
-            self.txtStrategy.setHtml(html)
+                    parts.append('<ul>')
+                    for task in day['items']:
+                        parts.append(f'<li>{html_escape(task["start"])}–{html_escape(task["end"])} '
+                                     f'· {html_escape(task["ders"])} / {html_escape(task["konu"])} '
+                                     f'({task["dk"]} dk)</li>')
+                    parts.append('</ul>')
+            if plan['leftovers']:
+                parts.append('<h4>⚠️ Yerleştirilemeyenler</h4><ul>')
+                for u in plan['leftovers']:
+                    parts.append(f'<li>{html_escape(u["task"]["konu"])}: '
+                                 f'{html_escape(u["reason"])}</li>')
+                parts.append('</ul>')
+            parts.append('</div>')
+            self.txtStrategy.setHtml(''.join(parts))
         except Exception as e:
-            if not silent:
-                self.txtStrategy.setText(f"Plan üretilirken hata oluştu: {e}")
-        finally:
-            con.close()
+            self.weekly_plan_data = None
+            self.txtStrategy.setPlainText('Kayıtlı rutin veya takvim ayarları okunamadı: ' + str(e))
 
     def _generate_pdr_report(self):
-        oid = self._get_current_oid()
-        if not oid:
+        # Safer drafts: no psychological diagnosis or fabricated mastery scores.
+        if not self.coach_brief:
             return
-
-        con = db.get_conn()
-        try:
-            from utils import ai_recommend
-            pdr = ai_recommend.generate_pedagogical_pdr_report(con, oid)
-            
-            # HTML formatında PDR Raporu
-            html_pdr = f"""
-            <div style="line-height: 1.6; color: #334155;">
-                <h3 style="color: #4338ca; margin-top: 0;">🎓 PDR & Koçluk Analiz Özeti</h3>
-                <p>{pdr['summary']}</p>
-                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 12px 0;">
-                <h4 style="color: #059669; margin-bottom: 4px;">🚀 Güçlü Olduğu Alanlar:</h4>
-                <p>{", ".join(pdr['strong_lessons']) if pdr['strong_lessons'] else "Tüm branşlarda dengeli ilerleme sergileniyor."}</p>
-                <h4 style="color: #dc2626; margin-bottom: 4px;">⚠️ Dikkat ve Telafi Gerektiren Alanlar:</h4>
-                <p>{", ".join(pdr['weak_lessons']) if pdr['weak_lessons'] else "Kritik bir eksiklik saptanmadı, form korumaya devam edilmeli."}</p>
-                <h4 style="color: #7c3aed; margin-bottom: 4px;">🧠 Çalışma Disiplini ve Ebbinghaus Tavsiyesi:</h4>
-                <p>Öğrencinin çalıştığı konuları kalıcı hafızaya aktarması için 7. ve 30. gün hatırlatma testleri kritik önem taşımaktadır. Günlük çalışma blokları 40 dakika odaklanma + 10 dakika mola periyotlarıyla yürütülmelidir.</p>
-            </div>
-            """
-            self.txtPdrSummary.setHtml(html_pdr)
-            self.txtWaStudent.setPlainText(pdr["whatsapp_student"])
-            self.txtWaParent.setPlainText(pdr["whatsapp_parent"])
-        except Exception as e:
-            self.txtPdrSummary.setText(f"PDR raporu üretilemedi: {e}")
-        finally:
-            con.close()
+        from services.coach_evidence_v5 import brief_as_html
+        data = self.coach_brief
+        st = data['stats']
+        name = data['student']['name']
+        self.txtPdrSummary.setHtml(brief_as_html(data))
+        if st['assigned'] == 0:
+            student_msg = (f"Merhaba {name}, henüz yeterli ödev kaydı bulunmuyor. "
+                           "Çalışma hedeflerini öğretmeninle birlikte belirleyebilirsiniz.")
+            parent_msg = ("Merhaba, öğrencimizin çalışma takibini değerlendirmek için henüz "
+                          "yeterli ödev kaydı bulunmuyor. Öğretmenimizle birlikte planlama yapılacaktır.")
+        else:
+            student_msg = (f"Merhaba {name}, kayıtlı {st['assigned']} ödevinin "
+                           f"{st['completed']} tanesi tamamlanmış görünüyor. "
+                           f"Kontrol bekleyen {st['overdue']} görev var. "
+                           "Birlikte kısa bir kontrol yapıp yeni çalışma planını netleştirebiliriz.")
+            parent_msg = (f"Merhaba, kayıtlı {st['assigned']} ödevden {st['completed']} tanesi "
+                          f"tamamlanmış görünüyor; {st['overdue']} görev kontrol bekliyor. "
+                          "Bu sayılar akademik başarı ölçümü değil, ödev takip verisidir. "
+                          "İlgili çalışmalar öğretmen değerlendirmesiyle planlanacaktır.")
+        self.txtWaStudent.setPlainText(student_msg)
+        self.txtWaParent.setPlainText(parent_msg)
 
     def _copy_to_clipboard(self, text: str, msg: str = "Panoya kopyalandı ✅"):
         cb = QApplication.clipboard()
@@ -835,7 +1076,10 @@ class SmartWizardDialog(QDialog):
 
     def _copy_suggestions_text(self):
         lines = ["📌 *Akıllı Ödev Sihirbazı - Seçilen Ödevler*\n"]
-        for t in self.filtered_tasks:
+        for i, t in enumerate(self.filtered_tasks):
+            cell = self.tableSuggestions.cellWidget(i, 6)
+            if not cell or not hasattr(cell, 'chk') or not cell.chk.isChecked():
+                continue
             d = t.get("ders", "").replace("_", " ").title()
             k = t.get("konu", "")
             b = t.get("kitap", "")
@@ -854,7 +1098,7 @@ class SmartWizardDialog(QDialog):
         from PyQt6.QtPrintSupport import QPrinter, QPrintPreviewDialog
         from PyQt6.QtGui import QTextDocument, QPageSize
 
-        student_name = self.cmbStudent.currentText()
+        student_name = html_escape(self.cmbStudent.currentText())
         now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
 
         html = f"""
@@ -874,8 +1118,8 @@ class SmartWizardDialog(QDialog):
         <body>
             <h1>Ödev & Başarı Raporu: {student_name}</h1>
             <div class="kpi-box">
-                <b>Pedagojik Profil:</b> {self.lblProfileBadge.text()}<br>
-                <b>Durum Özeti:</b> {self.lblLiveSummary.text()}
+                <b>Ödev Takibi:</b> {html_escape(self.lblProfileBadge.text())}<br>
+                <b>Durum Özeti:</b> {html_escape(self.lblLiveSummary.text())}
             </div>
             <h3>📌 Önerilen Çalışma & Telafi Listesi</h3>
             <table>
@@ -892,13 +1136,13 @@ class SmartWizardDialog(QDialog):
                 <tbody>
         """
         for t in self.filtered_tasks:
-            badge = t.get("badge", "")
-            ders = t.get("ders", "").replace("_", " ").title()
-            kitap = t.get("kitap", "")
-            konu = t.get("konu", "")
+            badge = html_escape(t.get("badge", ""))
+            ders = html_escape(t.get("ders", "").replace("_", " ").title())
+            kitap = html_escape(t.get("kitap", ""))
+            konu = html_escape(t.get("konu", ""))
             dk = t.get("dk", 30)
             soru = t.get("soru", 20)
-            reason = t.get("reason", "")
+            reason = html_escape(t.get("reason", ""))
             html += f"""
                 <tr>
                     <td><b>{badge}</b></td>

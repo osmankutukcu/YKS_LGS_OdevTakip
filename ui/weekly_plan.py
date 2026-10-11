@@ -183,11 +183,33 @@ class HaftalikPlanDialog(QDialog):
     """
 
     # ---------- Senaryo depolama ----------
+    def _safe_plan_data_dir(self) -> str:
+        try:
+            from db import _platform_appdata_dir
+            d = _platform_appdata_dir()
+            d.mkdir(parents=True, exist_ok=True)
+            return str(d)
+        except Exception:
+            base = QStandardPaths.writableLocation(
+                QStandardPaths.StandardLocation.AppDataLocation
+            )
+            if base:
+                try:
+                    os.makedirs(base, exist_ok=True)
+                    return base
+                except Exception:
+                    pass
+            from pathlib import Path
+            p = Path.home() / ".yks_lgs_manager"
+            try:
+                p.mkdir(parents=True, exist_ok=True)
+                return str(p)
+            except Exception:
+                import tempfile
+                return tempfile.gettempdir()
+
     def _scenario_store_path(self) -> str:
-        base = QStandardPaths.writableLocation(
-            QStandardPaths.StandardLocation.AppDataLocation
-        ) or "."
-        os.makedirs(base, exist_ok=True)
+        base = self._safe_plan_data_dir()
         return os.path.join(base, "weekly_plan_scenarios.json")
 
     def _scenario_defaults(self):
@@ -283,10 +305,7 @@ class HaftalikPlanDialog(QDialog):
 
     # ---------- SON ÖDEV SETİ (öğrenciye göre) ----------
     def _last_items_store_path(self) -> str:
-        base = QStandardPaths.writableLocation(
-            QStandardPaths.StandardLocation.AppDataLocation
-        ) or "."
-        os.makedirs(base, exist_ok=True)
+        base = self._safe_plan_data_dir()
         return os.path.join(base, "weekly_plan_last_items.json")
 
     def _student_key(self) -> str:

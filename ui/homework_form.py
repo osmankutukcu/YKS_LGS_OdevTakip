@@ -733,6 +733,12 @@ class OneriPaneli(QWidget):
         """Önerileri host’tan çek; tekilleştir; global-done ve 'zaten verilmiş' filtrele; uygula."""
         host = self._get_host()
         items: List[dict] = []
+        from utils.wizard_integrity_v8 import same_student
+        expected = getattr(self, '_student_id_at_open', None)
+        if expected is not None and (host is None or not same_student(expected, host._secili_ogrenci_id())):
+            self.set_items([])
+            self.liste.addItem("Öğrenci değişti. Öneri panelini yeniden açın.")
+            return
 
         # 1) Ana kaynaktan öneriler
         try:
@@ -742,20 +748,8 @@ class OneriPaneli(QWidget):
         except Exception:
             items = []
 
-        # 2) Boşsa takviye adayları
-        if not items and host and hasattr(host, "_takviye_adaylari"):
-            try:
-                cand = host._takviye_adaylari(days_ahead=3) or []
-                items = [{
-                    "ders": (c.get("ders", "") or "").strip(),
-                    "kitap": (c.get("kitap", "") or "").strip(),
-                    "konu": (c.get("konu", "") or "").strip(),
-                    "dk": int(c.get("dk", 0) or 0),
-                    "status": c.get("status"),
-                    "due": c.get("due"),
-                } for c in cand]
-            except Exception:
-                items = []
+        # V9: Gecikmiş / halen devam eden ödevleri yeni öneri gibi tekrar
+        # listeleme. Bunlar Takviye sekmesinde ele alınır.
 
         # 3) Tekilleştir (ders/kitap/konu)
         dedup: Dict[tuple, dict] = {}
@@ -787,169 +781,55 @@ class OneriPaneli(QWidget):
 
         self._raw_items = items
         self.set_items(items)
+        if not items:
+            self.liste.addItem("Uygun aday yok. Öğrenci için kitap/konu tablosunu kontrol edin.")
 
     def _ekle_click(self):
-        """Seçilen/işaretli önerileri Verilen tablosuna ekler; sol grid hücresini de işaretler."""
+        """Tek yetkili kayıt yolu: elle atılan checkbox ile tamamen aynı akış."""
         host = self._get_host()
-        if not host:
+        if host is None:
             return
-
-        # 1) Liste öğelerini topla (önce checked, yoksa selected)
-        picked = []
-        try:
-            for i in range(self.liste.count()):
-                it = self.liste.item(i)
-                if it and it.checkState() == Qt.CheckState.Checked:
-                    picked.append(it)
-        except Exception:
-            picked = []
-
-        if not picked:
-            try:
-                picked = list(self.liste.selectedItems())
-            except Exception:
-                picked = []
-
-        if not picked:
-            try:
-                if hasattr(host, "_toast"):
-                    host._toast("Seçili öğe yok.", parent=host, msec=1300,
-                                under_widget=getattr(self, 'btnEkle', None))
-            except Exception:
-                pass
+        selected = self.selected_items()
+        if not selected:
+            QMessageBox.information(self, "Öneriler", "Önce listeden bir çalışma seçin.")
             return
+        expected = getattr(self, '_student_id_at_open', None)
+        if expected is None:
+            QMessageBox.warning(self, "Öğrenci kapsamı", "Paneli yeniden açın; öğrenci kimliği doğrulanamadı.")
+            return
+        host._wizard_transfer_tasks(selected, expected_student_id=expected)
+        self._yenile_click()
 
-        # 2) QListWidgetItem -> dict
-        def item_to_dict(obj):
-            if isinstance(obj, dict):
-                obj["dk"] = int(obj.get("dk", 0) or 0)
-                return obj
-            try:
-                data = obj.data(Qt.ItemDataRole.UserRole)
-                if isinstance(data, dict):
-                    data["dk"] = int(data.get("dk", 0) or 0)
-                    return data
-            except Exception:
-                pass
-            try:
-                txt = (obj.text() or "").strip()
-                m = re.search(r"\((\d+)\s*dk\)", txt)
-                dk_val = int(m.group(1)) if m else 0
-                if m:
-                    txt = re.sub(r"\s*\(\d+\s*dk\)\s*$", "", txt).strip()
-                parts = [p.strip() for p in txt.split("/") if p.strip()]
-                ders = parts[0] if len(parts) > 0 else ""
-                kitap = parts[1] if len(parts) > 1 else ""
-                konu = parts[2] if len(parts) > 2 else ""
-                return {"ders": ders, "kitap": kitap, "konu": konu, "dk": dk_val}
-            except Exception:
-                return {"ders": "", "kitap": "", "konu": "", "dk": 0}
-
-        selected = [item_to_dict(it) for it in picked]
-
-        # 3) Süze & ekle
-        eklendi = 0
-        atlanan = []
-
-        for it in (selected or []):
-            ders = (it.get("ders") or "").strip()
-            kitap = (it.get("kitap") or "").strip()
-            konu = (it.get("konu") or "").strip()
-            dk = str(int(it.get("dk", 0) or 0))
-            if not ders or not kitap or not konu:
-                continue
-
-            # engel kontrolü
-            blocked, reason = self._neden_eklenemez(ders, kitap, konu)
-            if blocked:
-                atlanan.append(f"{ders}/{kitap}/{konu} — {reason}")
-                continue
-
-            # ekle
-            try:
-                host._verilen_satir_ekle(ders, kitap, konu, dk, "")
-                eklendi += 1
-                # sol grid hücresini işaretle
-                try:
-                    if hasattr(host, "_hucre_bul"):
-                        t, r, c = host._hucre_bul(ders, kitap, konu)
-                        if t is not None:
-                            item = t.item(r, c)
-                            if item is None:
-                                item = QTableWidgetItem()
-                                t.setItem(r, c, item)
-                            item.setCheckState(Qt.CheckState.Checked)
-                except Exception:
-                    pass
-            except Exception:
-                atlanan.append(f"{ders}/{kitap}/{konu} — eklenemedi")
-
-        # 4) Geri bildirim
-        try:
-            if hasattr(host, "_toast"):
-                if eklendi:
-                    host._toast(f"{eklendi} ödev eklendi ✅", parent=host, msec=1400,
-                                under_widget=getattr(self, 'btnEkle', None))
-                else:
-                    msg = "Seçili öğe yok." if not selected else "Eklenecek yeni ödev yok."
-                    host._toast(msg, parent=host, msec=1400,
-                                under_widget=getattr(self, 'btnEkle', None))
-        except Exception:
-            pass
-
-        if atlanan:
-            try:
-                QMessageBox.information(self, "Atlananlar", "• " + "\n• ".join(atlanan))
-            except Exception:
-                pass
 
     def _paket_click(self):
-        host = self._get_host()
-        if not host:
-            return
-        hedef = int(self.spPaket.value())
-        tol   = int(self.spTol.value())
-        ces   = bool(self.chkCesitlendir.isChecked())
-
-        # host algoritması varsa onu kullan
-        if hasattr(host, "_oneri_paketle") and callable(host._oneri_paketle):
-            try:
-                host._oneri_paketle(hedef, tol, ces)
-                return
-            except Exception:
-                pass
-
-        # yerel greedy
+        """Hedefe göre yalnızca SEÇİM yapar; ödev yazmaz ve kapasiteyi aşmaz."""
         items = self.selected_items() or list(self._raw_items)
-        items = [x for x in items if isinstance(x, dict)]
-        items.sort(key=lambda x: int(x.get("dk", 0) or 0), reverse=True)
+        from utils.recommendation_v9 import select_within_capacity
+        chosen = select_within_capacity(items, int(self.spPaket.value()),
+                                        int(self.spTol.value()),
+                                        bool(self.chkCesitlendir.isChecked()))
+        from utils.wizard_integrity_v8 import exact_task_key
+        keys = {exact_task_key(x.get('ders'), x.get('kitap'), x.get('konu')) for x in chosen}
+        for i in range(self.liste.count()):
+            row = self.liste.item(i)
+            d = row.data(Qt.ItemDataRole.UserRole)
+            if isinstance(d, dict):
+                selected = exact_task_key(d.get('ders'), d.get('kitap'), d.get('konu')) in keys
+                row.setCheckState(Qt.CheckState.Checked if selected else Qt.CheckState.Unchecked)
+        if len(chosen) == 0 and items:
+            limit = int(self.spPaket.value()) + int(self.spTol.value())
+            min_dk = min((int(x.get('dk') or 0) for x in items if int(x.get('dk') or 0) > 0), default=0)
+            if min_dk > limit:
+                QMessageBox.information(
+                    self, "Öneri Paketi",
+                    f"Belirlenen hedef süre kapasitesi ({limit} dk), listedeki en kısa ödevden ({min_dk} dk) küçük olduğu için seçim yapılamadı.\n\n"
+                    f"💡 İpucu: Hedef Paket süresini en az {min_dk} dk (veya katları) yapabilirsiniz."
+                )
+                return
+        QMessageBox.information(self, "Öneri Paketi",
+                                f"{len(chosen)} çalışma seçildi, {sum(int(x.get('dk', 0) or 0) for x in chosen)} dk. "
+                                "Henüz ödev eklenmedi; kontrol ederek Seçilenleri Ekle'ye basın.")
 
-        hedef_min, hedef_max = max(0, hedef - tol), hedef + tol
-        toplam, paket, seen = 0, [], set()
-
-        for it in items:
-            if ces and it.get("kitap"):
-                k = it["kitap"].strip().lower()
-                if k in seen:
-                    continue
-            dk = int(it.get("dk", 0) or 0)
-            if dk <= 0:
-                continue
-            if toplam < hedef_min or (toplam + dk) <= hedef_max:
-                paket.append(it); toplam += dk
-                if ces and it.get("kitap"):
-                    seen.add(it["kitap"].strip().lower())
-                if hedef_min <= toplam <= hedef_max:
-                    break
-
-        if not paket and items:
-            paket = [items[0]]
-
-        try:
-            if paket and hasattr(host, "_oneri_sec_ekle"):
-                host._oneri_sec_ekle(paket)
-        except Exception:
-            pass
 
     # ------------------------ Kısa yol butonları ------------------------
     def _eksik_click(self):
@@ -1805,6 +1685,12 @@ class OneriPaneli(QWidget):
         """Önerileri host’tan çek; tekilleştir; global-done ve 'zaten verilmiş' filtrele; uygula."""
         host = self._get_host()
         items: List[dict] = []
+        from utils.wizard_integrity_v8 import same_student
+        expected = getattr(self, '_student_id_at_open', None)
+        if expected is not None and (host is None or not same_student(expected, host._secili_ogrenci_id())):
+            self.set_items([])
+            self.liste.addItem("Öğrenci değişti. Öneri panelini yeniden açın.")
+            return
 
         # 1) Ana kaynaktan öneriler
         try:
@@ -1814,20 +1700,8 @@ class OneriPaneli(QWidget):
         except Exception:
             items = []
 
-        # 2) Boşsa takviye adayları
-        if not items and host and hasattr(host, "_takviye_adaylari"):
-            try:
-                cand = host._takviye_adaylari(days_ahead=3) or []
-                items = [{
-                    "ders": (c.get("ders", "") or "").strip(),
-                    "kitap": (c.get("kitap", "") or "").strip(),
-                    "konu": (c.get("konu", "") or "").strip(),
-                    "dk": int(c.get("dk", 0) or 0),
-                    "status": c.get("status"),
-                    "due": c.get("due"),
-                } for c in cand]
-            except Exception:
-                items = []
+        # V9: Gecikmiş / halen devam eden ödevleri yeni öneri gibi tekrar
+        # listeleme. Bunlar Takviye sekmesinde ele alınır.
 
         # 3) Tekilleştir (ders/kitap/konu)
         dedup: Dict[tuple, dict] = {}
@@ -1859,169 +1733,55 @@ class OneriPaneli(QWidget):
 
         self._raw_items = items
         self.set_items(items)
+        if not items:
+            self.liste.addItem("Uygun aday yok. Öğrenci için kitap/konu tablosunu kontrol edin.")
 
     def _ekle_click(self):
-        """Seçilen/işaretli önerileri Verilen tablosuna ekler; sol grid hücresini de işaretler."""
+        """Tek yetkili kayıt yolu: elle atılan checkbox ile tamamen aynı akış."""
         host = self._get_host()
-        if not host:
+        if host is None:
             return
-
-        # 1) Liste öğelerini topla (önce checked, yoksa selected)
-        picked = []
-        try:
-            for i in range(self.liste.count()):
-                it = self.liste.item(i)
-                if it and it.checkState() == Qt.CheckState.Checked:
-                    picked.append(it)
-        except Exception:
-            picked = []
-
-        if not picked:
-            try:
-                picked = list(self.liste.selectedItems())
-            except Exception:
-                picked = []
-
-        if not picked:
-            try:
-                if hasattr(host, "_toast"):
-                    host._toast("Seçili öğe yok.", parent=host, msec=1300,
-                                under_widget=getattr(self, 'btnEkle', None))
-            except Exception:
-                pass
+        selected = self.selected_items()
+        if not selected:
+            QMessageBox.information(self, "Öneriler", "Önce listeden bir çalışma seçin.")
             return
+        expected = getattr(self, '_student_id_at_open', None)
+        if expected is None:
+            QMessageBox.warning(self, "Öğrenci kapsamı", "Paneli yeniden açın; öğrenci kimliği doğrulanamadı.")
+            return
+        host._wizard_transfer_tasks(selected, expected_student_id=expected)
+        self._yenile_click()
 
-        # 2) QListWidgetItem -> dict
-        def item_to_dict(obj):
-            if isinstance(obj, dict):
-                obj["dk"] = int(obj.get("dk", 0) or 0)
-                return obj
-            try:
-                data = obj.data(Qt.ItemDataRole.UserRole)
-                if isinstance(data, dict):
-                    data["dk"] = int(data.get("dk", 0) or 0)
-                    return data
-            except Exception:
-                pass
-            try:
-                txt = (obj.text() or "").strip()
-                m = re.search(r"\((\d+)\s*dk\)", txt)
-                dk_val = int(m.group(1)) if m else 0
-                if m:
-                    txt = re.sub(r"\s*\(\d+\s*dk\)\s*$", "", txt).strip()
-                parts = [p.strip() for p in txt.split("/") if p.strip()]
-                ders = parts[0] if len(parts) > 0 else ""
-                kitap = parts[1] if len(parts) > 1 else ""
-                konu = parts[2] if len(parts) > 2 else ""
-                return {"ders": ders, "kitap": kitap, "konu": konu, "dk": dk_val}
-            except Exception:
-                return {"ders": "", "kitap": "", "konu": "", "dk": 0}
-
-        selected = [item_to_dict(it) for it in picked]
-
-        # 3) Süze & ekle
-        eklendi = 0
-        atlanan = []
-
-        for it in (selected or []):
-            ders = (it.get("ders") or "").strip()
-            kitap = (it.get("kitap") or "").strip()
-            konu = (it.get("konu") or "").strip()
-            dk = str(int(it.get("dk", 0) or 0))
-            if not ders or not kitap or not konu:
-                continue
-
-            # engel kontrolü
-            blocked, reason = self._neden_eklenemez(ders, kitap, konu)
-            if blocked:
-                atlanan.append(f"{ders}/{kitap}/{konu} — {reason}")
-                continue
-
-            # ekle
-            try:
-                host._verilen_satir_ekle(ders, kitap, konu, dk, "")
-                eklendi += 1
-                # sol grid hücresini işaretle
-                try:
-                    if hasattr(host, "_hucre_bul"):
-                        t, r, c = host._hucre_bul(ders, kitap, konu)
-                        if t is not None:
-                            item = t.item(r, c)
-                            if item is None:
-                                item = QTableWidgetItem()
-                                t.setItem(r, c, item)
-                            item.setCheckState(Qt.CheckState.Checked)
-                except Exception:
-                    pass
-            except Exception:
-                atlanan.append(f"{ders}/{kitap}/{konu} — eklenemedi")
-
-        # 4) Geri bildirim
-        try:
-            if hasattr(host, "_toast"):
-                if eklendi:
-                    host._toast(f"{eklendi} ödev eklendi ✅", parent=host, msec=1400,
-                                under_widget=getattr(self, 'btnEkle', None))
-                else:
-                    msg = "Seçili öğe yok." if not selected else "Eklenecek yeni ödev yok."
-                    host._toast(msg, parent=host, msec=1400,
-                                under_widget=getattr(self, 'btnEkle', None))
-        except Exception:
-            pass
-
-        if atlanan:
-            try:
-                QMessageBox.information(self, "Atlananlar", "• " + "\n• ".join(atlanan))
-            except Exception:
-                pass
 
     def _paket_click(self):
-        host = self._get_host()
-        if not host:
-            return
-        hedef = int(self.spPaket.value())
-        tol   = int(self.spTol.value())
-        ces   = bool(self.chkCesitlendir.isChecked())
-
-        # host algoritması varsa onu kullan
-        if hasattr(host, "_oneri_paketle") and callable(host._oneri_paketle):
-            try:
-                host._oneri_paketle(hedef, tol, ces)
-                return
-            except Exception:
-                pass
-
-        # yerel greedy
+        """Hedefe göre yalnızca SEÇİM yapar; ödev yazmaz ve kapasiteyi aşmaz."""
         items = self.selected_items() or list(self._raw_items)
-        items = [x for x in items if isinstance(x, dict)]
-        items.sort(key=lambda x: int(x.get("dk", 0) or 0), reverse=True)
+        from utils.recommendation_v9 import select_within_capacity
+        chosen = select_within_capacity(items, int(self.spPaket.value()),
+                                        int(self.spTol.value()),
+                                        bool(self.chkCesitlendir.isChecked()))
+        from utils.wizard_integrity_v8 import exact_task_key
+        keys = {exact_task_key(x.get('ders'), x.get('kitap'), x.get('konu')) for x in chosen}
+        for i in range(self.liste.count()):
+            row = self.liste.item(i)
+            d = row.data(Qt.ItemDataRole.UserRole)
+            if isinstance(d, dict):
+                selected = exact_task_key(d.get('ders'), d.get('kitap'), d.get('konu')) in keys
+                row.setCheckState(Qt.CheckState.Checked if selected else Qt.CheckState.Unchecked)
+        if len(chosen) == 0 and items:
+            limit = int(self.spPaket.value()) + int(self.spTol.value())
+            min_dk = min((int(x.get('dk') or 0) for x in items if int(x.get('dk') or 0) > 0), default=0)
+            if min_dk > limit:
+                QMessageBox.information(
+                    self, "Öneri Paketi",
+                    f"Belirlenen hedef süre kapasitesi ({limit} dk), listedeki en kısa ödevden ({min_dk} dk) küçük olduğu için seçim yapılamadı.\n\n"
+                    f"💡 İpucu: Hedef Paket süresini en az {min_dk} dk (veya katları) yapabilirsiniz."
+                )
+                return
+        QMessageBox.information(self, "Öneri Paketi",
+                                f"{len(chosen)} çalışma seçildi, {sum(int(x.get('dk', 0) or 0) for x in chosen)} dk. "
+                                "Henüz ödev eklenmedi; kontrol ederek Seçilenleri Ekle'ye basın.")
 
-        hedef_min, hedef_max = max(0, hedef - tol), hedef + tol
-        toplam, paket, seen = 0, [], set()
-
-        for it in items:
-            if ces and it.get("kitap"):
-                k = it["kitap"].strip().lower()
-                if k in seen:
-                    continue
-            dk = int(it.get("dk", 0) or 0)
-            if dk <= 0:
-                continue
-            if toplam < hedef_min or (toplam + dk) <= hedef_max:
-                paket.append(it); toplam += dk
-                if ces and it.get("kitap"):
-                    seen.add(it["kitap"].strip().lower())
-                if hedef_min <= toplam <= hedef_max:
-                    break
-
-        if not paket and items:
-            paket = [items[0]]
-
-        try:
-            if paket and hasattr(host, "_oneri_sec_ekle"):
-                host._oneri_sec_ekle(paket)
-        except Exception:
-            pass
 
     # ------------------------ Kısa yol butonları ------------------------
     def _eksik_click(self):
@@ -3251,80 +3011,141 @@ class OdevTakipFormu(QWidget):
             return []
 
     def _open_smart_wizard(self):
-        """
-        Akıllı Ödev Sihirbazı'nı açar ve seçilenleri grid üzerinde işaretler.
-        """
+        """Sihirbazı yalnızca ilgili öğrenci için aç; aktarımları manuel tik akışına ver."""
+        from utils.wizard_integrity_v8 import same_student
         ogr_id = self._secili_ogrenci_id()
         if not ogr_id:
-            QMessageBox.warning(self, "Öğrenci Seçiniz", "Lütfen önce bir öğrenci seçip 'Bilgileri Getir' diyerek dersleri yükleyin.")
+            QMessageBox.warning(self, "Öğrenci Seçiniz", "Önce bir öğrenci seçiniz.")
+            return
+        # Seçim değişmiş ve matris henüz yeniden yüklenmemişse yanlış öğrenciye yazma.
+        if not same_student(getattr(self, '_loaded_student_id', None), ogr_id):
+            QMessageBox.warning(self, "Öğrenci Bilgisi Güncel Değil",
+                "Öğrencinin konu/kitap tablosu yüklenmemiş. Bilgileri Getir ile yeniden yükleyip deneyin.")
+            return
+        if self.cmbAd.currentData() != self.cmbSoyad.currentData():
+            QMessageBox.warning(self, "Öğrenci Seçimi", "Ad ve soyad seçimleri eşleşmiyor. Öğrenciyi tekrar seçin.")
             return
 
-        # Önce öğrencinin mevcut kitaplarını (griddeki sütunlar) topla
-        av_books = {}
-        if hasattr(self, '_ders_tablolari'):
-            for d_adi, tbl in self._ders_tablolari.items():
-                books = []
-                # 0. sütun Konu ise, 1'den başla
-                try:
-                    cols = tbl.columnCount()
-                    for c in range(1, cols):
-                        h_item = tbl.horizontalHeaderItem(c)
-                        if h_item:
-                            books.append(h_item.text())
-                except:
-                    pass
-                if books:
-                    av_books[d_adi] = books
+        available_books = {}
+        for lesson, table in getattr(self, '_ders_tablolari', {}).items():
+            names = [table.horizontalHeaderItem(i).text()
+                     for i in range(1, table.columnCount()) if table.horizontalHeaderItem(i)]
+            if names:
+                available_books[lesson] = names
 
         from ui.smart_wizard_dialog import SmartWizardDialog
-        dlg = SmartWizardDialog(ogrenci_id=ogr_id, parent=self, available_books=av_books)
-        if dlg.exec():
-            tasks = dlg.selected_homeworks
-            if not tasks:
-                return
-            
-            count = 0
-            grid_checked = 0
-            
-            for t in tasks:
-                ders = t.get("ders")
-                kitap = t.get("kitap")
-                konu = t.get("konu")
-                dk = str(t.get("dk", 30))
-                aciklama = t.get("aciklama") or t.get("reason") or ""
-                
-                # 1) Verilen tablosuna süre ve açıklamayla ekle
-                try:
-                    self._verilen_satir_ekle(ders, kitap, konu, dk, aciklama)
-                    count += 1
-                except Exception:
-                    pass
+        dlg = SmartWizardDialog(ogrenci_id=ogr_id, parent=self, available_books=available_books)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._wizard_transfer_tasks(dlg.selected_homeworks, expected_student_id=dlg.transfer_student_id)
 
-                # 2) Sol grid hücresini bul ve işaretle
-                try:
-                    table_widget, r, c = self._hucre_bul(ders, kitap, konu)
-                    if table_widget:
-                        item = table_widget.item(r, c)
-                        if not item:
-                            item = QTableWidgetItem()
-                            item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
-                            item.setCheckState(Qt.CheckState.Unchecked)
-                            table_widget.setItem(r, c, item)
-                        
-                        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
-                        if item.checkState() != Qt.CheckState.Checked:
-                            item.setCheckState(Qt.CheckState.Checked)
-                            grid_checked += 1
-                except Exception:
-                    pass
+    def _sync_verilen_rows_from_table(self):
+        """Mevcut sağ tabloyu veri listesiyle eşit tut; başka akıştaki satırları kaybetme."""
+        if getattr(self, '_in_verilen_update', False):
+            return
+        self._verilen_rows = [
+            {'ders': self._vtext(r, 0), 'kitap': self._vtext(r, 1),
+             'konu': self._vtext(r, 2), 'sure': self._vtext(r, 3),
+             'aciklama': self._vtext(r, 4)}
+            for r in range(self.verilen.rowCount())
+        ]
 
+    def _wizard_transfer_tasks(self, tasks, *, expected_student_id):
+        """Yalnızca birebir bulunan, henüz kilitlenmemiş hücreleri manuel gibi işaretle.
+
+        Veritabanına yazmaz. Başarısız/şüpheli hücreleri sağ tabloya bağımsız eklemez.
+        """
+        from utils.wizard_integrity_v8 import (
+            same_student, exact_task_key, find_exact_cell, valid_task
+        )
+        from PyQt6.QtCore import Qt
+        current_id = self._secili_ogrenci_id()
+        if not (same_student(current_id, expected_student_id)
+                and same_student(getattr(self, '_loaded_student_id', None), current_id)):
+            QMessageBox.warning(self, "Aktarım Durduruldu",
+                                "Ana formdaki öğrenci değişti veya konu tablosu başka öğrenciye ait. Hiçbir ödev aktarılmadı.")
+            return {'added': 0, 'skipped': len(tasks or [])}
+
+        self._flush_checkbox_queues()
+        self._sync_verilen_rows_from_table()
+        existing = {exact_task_key(self._vtext(r, 0), self._vtext(r, 1), self._vtext(r, 2))
+                    for r in range(self.verilen.rowCount())}
+        imported = set()
+        added, issues = 0, []
+        for task in tasks or []:
+            if not valid_task(task):
+                issues.append("Eksik ders/kitap/konu içeren öneri")
+                continue
+            lesson, book, topic = (str(task[x]).strip() for x in ('ders', 'kitap', 'konu'))
+            key = exact_task_key(lesson, book, topic)
+            if key in existing or key in imported:
+                issues.append(f"Zaten listede: {lesson} / {book} / {topic}")
+                continue
+            table, row, col = find_exact_cell(
+                getattr(self, '_ders_tablolari', {}), lesson, book, topic)
+            if table is None:
+                issues.append(f"Birebir eşleşme yok: {lesson} / {book} / {topic}")
+                continue
+            item = table.item(row, col)
+            if item is None or not (item.flags() & Qt.ItemFlag.ItemIsUserCheckable):
+                issues.append(f"Kayıtlı veya kilitli hücre: {lesson} / {book} / {topic}")
+                continue
+            if item.checkState() == Qt.CheckState.Checked:
+                issues.append(f"Önceden işaretli hücre: {lesson} / {book} / {topic}")
+                continue
+            # Kayıtlı ödevlerden kaynaklanan görsel kilidi de koru.
             try:
-                self._toplam_sure_guncelle()
+                if item.background().color().name().lower() in {
+                    '#a5d6a7', '#fff59d', '#c8e6c9', '#fca5a5', '#fecaca', '#ffcdd2', '#f8d7da'
+                }:
+                    issues.append(f"Korunan hücre: {lesson} / {book} / {topic}")
+                    continue
             except Exception:
                 pass
+            try:
+                # Standart itemChanged -> _ic_proxy -> _tik_degisti akışını kullan.
+                item.setCheckState(Qt.CheckState.Checked)
+                flush = getattr(table, '_checkbox_flush', None)
+                if callable(flush):
+                    flush()
+                # Sinyal/bağlantı bozulmuşsa işaretli ama ödevsiz hücre bırakma.
+                rr = next((r for r in range(self.verilen.rowCount())
+                           if exact_task_key(self._vtext(r, 0), self._vtext(r, 1), self._vtext(r, 2)) == key), None)
+                if rr is None:
+                    item.setCheckState(Qt.CheckState.Unchecked)
+                    if callable(flush): flush()
+                    issues.append(f"Tablo senkronizasyonu başarısız: {lesson} / {book} / {topic}")
+                    continue
+                duration = task.get('dk', '')
+                try:
+                    minutes = int(duration)
+                except (TypeError, ValueError):
+                    minutes = 0
+                if minutes > 0:
+                    self.verilen.item(rr, 3).setText(str(minutes))
+                note = task.get('aciklama') or task.get('reason') or ''
+                if note:
+                    self.verilen.item(rr, 4).setText(str(note))
+                imported.add(key)
+                existing.add(key)
+                added += 1
+            except Exception as exc:
+                # Beklenmeyen hata sonrasında yarım kalan işareti geri al.
+                if item.checkState() == Qt.CheckState.Checked:
+                    item.setCheckState(Qt.CheckState.Unchecked)
+                    flush = getattr(table, '_checkbox_flush', None)
+                    if callable(flush): flush()
+                issues.append(f"Aktarım yapılamadı: {lesson} / {book} / {topic} ({type(exc).__name__})")
 
-            msg = f"{count} adet ödev 'Verilen Ödevler' listesine eklendi ({grid_checked} adet konu tablosunda işaretlendi)."
-            QMessageBox.information(self, "İşlem Tamam", msg)
+        self._sync_verilen_rows_from_table()
+        self._toplam_sure_guncelle()
+        notice = f"{added} ödev standart manuel tik akışıyla eklendi."
+        if issues:
+            notice += f"\n{len(issues)} öneri aktarılmadı:\n" + "\n".join(issues[:8])
+            if len(issues) > 8:
+                notice += f"\n... ve {len(issues)-8} diğer öneri."
+        QMessageBox.information(self, "Sihirbaz Aktarım Sonucu", notice)
+        return {'added': added, 'skipped': len(issues), 'issues': issues}
 
     def _haftalik_plan_son_kumeden(self):
         """Son ödev kümesini haftalık plana bas."""
@@ -5044,6 +4865,11 @@ class OdevTakipFormu(QWidget):
                 pass
 
     def _open_oneri_dialog(self):
+        from utils.wizard_integrity_v8 import same_student
+        if not same_student(self._secili_ogrenci_id(), getattr(self, '_loaded_student_id', None)):
+            QMessageBox.warning(self, "Öğrenci bilgisi gerekli",
+                                "Önce öğrenciyi seçip Bilgileri Getir düğmesine basın.")
+            return
         from PyQt6.QtWidgets import (
             QDialog, QSplitter, QWidget, QHBoxLayout, QVBoxLayout, QGridLayout,
             QLabel, QPushButton, QGroupBox, QSpinBox, QCheckBox, QComboBox,
@@ -5078,10 +4904,37 @@ class OdevTakipFormu(QWidget):
         lv = QVBoxLayout(left);
         lv.setContentsMargins(16, 12, 12, 12);
         lv.setSpacing(8)
-        lv.addWidget(QLabel("<b>Öneriler (son 30 gün)</b>"))
+        top_bar = QHBoxLayout()
+        top_bar.addWidget(QLabel("<b>Öğrenciye ait yeni çalışma adayları</b>"))
+        top_bar.addStretch(1)
+        btn_top_info = QPushButton("💡 Bilgi & Yardım")
+        btn_top_info.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_top_info.setStyleSheet("""
+            QPushButton {
+                background-color: #f0fdf4;
+                color: #166534;
+                border: 1px solid #bbf7d0;
+                border-radius: 4px;
+                padding: 3px 8px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #dcfce7; }
+        """)
+        btn_top_info.clicked.connect(lambda: self._show_oneri_rehberi_dialog(dlg))
+        top_bar.addWidget(btn_top_info)
+        lv.addLayout(top_bar)
+        lbl_explain = QLabel("Kayıtlı kitap/konu tablosunda henüz işaretlenmemiş işler gösterilir. "
+                             "Bu liste öğrencinin konuyu bilmediğini kanıtlamaz.")
+        lbl_explain.setWordWrap(True)
+        lv.addWidget(lbl_explain)
 
         panel = OneriPaneli(left)
         panel._host = self  # güvence
+        panel._student_id_at_open = self._secili_ogrenci_id()
+        if hasattr(panel, 'cmbZorluk'):
+            panel.cmbZorluk.setEnabled(False)
+            panel.cmbZorluk.setToolTip("Konu zorluk puanı kayıtlı olmadığı için filtre kullanılmıyor.")
 
         # <<< ÖNEMLİ: panel referansını her iki adla da tut >>>
         self.oneri = panel
@@ -5116,21 +4969,25 @@ class OdevTakipFormu(QWidget):
         grid.setHorizontalSpacing(10);
         grid.setVerticalSpacing(8)
 
-        lblZ = QLabel("Zorluk ≤");
+        lblZ = QLabel("Zorluk: kayıt yok");
         cmbZorluk = QComboBox()
         cmbZorluk.addItems([str(i) for i in range(1, 6)]);
+        cmbZorluk.setEnabled(False)
+        cmbZorluk.setToolTip("Matris konularında doğrulanmış zorluk değeri yok; öneriler zorluğa göre filtrelenmez.")
         cmbZorluk.setFixedWidth(110)
         lblHP = QLabel("Hedef Paket (dk):");
         spHedef = QSpinBox()
         spHedef.setRange(0, 9999);
-        spHedef.setValue(60);
+        def_sure = self._get_default_sure() if hasattr(self, '_get_default_sure') else 45
+        init_hedef = max(60, def_sure * 2) if def_sure > 0 else 60
+        spHedef.setValue(init_hedef);
         spHedef.setFixedWidth(110)
         lblTol = QLabel("±");
         spTol = QSpinBox()
         spTol.setRange(0, 240);
         spTol.setValue(10);
         spTol.setFixedWidth(110)
-        chkCesit = QCheckBox("Aynı kitabı çeşitlendir")
+        chkCesit = QCheckBox("Her kitaptan en çok 1 çalışma")
 
         r = 0
         grid.addWidget(lblZ, r, 0);
@@ -5159,12 +5016,29 @@ class OdevTakipFormu(QWidget):
         _btn(btnEksik)
         btnTakviye = QPushButton("Yaklaşan Bitişe Takviye");
         _btn(btnTakviye)
+        btnBilgi = QPushButton("ℹ️ Nasıl Çalışır? (Rehber)");
+        _btn(btnBilgi)
+        btnBilgi.setCursor(Qt.CursorShape.PointingHandCursor)
+        btnBilgi.setStyleSheet("""
+            QPushButton {
+                background-color: #eff6ff;
+                color: #1d4ed8;
+                border: 1px solid #bfdbfe;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #dbeafe;
+                border-color: #93c5fd;
+            }
+        """)
         btnEkle = QPushButton("Seçilenleri Ekle");
         _btn(btnEkle)
         btnKapat = QPushButton("Kapat");
         _btn(btnKapat)
 
-        for b in (btnPaketle, btnYenile, btnEksik, btnTakviye):
+        for b in (btnPaketle, btnYenile, btnEksik, btnTakviye, btnBilgi):
             rv.addWidget(b, alignment=Qt.AlignmentFlag.AlignRight)
         rv.addStretch(1)
         rv.addWidget(btnEkle, alignment=Qt.AlignmentFlag.AlignRight)
@@ -5187,11 +5061,19 @@ class OdevTakipFormu(QWidget):
         if hasattr(panel, "chkCesitlendir"): chkCesit.toggled.connect(panel.chkCesitlendir.setChecked)
 
         if hasattr(panel, "btnPaket"):       btnPaketle.clicked.connect(panel.btnPaket.click)
-        if hasattr(panel, "btnYenile"):      btnYenile.clicked.connect(panel.btnYenile.click)
+        def _on_yenile():
+            panel._yenile_click()
+            try:
+                cnt = panel.liste.count()
+                self._toast(f"🔄 Öneri listesi güncellendi ({cnt} aday).", parent=dlg, msec=1800, under_widget=btnYenile)
+            except Exception:
+                pass
+        btnYenile.clicked.connect(_on_yenile)
         if hasattr(panel, "btnEkle"):        btnEkle.clicked.connect(panel.btnEkle.click)
 
         btnEksik.clicked.connect(self._akilli_eksik_konular)
         btnTakviye.clicked.connect(self._akilli_takviye)
+        btnBilgi.clicked.connect(lambda: self._show_oneri_rehberi_dialog(dlg))
         btnKapat.clicked.connect(dlg.close)
 
         self._oneri_dlg = dlg
@@ -5203,6 +5085,114 @@ class OdevTakipFormu(QWidget):
             panel._yenile_click()
         except Exception:
             pass
+
+    def _show_oneri_rehberi_dialog(self, parent_dlg=None):
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QFrame
+        from PyQt6.QtCore import Qt
+
+        dlg = QDialog(parent_dlg or self)
+        dlg.setWindowTitle("💡 Akıllı Öneri & Paketleme Sistemi Rehberi")
+        dlg.resize(620, 580)
+        dlg.setStyleSheet("""
+            QDialog { background-color: #f8fafc; font-family: 'Segoe UI', system-ui, sans-serif; }
+        """)
+
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(12)
+
+        # Header banner
+        header = QFrame()
+        header.setStyleSheet("""
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1e3a8a, stop:1 #2563eb);
+            border-radius: 8px;
+            padding: 12px 16px;
+        """)
+        h_lay = QVBoxLayout(header)
+        h_lay.setContentsMargins(0, 0, 0, 0)
+        h_lay.setSpacing(2)
+        lbl_h1 = QLabel("💡 Akıllı Öneri & Paketleme Paneli Rehberi")
+        lbl_h1.setStyleSheet("color: white; font-size: 15px; font-weight: bold;")
+        lbl_h2 = QLabel("Bu form nasıl çalışır ve ayarlar ne anlama gelir?")
+        lbl_h2.setStyleSheet("color: #bfdbfe; font-size: 11px;")
+        h_lay.addWidget(lbl_h1)
+        h_lay.addWidget(lbl_h2)
+        layout.addWidget(header)
+
+        # Scroll Area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("background: transparent;")
+        
+        content = QWidget()
+        cv = QVBoxLayout(content)
+        cv.setContentsMargins(0, 4, 0, 4)
+        cv.setSpacing(10)
+
+        def add_card(title, text):
+            card = QFrame()
+            card.setStyleSheet("background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;")
+            cl = QVBoxLayout(card)
+            cl.setContentsMargins(0, 0, 0, 0)
+            cl.setSpacing(4)
+            t = QLabel(title)
+            t.setStyleSheet("font-size: 13px; font-weight: bold; color: #1e40af;")
+            b = QLabel(text)
+            b.setStyleSheet("font-size: 12px; color: #334155; line-height: 1.5;")
+            b.setWordWrap(True)
+            cl.addWidget(t)
+            cl.addWidget(b)
+            cv.addWidget(card)
+
+        add_card("1. 🎯 Öneri Formu Nasıl Çalışıyor? (Gerçekçi mi?)",
+                 "Bu form rastgele veya uydurma konular üretmez. Doğrudan seçili öğrencinin sistemdeki "
+                 "<b>kayıtlı ders ve kitap tablolarını</b> tarar. Henüz verilmemiş, başlanmamış ve geçmişte kilitlenmemiş "
+                 "gerçek konuları dersler arasında dengeli (Türkçe, Matematik, Geometri...) olarak listeler.")
+
+        add_card("2. ⏱️ Hedef Paket (dk) ve Tolerans (±) Nedir?",
+                 "Öğrenciye vermek istediğiniz <b>toplam süre bütçesidir</b>.<br/>"
+                 "• <b>Hedef Paket (dk):</b> Öğrenciye vermek istediğiniz toplam dakika (örn: 150 dk).<br/>"
+                 "• <b>± Tolerans:</b> Kabul edilebilir esneklik payıdır (örn: 10 dk).<br/>"
+                 "Sistem toplam süresi <i>(Hedef + Tolerans)</i> tavanını aşmayacak en uygun konuları otomatik seçer.<br/>"
+                 "⚠️ <i>Önemli İpucu:</i> Listedeki konuların tekil süresi ana formdaki 'Varsayılan Süre'den (örn: 75 dk) gelir. "
+                 "Hedef Paket süreniz en az bir veya birkaç konunun süresini karşılayacak büyüklükte olmalıdır "
+                 "(örneğin 75 dk'lık 2 ödev için hedefi 150 dk yapmalısınız).")
+
+        add_card("3. 📚 'Her Kitaptan En Çok 1 Çalışma' Ne İşe Yarar?",
+                 "İşaretlendiğinde, paketleme algoritması aynı kitaptan birden fazla ödev seçmez. "
+                 "Böylece öğrenci tek bir derse veya kitaba yığılmaz; çalışmalar farklı ders ve kitaplara dengeli dağıtılır.")
+
+        add_card("4. 🔒 'Zorluk: kayıt yok' Neden Değiştirilemiyor?",
+                 "Ders/kitap matrisinde doğrulanmış resmi zorluk puanları bulunmadığı için öğretmenlerimizi "
+                 "yanıltmamak adına bu filtre kasten pasif tutulmuştur. Sistem sahte zorluk filtreleri yerine "
+                 "yalnızca kanıtlı verilerle çalışır.")
+
+        add_card("5. 🔍 'Eksik Konular' ve 'Yaklaşan Bitişe Takviye' Butonları",
+                 "• <b>Eksik Konuları Getir:</b> Öğrencinin geçmişinde henüz tamamlanma kaydı olmayan müfredat konularını açar.<br/>"
+                 "• <b>Yaklaşan Bitişe Takviye:</b> Teslim tarihi yaklaşan veya geciken ödevleri listeye dahil eder.<br/>"
+                 "Bu butonlar sayesinde hem yeni konuları hem de eksik/telafi ödevlerini aynı ekrandan yönetebilirsiniz.")
+
+        add_card("6. ✅ 'Seçilenleri Ekle' Nasıl Çalışır?",
+                 "Listede onay kutusu işaretlenen tüm ödevleri tek tıkla sağdaki 'Verilen Ödevler' tablosuna aktarır "
+                 "ve sol konu tablosundaki ilgili hücreleri otomatik kilitler. Mükerrer ekleme yapmaz.")
+
+        scroll.setWidget(content)
+        layout.addWidget(scroll, 1)
+
+        btnKapat = QPushButton("Anladım, Kapat")
+        btnKapat.setFixedHeight(38)
+        btnKapat.setCursor(Qt.CursorShape.PointingHandCursor)
+        btnKapat.setStyleSheet("""
+            QPushButton {
+                background-color: #2563eb; color: white; font-weight: bold; border-radius: 6px; border: none; font-size: 13px;
+            }
+            QPushButton:hover { background-color: #1d4ed8; }
+        """)
+        btnKapat.clicked.connect(dlg.accept)
+        layout.addWidget(btnKapat)
+
+        dlg.exec()
 
     # ========== ÖNERİ PANEL YARDIMCILARI ==========
 
@@ -5778,6 +5768,9 @@ class OdevTakipFormu(QWidget):
             QMessageBox.warning(self, "Eksik", "Öğrenci seçiniz.")
             return
 
+        # Yeni öğrenci yüklenirken eski öğrenci matrisi aktarım için geçersizdir.
+        self._loaded_student_id = None
+
         # 1) DB'den çek
         try:
             import db
@@ -5934,6 +5927,8 @@ class OdevTakipFormu(QWidget):
         except Exception:
             pass
 
+        # Bütün öğrenci ekranı yüklendikten sonra aktarım için işaretle.
+        self._loaded_student_id = ogr_id
         dlg.close()
 
 
@@ -6265,7 +6260,8 @@ class OdevTakipFormu(QWidget):
 
             def _toggle(self, model, index):
                 st = index.data(Qt.ItemDataRole.CheckStateRole)
-                new_st = Qt.CheckState.Unchecked if st == Qt.CheckState.Checked else Qt.CheckState.Checked
+                is_checked = (st in (Qt.CheckState.Checked, 2, Qt.CheckState.Checked.value))
+                new_st = Qt.CheckState.Unchecked if is_checked else Qt.CheckState.Checked
                 model.setData(index, new_st, Qt.ItemDataRole.CheckStateRole)
                 if callable(self._on_toggled):
                     try:
@@ -6807,7 +6803,9 @@ class OdevTakipFormu(QWidget):
             if not index.isValid() or _is_locked_index(index):
                 return
             want = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
-            if index.data(Qt.ItemDataRole.CheckStateRole) != want:
+            cur = index.data(Qt.ItemDataRole.CheckStateRole)
+            is_cur_checked = (cur in (Qt.CheckState.Checked, 2, Qt.CheckState.Checked.value))
+            if is_cur_checked != checked:
                 index.model().setData(index, want, Qt.ItemDataRole.CheckStateRole)
                 _flash_safe(index.row(), index.column())
 
@@ -6815,7 +6813,8 @@ class OdevTakipFormu(QWidget):
             if not index.isValid() or _is_locked_index(index):
                 return
             cur = index.data(Qt.ItemDataRole.CheckStateRole)
-            newv = Qt.CheckState.Unchecked if cur == Qt.CheckState.Checked else Qt.CheckState.Checked
+            is_checked = (cur in (Qt.CheckState.Checked, 2, Qt.CheckState.Checked.value))
+            newv = Qt.CheckState.Unchecked if is_checked else Qt.CheckState.Checked
             index.model().setData(index, newv, Qt.ItemDataRole.CheckStateRole)
             _flash_safe(index.row(), index.column())
 
@@ -8063,17 +8062,21 @@ class OdevTakipFormu(QWidget):
             return
         kitap_ad = (hdr.text() or "").strip()
 
+        from utils.wizard_integrity_v8 import exact_task_key
+
         def _vtext(r, c):
             cell = self.verilen.item(r, c)
             return (cell.text() if cell and cell.text() is not None else "").strip()
 
+        target_key = exact_task_key(ders, kitap_ad, konu_ad)
         row_to_remove = None
         for r in range(self.verilen.rowCount()):
-            if (_vtext(r, 0) == ders and _vtext(r, 1) == kitap_ad and _vtext(r, 2) == konu_ad):
+            row_key = exact_task_key(_vtext(r, 0), _vtext(r, 1), _vtext(r, 2))
+            if row_key == target_key or (_vtext(r, 0) == ders and _vtext(r, 1) == kitap_ad and _vtext(r, 2) == konu_ad):
                 row_to_remove = r
                 break
 
-        is_checked = (it.checkState() == Qt.CheckState.Checked)
+        is_checked = (it.checkState() in (Qt.CheckState.Checked, 2))
 
         self._in_verilen_update = True
         sort_on = self.verilen.isSortingEnabled()
@@ -8103,6 +8106,8 @@ class OdevTakipFormu(QWidget):
             self._toplam_sure_guncelle()
         except Exception:
             pass
+        # Manuel işaretleme ve geri alma sonrası taslak veri modeli de güncel kalsın.
+        self._sync_verilen_rows_from_table()
 
     def _get_default_sure(self) -> int:
         if hasattr(self, "spVarsayilanSure"):
@@ -8155,6 +8160,7 @@ class OdevTakipFormu(QWidget):
         return it
 
     def _verilen_satir_ekle(self, ders, kitap, konu, sure='', aciklama=''):
+        self._sync_verilen_rows_from_table()
         k = self._row_key(ders, kitap, konu)
         for row in getattr(self, "_verilen_rows", []):
             if self._row_key(row.get('ders'), row.get('kitap'), row.get('konu')) == k:
@@ -8791,9 +8797,6 @@ class OdevTakipFormu(QWidget):
             from services.smart_calendar import SmartCalendarService
             
             s_name = self.cmbAd.currentText() + " " + self.cmbSoyad.currentText()
-            student_uid = self._secili_ogrenci_id() if hasattr(self, '_secili_ogrenci_id') else None
-            if not student_uid:
-                student_uid = self.cmbAd.currentData()
             
             # Kullanıcıdan Plan Notu İste (Yeni Gelişmiş Dialog)
             try:
@@ -8801,7 +8804,8 @@ class OdevTakipFormu(QWidget):
                 # Ders isimlerini topla (Autocomplete için)
                 lessons = [x.get('ders') for x in hw_list if x.get('ders')]
                 
-                dlg = PlanSettingsDialog(self, lesson_names=lessons, student_name=s_name, student_id=student_uid)
+                dlg = PlanSettingsDialog(self, lesson_names=lessons, student_name=s_name,
+                                         student_id=self.cmbAd.currentData())
                 if dlg.exec():
                     details = dlg.get_details()
                 else:
@@ -8816,14 +8820,17 @@ class OdevTakipFormu(QWidget):
                 if not ok: return
                 details = note
 
+            # Ödevler değişmişse eski programı ezmek yerine yeni taslağın farkını göster.
             plan_bundle = SmartCalendarService.create_weekly_plan_data(s_name, hw_list, details)
             if not plan_bundle:
                 return
             html_content = plan_bundle['html']
-
             from services.plan_replanner import (create_snapshot, load_approved,
                                                  compare_snapshots, summary_text,
                                                  approve_snapshot, student_key)
+            student_uid = self._secili_ogrenci_id() if hasattr(self, '_secili_ogrenci_id') else None
+            if not student_uid:
+                student_uid = self.cmbAd.currentData()
             snapshot = create_snapshot(plan_bundle, hw_list, details)
             previous = load_approved(student_uid) if student_key(student_uid) else None
             differences = compare_snapshots(previous, snapshot)
@@ -8849,8 +8856,7 @@ class OdevTakipFormu(QWidget):
                 
             preview.paintRequested.connect(handle_print)
             preview.exec()
-
-            # Plan onaylama: kaydı yalnızca öğretmen onaylarsa kaydet
+            # Hiçbir zaman otomatik onaylama: kaydı yalnızca öğretmen isterse yap.
             if student_key(student_uid) and differences['changed']:
                 confirmation = QMessageBox.question(
                     self, 'Plan Taslağını Onayla',
@@ -10588,6 +10594,12 @@ class OdevTakipFormu(QWidget):
             QMessageBox.warning(self, "Öğrenci Seçiniz", "Lütfen önce bir öğrenci seçip 'Bilgileri Getir' diyerek dersleri yükleyin.")
             return
 
+        from utils.wizard_integrity_v8 import same_student
+        if not same_student(ogr_id, getattr(self, '_loaded_student_id', None)):
+            QMessageBox.warning(self, "Öğrenci verileri güncel değil",
+                                "Lütfen Bilgileri Getir ile ilgili öğrenci tablosunu yükleyin.")
+            return
+
         idx = self.tabs.currentIndex()
         active_ders = self.tabs.tabText(idx).lower().replace(" ", "_") if idx >= 0 else None
 
@@ -10609,42 +10621,9 @@ class OdevTakipFormu(QWidget):
         dlg = MissingTopicsDialog(ogrenci_id=ogr_id, parent=self, available_books=av_books, active_lesson=active_ders)
         if dlg.exec():
             tasks = dlg.selected_topics
-            if not tasks:
-                return
-            count = 0
-            grid_checked = 0
-            for t in tasks:
-                ders = t.get("ders")
-                kitap = t.get("kitap")
-                konu = t.get("konu")
-                dk = str(t.get("dk", 35))
-                aciklama = t.get("aciklama", "")
-                try:
-                    self._verilen_satir_ekle(ders, kitap, konu, dk, aciklama)
-                    count += 1
-                except Exception:
-                    pass
-                try:
-                    table_widget, r, c = self._hucre_bul(ders, kitap, konu)
-                    if table_widget:
-                        item = table_widget.item(r, c)
-                        if not item:
-                            item = QTableWidgetItem()
-                            item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
-                            item.setCheckState(Qt.CheckState.Unchecked)
-                            table_widget.setItem(r, c, item)
-                        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
-                        if item.checkState() != Qt.CheckState.Checked:
-                            item.setCheckState(Qt.CheckState.Checked)
-                            grid_checked += 1
-                except Exception:
-                    pass
-            try:
-                self._toplam_sure_guncelle()
-            except Exception:
-                pass
-            msg = f"{count} adet eksik konu 'Verilen Ödevler' listesine eklendi ({grid_checked} adet konu tablosunda işaretlendi)."
-            QMessageBox.information(self, "İşlem Tamam", msg)
+            if tasks:
+                # V9: Sihirbaz ile AYNI manuel tik/geri alma kayıt yolu.
+                self._wizard_transfer_tasks(tasks, expected_student_id=ogr_id)
 
 
     # ------------------ Aktif Kitap Seti / Tahmini Süre ------------------
@@ -10734,7 +10713,72 @@ class OdevTakipFormu(QWidget):
         # 3) Varsayılan süre (Kullanıcı ayarı veya 45 dk)
         return self._get_default_sure()
 
-    # ------------------ Takviye Adayları (Bitişe Göre) ------------------
+    def _oneri_yenile(self, zorluk_max=5):
+        """Öneri paneli için gerçek öğrenci matrisinden henüz işaretlenmemiş konular.
+
+        Bu bir başarı/eksik öğrenme teşhisi DEĞİLDİR; zorluk puanı matris
+        hücrelerinde kayıtlı olmadığından `zorluk_max` bilinçli olarak filtrelemez.
+        Yalnızca gerçek ders + kitap + konu hücrelerini aday olarak sunar.
+        """
+        from utils.wizard_integrity_v8 import same_student, exact_task_key
+        ogr = self._secili_ogrenci_id()
+        if not same_student(ogr, getattr(self, '_loaded_student_id', None)):
+            return []
+        existing = {exact_task_key(self._vtext(r, 0), self._vtext(r, 1), self._vtext(r, 2))
+                    for r in range(self.verilen.rowCount())}
+        default_minutes = self._get_default_sure()
+        candidates, seen = [], set()
+        # Ders çeşitliliği: her turda her dersten bir aday seçerek dengeli dağıt.
+        per_lesson = []
+        for ders, tablo in getattr(self, '_ders_tablolari', {}).items():
+            lesson_items = []
+            for r in range(tablo.rowCount()):
+                topic_item = tablo.item(r, 0)
+                topic = (topic_item.text() or '').strip() if topic_item else ''
+                if not topic:
+                    continue
+                for c in range(1, tablo.columnCount()):
+                    heading = tablo.horizontalHeaderItem(c)
+                    book = (heading.text() or '').strip() if heading else ''
+                    item = tablo.item(r, c)
+                    if not book or item is None:
+                        continue
+                    if not (item.flags() & Qt.ItemFlag.ItemIsUserCheckable):
+                        continue
+                    if item.checkState() == Qt.CheckState.Checked:
+                        continue
+                    k = exact_task_key(ders, book, topic)
+                    if k in existing or k in seen:
+                        continue
+                    # Kaydedilmiş / kilitli renkler önerilemez.
+                    try:
+                        if item.background().color().name().lower() in {
+                            '#a5d6a7', '#fff59d', '#c8e6c9',
+                            '#fca5a5', '#fecaca', '#ffcdd2', '#f8d7da'
+                        }:
+                            continue
+                    except Exception:
+                        pass
+                    seen.add(k)
+                    lesson_items.append({'ders': ders, 'kitap': book, 'konu': topic,
+                                         'dk': default_minutes,
+                                         'status': 'aday',
+                                         'reason': 'Bu öğrenci için henüz işaretlenmemiş çalışma hücresi'})
+                    if len(lesson_items) >= 25:
+                        break
+                if len(lesson_items) >= 25:
+                    break
+            if lesson_items:
+                per_lesson.append(lesson_items)
+        for ix in range(25):
+            for arr in per_lesson:
+                if ix < len(arr):
+                    candidates.append(arr[ix])
+                    if len(candidates) >= 100:
+                        return candidates
+        return candidates
+
+
 
     def _takviye_adaylari(self, days_ahead: int = 3):
         """
@@ -10851,6 +10895,12 @@ class OdevTakipFormu(QWidget):
             QMessageBox.warning(self, "Öğrenci Seçiniz", "Lütfen önce bir öğrenci seçip 'Bilgileri Getir' diyerek dersleri yükleyin.")
             return
 
+        from utils.wizard_integrity_v8 import same_student
+        if not same_student(ogr_id, getattr(self, '_loaded_student_id', None)):
+            QMessageBox.warning(self, "Öğrenci verileri güncel değil",
+                                "Lütfen Bilgileri Getir ile ilgili öğrenci tablosunu yükleyin.")
+            return
+
         idx = self.tabs.currentIndex()
         active_ders = self.tabs.tabText(idx).lower().replace(" ", "_") if idx >= 0 else None
 
@@ -10872,42 +10922,10 @@ class OdevTakipFormu(QWidget):
         dlg = SmartRemedialDialog(ogrenci_id=ogr_id, parent=self, available_books=av_books, active_lesson=active_ders)
         if dlg.exec():
             tasks = dlg.selected_remedials
-            if not tasks:
-                return
-            count = 0
-            grid_checked = 0
-            for t in tasks:
-                ders = t.get("ders")
-                kitap = t.get("kitap")
-                konu = t.get("konu")
-                dk = str(t.get("dk", 30))
-                aciklama = t.get("aciklama", "")
-                try:
-                    self._verilen_satir_ekle(ders, kitap, konu, dk, aciklama)
-                    count += 1
-                except Exception:
-                    pass
-                try:
-                    table_widget, r, c = self._hucre_bul(ders, kitap, konu)
-                    if table_widget:
-                        item = table_widget.item(r, c)
-                        if not item:
-                            item = QTableWidgetItem()
-                            item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
-                            item.setCheckState(Qt.CheckState.Unchecked)
-                            table_widget.setItem(r, c, item)
-                        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
-                        if item.checkState() != Qt.CheckState.Checked:
-                            item.setCheckState(Qt.CheckState.Checked)
-                            grid_checked += 1
-                except Exception:
-                    pass
-            try:
-                self._toplam_sure_guncelle()
-            except Exception:
-                pass
-            msg = f"{count} adet takviye ödevi 'Verilen Ödevler' listesine eklendi ({grid_checked} adet konu tablosunda işaretlendi)."
-            QMessageBox.information(self, "İşlem Tamam", msg)
+            if tasks:
+                # V9: Sağdaki ödevi ayrı eklemek yerine güvenli manuel tik olayı.
+                self._wizard_transfer_tasks(tasks, expected_student_id=ogr_id)
+
     #s----*******-----------
 
     def _tik_degisti(self, it, tablo, ders: str):
@@ -10930,17 +10948,21 @@ class OdevTakipFormu(QWidget):
             return
         kitap_ad = (hdr.text() or "").strip()
 
+        from utils.wizard_integrity_v8 import exact_task_key
+
         def _vtext(r, c):
             cell = self.verilen.item(r, c)
             return (cell.text() if cell and cell.text() is not None else "").strip()
 
+        target_key = exact_task_key(ders, kitap_ad, konu_ad)
         row_to_remove = None
         for r in range(self.verilen.rowCount()):
-            if (_vtext(r, 0) == ders and _vtext(r, 1) == kitap_ad and _vtext(r, 2) == konu_ad):
+            row_key = exact_task_key(_vtext(r, 0), _vtext(r, 1), _vtext(r, 2))
+            if row_key == target_key or (_vtext(r, 0) == ders and _vtext(r, 1) == kitap_ad and _vtext(r, 2) == konu_ad):
                 row_to_remove = r
                 break
 
-        is_checked = (it.checkState() == Qt.CheckState.Checked)
+        is_checked = (it.checkState() in (Qt.CheckState.Checked, 2))
 
         self._in_verilen_update = True
         sort_on = self.verilen.isSortingEnabled()
@@ -10970,6 +10992,9 @@ class OdevTakipFormu(QWidget):
             self._toplam_sure_guncelle()
         except Exception:
             pass
+        # Manuel işaretleme ve geri alma sonrası taslak veri modeli de güncel kalsın.
+        self._sync_verilen_rows_from_table()
+
 
     def _ekle_click(self):
         """Seçilen/işaretli önerileri Verilen tablosuna ekler; sol grid hücresini de işaretler."""

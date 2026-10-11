@@ -9,7 +9,8 @@ import webbrowser
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
     QPushButton, QTextEdit, QCheckBox, QFrame, QWidget, QSizePolicy,
-    QGraphicsDropShadowEffect, QApplication, QMessageBox, QLineEdit
+    QGraphicsDropShadowEffect, QApplication, QMessageBox, QLineEdit,
+    QRadioButton, QButtonGroup
 )
 from PyQt6.QtGui import QPixmap, QColor, QFont, QCursor
 from PyQt6.QtCore import Qt, QSize, QTimer
@@ -36,7 +37,8 @@ class WhatsAppGonderDialog(QDialog):
         parent=None,
         header_text: str = "",       # üst bilgi (kurum/koç/iletişim…)
         header_logo_path: str | None = None,  # logo dosya yolu (opsiyonel)
-        header_checked: bool = True  # "Üsttekileri mesaja ekle" varsayılanı
+        header_checked: bool = True,  # "Üsttekileri mesaja ekle" varsayılanı
+        auto_send: bool = False      # "WhatsApp ile Gönder" tıklandığında otomatik gönder
     ):
         super().__init__(parent)
         self.setWindowTitle("WhatsApp Bildirim & Ödev Raporu")
@@ -79,6 +81,8 @@ class WhatsAppGonderDialog(QDialog):
 
         self.ust_eklensin = bool(header_checked)
         self._raw_alicilar = alicilar or []
+        self.auto_send = bool(auto_send)
+        self.gonderildi = False
 
         # Ana layout
         root = QVBoxLayout(self)
@@ -427,7 +431,7 @@ class WhatsAppGonderDialog(QDialog):
         return card
 
     def _build_footer_actions(self) -> QHBoxLayout:
-        """Alt Eylemler: Kopyala, Web Fallback, İptal ve Gönder."""
+        """Alt Eylemler: Kopyala, Web Fallback, Hedef Kanalı, İptal ve Gönder."""
         footer = QHBoxLayout()
         footer.setSpacing(10)
 
@@ -440,9 +444,9 @@ class WhatsAppGonderDialog(QDialog):
                 color: #334155;
                 border: 1px solid #cbd5e1;
                 border-radius: 8px;
-                padding: 8px 16px;
+                padding: 8px 14px;
                 font-weight: 600;
-                font-size: 13px;
+                font-size: 12px;
             }
             QPushButton:hover {
                 background-color: #f1f5f9;
@@ -453,7 +457,7 @@ class WhatsAppGonderDialog(QDialog):
         footer.addWidget(self.btnCopy)
 
         self.btnWeb = QPushButton("🌐 Web'de Aç")
-        self.btnWeb.setToolTip("İlk seçili numara için web.whatsapp.com üzerinden sohbeti açar.")
+        self.btnWeb.setToolTip("İlk seçili numara için web.whatsapp.com üzerinden sohbeti hemen açar.")
         self.btnWeb.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btnWeb.setStyleSheet("""
             QPushButton {
@@ -461,9 +465,9 @@ class WhatsAppGonderDialog(QDialog):
                 color: #0284c7;
                 border: 1px solid #bae6fd;
                 border-radius: 8px;
-                padding: 8px 16px;
+                padding: 8px 14px;
                 font-weight: 600;
-                font-size: 13px;
+                font-size: 12px;
             }
             QPushButton:hover {
                 background-color: #f0f9ff;
@@ -473,12 +477,55 @@ class WhatsAppGonderDialog(QDialog):
         self.btnWeb.clicked.connect(self._open_web_whatsapp)
         footer.addWidget(self.btnWeb)
 
+        # Orta: Gönderim Kanalı Seçimi (Masaüstü vs Web)
+        channel_frame = QFrame()
+        channel_frame.setStyleSheet("""
+            QFrame {
+                background-color: #f1f5f9;
+                border: 1px solid #cbd5e1;
+                border-radius: 8px;
+            }
+        """)
+        ch_lay = QHBoxLayout(channel_frame)
+        ch_lay.setContentsMargins(10, 4, 10, 4)
+        ch_lay.setSpacing(10)
+
+        lbl_mode = QLabel("🎯 Hedef:")
+        lbl_mode.setStyleSheet("font-size: 11px; font-weight: bold; color: #475569; background: transparent;")
+        ch_lay.addWidget(lbl_mode)
+
+        self.rbDesktop = QRadioButton("🖥️ Masaüstü WhatsApp")
+        self.rbDesktop.setToolTip("Varsayılan: Bilgisayardaki WhatsApp uygulamasını otomatik açar, mesajı yapıştırır ve gönderir.")
+        self.rbDesktop.setStyleSheet("""
+            QRadioButton {
+                font-size: 12px; font-weight: 600; color: #1e293b; background: transparent; spacing: 4px;
+            }
+        """)
+        self.rbDesktop.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self.rbWeb = QRadioButton("🌐 WhatsApp Web")
+        self.rbWeb.setToolTip("Tarayıcıda web.whatsapp.com açar ve mesajı sohbet kutusuna hazırlar.")
+        self.rbWeb.setStyleSheet("""
+            QRadioButton {
+                font-size: 12px; font-weight: 600; color: #1e293b; background: transparent; spacing: 4px;
+            }
+        """)
+        self.rbWeb.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self.btnGroupChannel = QButtonGroup(self)
+        self.btnGroupChannel.addButton(self.rbDesktop)
+        self.btnGroupChannel.addButton(self.rbWeb)
+
+        ch_lay.addWidget(self.rbDesktop)
+        ch_lay.addWidget(self.rbWeb)
+        footer.addWidget(channel_frame)
+
         footer.addStretch(1)
 
         # Sağ Butonlar (İptal & Gönder)
         btnCancel = QPushButton("İptal")
         btnCancel.setCursor(Qt.CursorShape.PointingHandCursor)
-        btnCancel.setFixedSize(110, 40)
+        btnCancel.setFixedSize(100, 40)
         btnCancel.setStyleSheet("""
             QPushButton {
                 background-color: #ffffff;
@@ -521,6 +568,20 @@ class WhatsAppGonderDialog(QDialog):
         """)
         self.btnSend.clicked.connect(self._on_send_clicked)
         footer.addWidget(self.btnSend)
+
+        # Varsayılan seçim & dinleyici
+        try:
+            from utils import settings as appset
+            pref = (appset.ayar_get("whatsapp_preferred_mode", "desktop") or "desktop").strip().lower()
+            if pref == "web":
+                self.rbWeb.setChecked(True)
+            else:
+                self.rbDesktop.setChecked(True)
+        except Exception:
+            self.rbDesktop.setChecked(True)
+
+        self.rbDesktop.toggled.connect(self._on_channel_changed)
+        self._on_channel_changed()
 
         return footer
 
@@ -595,6 +656,51 @@ class WhatsAppGonderDialog(QDialog):
         except Exception as e:
             QMessageBox.critical(self, "Hata", f"Tarayıcı açılamadı:\n{e}")
 
+    def _on_channel_changed(self):
+        is_web = self.rbWeb.isChecked() if hasattr(self, "rbWeb") else False
+        if is_web:
+            self.btnSend.setText("🌐 Web WhatsApp ile Gönder")
+            self.btnSend.setToolTip("Tarayıcıda WhatsApp Web'i açar ve mesajı sohbet kutusuna hazırlar.")
+        else:
+            self.btnSend.setText("🚀 WhatsApp ile Gönder")
+            self.btnSend.setToolTip("Masaüstü WhatsApp uygulamasını otomatik olarak açar, mesajı yapıştırır ve Enter tuşuyla gönderir.")
+        try:
+            from utils import settings as appset
+            appset.ayar_set("whatsapp_preferred_mode", "web" if is_web else "desktop")
+        except Exception:
+            pass
+
+    def gonderim_modu(self) -> str:
+        return "web" if (hasattr(self, "rbWeb") and self.rbWeb.isChecked()) else "desktop"
+
+    def mesajlari_gonder(self) -> dict:
+        """
+        Seçili alıcılara hazırlanan mesajı gönderir (Masaüstü veya Web modu).
+        """
+        targets = self.secili_alicilar()
+        msg = self.mesaj()
+        mode = self.gonderim_modu()
+
+        if not targets:
+            QMessageBox.warning(self, "Uyarı", "Lütfen mesajın gönderileceği en az bir alıcı işaretleyin.")
+            return {"ok": [], "fail": [], "gonderilen": 0}
+        if not msg.strip():
+            QMessageBox.warning(self, "Uyarı", "Mesaj içeriği boş bırakılamaz.")
+            return {"ok": [], "fail": [], "gonderilen": 0}
+
+        try:
+            from utils import whatsapp
+            res = whatsapp.whatsapp_gonder(
+                numaralar=targets,
+                mesaj=msg,
+                mode=mode
+            )
+            self.gonderildi = True
+            return res
+        except Exception as e:
+            QMessageBox.critical(self, "Hata", f"WhatsApp gönderiminde hata oluştu:\n{e}")
+            return {"ok": [], "fail": targets, "gonderilen": 0, "error": str(e)}
+
     def _on_send_clicked(self):
         if not self.secili_alicilar():
             QMessageBox.warning(self, "Uyarı", "Lütfen mesajın gönderileceği en az bir alıcı işaretleyin.")
@@ -602,7 +708,21 @@ class WhatsAppGonderDialog(QDialog):
         if not self.mesaj().strip():
             QMessageBox.warning(self, "Uyarı", "Mesaj içeriği boş bırakılamaz.")
             return
-        self.accept()
+        if self.auto_send:
+            res = self.mesajlari_gonder()
+            sent_cnt = res.get("gonderilen", 0) or len(res.get("ok", []))
+            fail_cnt = len(res.get("fail", []))
+            if sent_cnt > 0:
+                self.accept()
+            elif fail_cnt > 0:
+                QMessageBox.warning(
+                    self, "Gönderim Bildirimi",
+                    f"Gönderim tamamlanamadı ({fail_cnt} alıcı). Lütfen WhatsApp durumunuzu kontrol edin."
+                )
+            else:
+                self.accept()
+        else:
+            self.accept()
 
     def _format_phone(self, raw_tel: str) -> str:
         s = re.sub(r"\D", "", str(raw_tel or ""))

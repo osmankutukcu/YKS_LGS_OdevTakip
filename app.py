@@ -99,9 +99,12 @@ def check_single_instance(app_key: str) -> bool:
     return False
 
 
+from version import __version__
+
+
 class ModernSplash(QSplashScreen):
     def __init__(self):
-        w, h = 520, 320
+        w, h = 540, 350
         pix = QPixmap(w, h)
         pix.fill(Qt.GlobalColor.transparent) 
         super().__init__(pix)
@@ -130,6 +133,7 @@ class ModernSplash(QSplashScreen):
         self.font_sub = QFont(font_family, 10, QFont.Weight.DemiBold)
         self.font_sub.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
         self.font_badge = QFont(font_family, 8, QFont.Weight.Bold)
+        self.font_author = QFont(font_family, 8, QFont.Weight.Medium)
         self.font_msg = QFont(font_family, 9, QFont.Weight.Medium)
         self.font_pct = QFont(font_family, 9, QFont.Weight.Bold)
         self.font_foot = QFont(font_family, 8, QFont.Weight.Normal)
@@ -220,8 +224,8 @@ class ModernSplash(QSplashScreen):
         painter.drawText(0, 168, w, 20, Qt.AlignmentFlag.AlignCenter, "ÖDEV & TAKİP YÖNETİCİSİ")
         
         # Versiyon Rozeti (Pill Badge)
-        badge_text = "v2.5 PRO"
-        badge_w = 78
+        badge_text = f"v{__version__} PRO" if '__version__' in globals() else "v3.5 PRO"
+        badge_w = 90
         badge_h = 20
         badge_x = (w - badge_w) // 2
         badge_y = 194
@@ -237,7 +241,7 @@ class ModernSplash(QSplashScreen):
         # 7. Durum Mesajı ve Yüzde
         bar_x = 44
         bar_w = w - (bar_x * 2)
-        bar_y = h - 56
+        bar_y = h - 74
         bar_h = 6
         
         painter.setPen(QColor("#cbd5e1"))
@@ -269,11 +273,16 @@ class ModernSplash(QSplashScreen):
             painter.setBrush(prog_grad)
             painter.drawPath(fill_path)
             
-        # 10. Alt Bilgi / Güvenlik
+        # 10. Geliştirici & İletişim Bilgisi
+        painter.setPen(QColor("#94a3b8"))
+        painter.setFont(self.font_author)
+        painter.drawText(bar_x, h - 48, bar_w, 18, Qt.AlignmentFlag.AlignCenter, "👨‍💻 Hazırlayan: Osman Kütükçü   •   ✉ osmankutukcu@gmail.com")
+
+        # 11. Alt Bilgi / Güvenlik
         painter.setPen(QColor("#64748b"))
         painter.setFont(self.font_foot)
-        painter.drawText(bar_x, h - 28, bar_w // 2, 18, Qt.AlignmentFlag.AlignLeft, "🔒 Güvenli Veritabanı & Lisans Koruması")
-        painter.drawText(bar_x + bar_w // 2, h - 28, bar_w // 2, 18, Qt.AlignmentFlag.AlignRight, "© 2026 Tüm Hakları Saklıdır")
+        painter.drawText(bar_x, h - 25, bar_w // 2, 18, Qt.AlignmentFlag.AlignLeft, "🔒 Güvenli Veritabanı & Lisans Koruması")
+        painter.drawText(bar_x + bar_w // 2, h - 25, bar_w // 2, 18, Qt.AlignmentFlag.AlignRight, "© 2021 - 2026 Tüm Hakları Saklıdır")
 
 
 def main() -> None:
