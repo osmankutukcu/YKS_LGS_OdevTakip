@@ -1010,10 +1010,12 @@ class PlanSettingsDialog(QDialog):
         p_idx = self.cmb_student_type.currentIndex()
         
         school_str = "Yok"
-        if self.widget_school_times.isVisible():
-            st = self.time_school_start.time().toString("HH:mm")
-            et = self.time_school_end.time().toString("HH:mm")
-            school_str = f"{st}-{et}"
+        school_start = ""
+        school_end = ""
+        if p_idx == 0:
+            school_start = self.time_school_start.time().toString("HH:mm")
+            school_end = self.time_school_end.time().toString("HH:mm")
+            school_str = f"{school_start} - {school_end}"
         
         blocks = []
         for i in range(self.lst_blocks.count()):
@@ -1031,31 +1033,43 @@ class PlanSettingsDialog(QDialog):
             
         return {
             "profile_idx": p_idx,
+            "student_type": self.cmb_student_type.currentText(),
             "school": school_str,
+            "school_start": school_start,
+            "school_end": school_end,
             "max": self.spin_max.value(),
             "weekend_mode": weekend_mode,
             "biorhythm": self.cmb_bio.currentText(),
             "blocks": blocks,
-            "focus": self.txt_focus.text(),
+            "focus": self.txt_focus.text().strip(),
             "empty": empty,
-            "note": self.txt_notes.toPlainText()
+            "note": self.txt_notes.toPlainText().strip()
         }
 
     def _apply_data(self, data: Dict[str, Any]):
         try:
             p_idx = int(data.get("profile_idx", 0))
             self.cmb_student_type.setCurrentIndex(p_idx)
+            self._on_student_type_changed()
         except Exception:
             pass
         
-        sc = data.get("school", "Yok")
-        if sc != "Yok":
+        if data.get("school_start") and data.get("school_end"):
             try:
-                s, e = sc.split("-")
-                self.time_school_start.setTime(QTime.fromString(s.strip(), "HH:mm"))
-                self.time_school_end.setTime(QTime.fromString(e.strip(), "HH:mm"))
+                self.time_school_start.setTime(QTime.fromString(data["school_start"].strip(), "HH:mm"))
+                self.time_school_end.setTime(QTime.fromString(data["school_end"].strip(), "HH:mm"))
             except Exception:
                 pass
+        else:
+            sc = data.get("school", "Yok")
+            if sc != "Yok":
+                try:
+                    parts = sc.split("-")
+                    if len(parts) == 2:
+                        self.time_school_start.setTime(QTime.fromString(parts[0].strip(), "HH:mm"))
+                        self.time_school_end.setTime(QTime.fromString(parts[1].strip(), "HH:mm"))
+                except Exception:
+                    pass
 
         self.lst_blocks.clear()
         blocks = data.get("blocks", [])
@@ -1188,46 +1202,7 @@ class PlanSettingsDialog(QDialog):
 
     def _create_plan(self):
         data = self._gather_data()
-        prompt_parts = []
-        
-        prompt_parts.append("--- AI KOÇLUK SİSTEMİ BAŞLATILDI ---")
-        prompt_parts.append("ROL: Sen sadece ders programı yapan bir algoritma değil, öğrencinin akademik koçusun.")
-        prompt_parts.append("GÖREV: Öğrencinin verilerini analiz et, gerçekçi ve motive edici bir plan oluştur.")
-        
-        # 1. Profil ve Biyoritim
-        p_idx = data["profile_idx"]
-        p_name = self.cmb_student_type.itemText(p_idx)
-        prompt_parts.append(f"ÖĞRENCİ PROFİLİ: {p_name}")
-        prompt_parts.append(f"BİYORİTİM (Verim Modu): {data['biorhythm']}")
-        
-        # 2. Okul
-        if data["school"] != "Yok": 
-            prompt_parts.append(f"OKUL SAATLERİ (Ders Atama): {data['school']}")
-        else:
-            prompt_parts.append("OKUL: Yok (Tüm gün serbest)")
-        
-        # 3. KESİN Kısıtlar (Structured)
-        if data["blocks"]:
-            blocks_str = " ; ".join(data["blocks"])
-            prompt_parts.append(f"!!! ZORUNLU ENGEL (ASLA DERS KOYMA) !!!: {blocks_str}")
-            
-        # 4. Hedefler
-        prompt_parts.append(f"GÜNLÜK HEDEF: {data['max']} dakika")
-        prompt_parts.append(f"HAFTA SONU MODU: {data['weekend_mode']}")
-            
-        # 5. Zorlanılan Dersler
-        if data["focus"]: 
-            prompt_parts.append(f"KRİTİK DERSLER (Zorlanıyor, Ağırlık Ver): {data['focus']}")
-             
-        # 6. Tatil
-        if data["empty"] != "Yok" and data["empty"] != "Rastgele":
-            prompt_parts.append(f"TAM GÜN TATİL: {data['empty']}")
-             
-        # 7. Ekstra Notlar
-        if data["note"]: 
-            prompt_parts.append(f"ÖZEL NOTLAR: {data['note']}")
-            
-        self.result_details = " || ".join(prompt_parts)
+        self.result_details = json.dumps(data, ensure_ascii=False)
         self.accept()
 
     def get_details(self) -> str:
