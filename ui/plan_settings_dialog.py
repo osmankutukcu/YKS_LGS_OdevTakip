@@ -16,6 +16,13 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTime, QRectF
 from PyQt6.QtGui import QIcon, QPainter, QColor, QPen, QBrush, QFont, QLinearGradient
+import sqlite3
+
+from services.plan_profile_store import (load_profiles, save_profiles, profile_path,
+                                         load_assignments, save_assignments)
+from services.planning_constraints import availability_for_week
+from services.session_advisor import (record_feedback, recent_feedback, homework_summary,
+                                      suggest_session_minutes, personal_profile_update)
 
 
 def get_profiles_file_path() -> Path:
@@ -251,17 +258,25 @@ class PlanSettingsDialog(QDialog):
     Profesyonel Akıllı Takvim ve Haftalık Planlama Sihirbazı (V3.5 Executive).
     Öğrencinin okul saatleri, özel ders rutinleri ve kapasitesine göre yapay zeka destekli takvim parametreleri üretir.
     """
-    def __init__(self, parent=None, lesson_names: Optional[List[str]] = None, student_name: Optional[str] = None):
+    def __init__(self, parent=None, lesson_names: Optional[List[str]] = None, student_name: Optional[str] = None, student_id: Optional[Any] = None):
         super().__init__(parent)
         self.student_name = student_name
+        self.student_id = student_id
+        self._session_advice = None
         
-        # Fallback student_name
-        if not self.student_name and parent:
+        # Fallback student_name & student_id
+        if parent:
             try:
-                if hasattr(parent, "cmbAd") and hasattr(parent, "cmbSoyad"):
-                    self.student_name = f"{parent.cmbAd.currentText()} {parent.cmbSoyad.currentText()}".strip()
-                elif hasattr(parent, "student_name"):
-                    self.student_name = parent.student_name
+                if not self.student_name:
+                    if hasattr(parent, "cmbAd") and hasattr(parent, "cmbSoyad"):
+                        self.student_name = f"{parent.cmbAd.currentText()} {parent.cmbSoyad.currentText()}".strip()
+                    elif hasattr(parent, "student_name"):
+                        self.student_name = parent.student_name
+                if not self.student_id:
+                    if hasattr(parent, "_secili_ogrenci_id"):
+                        self.student_id = parent._secili_ogrenci_id()
+                    elif hasattr(parent, "cmbAd"):
+                        self.student_id = parent.cmbAd.currentData()
             except Exception:
                 pass
              
@@ -684,7 +699,75 @@ class PlanSettingsDialog(QDialog):
         
         t2_lay.addWidget(grp_cap)
 
-        grp_bio = QGroupBox("🧠 2. Zihinsel Verim & Biyoritim Modu")
+        # Öğrenciye özel süre ayarı; günlük üst sınırdan bağımsızdır.
+        grp_sessions = QGroupBox("⏱️ 2. Etüt Oturumu & Mola Düzeni (İsteğe Bağlı)")
+        sessions_layout = QVBoxLayout(grp_sessions)
+        sessions_layout.setSpacing(6)
+
+        self.chk_sessions = QCheckBox("Her kesintisiz etüt için üst süre belirle")
+        self.chk_sessions.setToolTip("Kapalıyken önceki ödev parçalama ve 10 dakikalık geçiş arası kullanılır.")
+        sessions_layout.addWidget(self.chk_sessions)
+
+        session_row = QHBoxLayout()
+        session_row.addWidget(QLabel("Azami tek oturum:"))
+        self.spin_session_minutes = QSpinBox()
+        self.spin_session_minutes.setRange(15, 180)
+        self.spin_session_minutes.setSingleStep(5)
+        self.spin_session_minutes.setSuffix(" dk")
+        self.spin_session_minutes.setValue(45)
+        session_row.addWidget(self.spin_session_minutes)
+
+        session_row.addWidget(QLabel("Oturumlar arası mola:"))
+        self.spin_session_break = QSpinBox()
+        self.spin_session_break.setRange(0, 60)
+        self.spin_session_break.setSingleStep(5)
+        self.spin_session_break.setSuffix(" dk")
+        self.spin_session_break.setValue(10)
+        session_row.addWidget(self.spin_session_break)
+        session_row.addStretch()
+        sessions_layout.addLayout(session_row)
+
+        self.chk_session_split = QCheckBox("Uzun ödevleri oturumlara otomatik böl (toplam süre korunur)")
+        self.chk_session_split.setChecked(True)
+        sessions_layout.addWidget(self.chk_session_split)
+
+        self.chk_sessions.toggled.connect(self.spin_session_minutes.setEnabled)
+        self.chk_sessions.toggled.connect(self.spin_session_break.setEnabled)
+        self.chk_sessions.toggled.connect(self.chk_session_split.setEnabled)
+        self.spin_session_minutes.setEnabled(False)
+        self.spin_session_break.setEnabled(False)
+        self.chk_session_split.setEnabled(False)
+
+        # Minimal one-touch coaching
+        self.lbl_session_advice = QLabel("Öğrenci verileri kontrol edilmeyi bekliyor.")
+        self.lbl_session_advice.setWordWrap(True)
+        self.lbl_session_advice.setStyleSheet("color: #334155; padding: 6px; background: #eff6ff; border-radius: 5px; font-size: 11px;")
+        sessions_layout.addWidget(self.lbl_session_advice)
+
+        feedback_bar = QHBoxLayout()
+        feedback_bar.addWidget(QLabel("Tek dokunuşla gözlem:"))
+        self.btn_feedback_hard = QPushButton("😓 Zorlandı")
+        self.btn_feedback_ok = QPushButton("✅ Uygundu")
+        self.btn_feedback_easy = QPushButton("🙂 Rahat")
+        for button, rating in ((self.btn_feedback_hard, 'hard'),
+                               (self.btn_feedback_ok, 'ok'),
+                               (self.btn_feedback_easy, 'easy')):
+            button.setToolTip("Bu öğrenci için bugünkü gözlemi kaydet; aynı gün tekrar basılırsa günceller.")
+            button.clicked.connect(lambda checked=False, r=rating: self._record_session_feedback(r))
+            button.setEnabled(bool(self.student_id))
+            feedback_bar.addWidget(button)
+        feedback_bar.addStretch()
+        sessions_layout.addLayout(feedback_bar)
+
+        self.btn_accept_session_advice = QPushButton("✨ Önerilen Etüt Süresini Tek Tıkla Uygula")
+        self.btn_accept_session_advice.setToolTip("Yalnızca bu öğrenciye özel profil oluşturur/günceller. Diğer öğrenciler ve ödevler değişmez.")
+        self.btn_accept_session_advice.setEnabled(False)
+        self.btn_accept_session_advice.clicked.connect(self._apply_session_advice)
+        sessions_layout.addWidget(self.btn_accept_session_advice)
+
+        t2_lay.addWidget(grp_sessions)
+
+        grp_bio = QGroupBox("🧠 3. Zihinsel Verim & Biyoritim Modu")
         lay_bio = QVBoxLayout(grp_bio)
         lay_bio.setSpacing(6)
         
@@ -704,7 +787,7 @@ class PlanSettingsDialog(QDialog):
         lay_bio.addWidget(lbl_bio_hint)
         t2_lay.addWidget(grp_bio)
 
-        grp_holiday = QGroupBox("🏖️ 3. Haftalık Dinlenme Günü")
+        grp_holiday = QGroupBox("🏖️ 4. Haftalık Dinlenme Günü")
         lay_hol = QVBoxLayout(grp_holiday)
         lay_hol.setSpacing(6)
         
@@ -1103,7 +1186,11 @@ class PlanSettingsDialog(QDialog):
             "blocks": blocks,
             "focus": self.txt_focus.text().strip(),
             "empty": empty,
-            "note": self.txt_notes.toPlainText().strip()
+            "note": self.txt_notes.toPlainText().strip(),
+            "session_enabled": self.chk_sessions.isChecked(),
+            "session_minutes": self.spin_session_minutes.value(),
+            "session_break": self.spin_session_break.value(),
+            "session_split": self.chk_session_split.isChecked(),
         }
 
     def _apply_data(self, data: Dict[str, Any]):
@@ -1162,6 +1249,12 @@ class PlanSettingsDialog(QDialog):
             self.cmb_empty_day.setCurrentText(emp)
             
         self.txt_notes.setText(data.get("note", ""))
+
+        self.spin_session_minutes.setValue(int(data.get("session_minutes", 45)))
+        self.spin_session_break.setValue(int(data.get("session_break", 10)))
+        self.chk_session_split.setChecked(bool(data.get("session_split", True)))
+        self.chk_sessions.setChecked(bool(data.get("session_enabled", False)))
+
         self._refresh_timeline()
 
     def _load_profiles(self):
@@ -1169,21 +1262,24 @@ class PlanSettingsDialog(QDialog):
         self.cmb_profiles.clear()
         self.cmb_profiles.addItem("Varsayılan Standart Ayarlar", None)
         
-        prof_file = get_profiles_file_path()
-        if not prof_file.exists() and os.path.exists("plan_profiles.json"):
-            prof_file = Path("plan_profiles.json")
-
-        if prof_file.exists():
-            try:
-                with open(prof_file, "r", encoding="utf-8") as f:
-                    self.profiles = json.load(f)
-                for name in self.profiles:
-                    self.cmb_profiles.addItem(f"👤 {name}", name)
-            except Exception as e:
-                print(f"Profil yükleme hatası: {e}")
-                self.profiles = {}
-        else:
+        try:
+            self.profiles = dict(load_profiles())
+            for name in self.profiles:
+                self.cmb_profiles.addItem(f"👤 {name}", name)
+        except Exception as e:
+            print(f"Profil yükleme hatası: {e}")
             self.profiles = {}
+
+        if self.student_id:
+            try:
+                assigned = load_assignments().get(str(self.student_id)) or load_assignments().get(self.student_id)
+                if assigned:
+                    idx = self.cmb_profiles.findData(assigned)
+                    if idx >= 0:
+                        self.cmb_profiles.setCurrentIndex(idx)
+            except Exception:
+                pass
+
         self.cmb_profiles.blockSignals(False)
 
     def _save_current_profile(self):
@@ -1192,16 +1288,18 @@ class PlanSettingsDialog(QDialog):
             data = self._gather_data()
             self.profiles[text] = data
             try:
-                prof_file = get_profiles_file_path()
-                prof_file.parent.mkdir(parents=True, exist_ok=True)
-                with open(prof_file, "w", encoding="utf-8") as f:
-                    json.dump(self.profiles, f, ensure_ascii=False, indent=2)
-                
+                save_profiles(self.profiles)
                 self._load_profiles()
                 idx = self.cmb_profiles.findData(text)
                 if idx >= 0:
                     self.cmb_profiles.setCurrentIndex(idx)
-                    
+                if self.student_id:
+                    try:
+                        assigns = dict(load_assignments())
+                        assigns[str(self.student_id)] = text
+                        save_assignments(assigns)
+                    except Exception:
+                        pass
                 QMessageBox.information(self, "Başarılı", f"'{text}' profili başarıyla kaydedildi.")
             except Exception as e:
                 QMessageBox.warning(self, "Hata", f"Kaydedilemedi: {e}")
@@ -1226,10 +1324,7 @@ class PlanSettingsDialog(QDialog):
             data = self._gather_data()
             self.profiles[curr] = data
             try:
-                prof_file = get_profiles_file_path()
-                prof_file.parent.mkdir(parents=True, exist_ok=True)
-                with open(prof_file, "w", encoding="utf-8") as f:
-                    json.dump(self.profiles, f, ensure_ascii=False, indent=2)
+                save_profiles(self.profiles)
                 QMessageBox.information(self, "Başarılı", f"'{curr}' profili başarıyla güncellendi.")
             except Exception as e:
                 QMessageBox.warning(self, "Hata", f"Profil güncellenemedi: {e}")
@@ -1247,10 +1342,7 @@ class PlanSettingsDialog(QDialog):
             if curr in self.profiles:
                 del self.profiles[curr]
                 try:
-                    prof_file = get_profiles_file_path()
-                    prof_file.parent.mkdir(parents=True, exist_ok=True)
-                    with open(prof_file, "w", encoding="utf-8") as f:
-                        json.dump(self.profiles, f, ensure_ascii=False, indent=2)
+                    save_profiles(self.profiles)
                 except Exception:
                     pass
                 self._load_profiles()
@@ -1268,7 +1360,110 @@ class PlanSettingsDialog(QDialog):
             self.chk_empty_day.setChecked(False)
             self.txt_notes.clear()
             self.lst_blocks.clear()
+            self.spin_session_minutes.setValue(45)
+            self.spin_session_break.setValue(10)
+            self.chk_session_split.setChecked(True)
+            self.chk_sessions.setChecked(False)
             self._refresh_timeline()
+        self._refresh_session_advice()
+
+    def _session_homework_context(self) -> dict:
+        if not self.student_id:
+            return {'available': False, 'due': 0, 'done': 0}
+        try:
+            import db
+            dbfile = db.DB_PATH
+            if not dbfile.is_file():
+                return {'available': False, 'due': 0, 'done': 0}
+            uri = dbfile.resolve().as_uri() + '?mode=ro'
+            with sqlite3.connect(uri, uri=True, timeout=2) as con:
+                return homework_summary(con, self.student_id)
+        except (ImportError, OSError, sqlite3.Error, AttributeError):
+            return {'available': False, 'due': 0, 'done': 0}
+
+    def _refresh_session_advice(self):
+        current_name = self.cmb_profiles.currentData()
+        profile = self.profiles.get(current_name, {}) if current_name else {}
+        self._session_advice = None
+        self.btn_accept_session_advice.setEnabled(False)
+        if not self.student_id:
+            self.lbl_session_advice.setText('Kişiselleştirilmiş öneri için kayıtlı öğrenci seçilmelidir.')
+            return
+        if not profile:
+            self.lbl_session_advice.setText('Önce profili kaydedin veya kayıtlı bir profil seçin.')
+            return
+        try:
+            feedback = recent_feedback(self.student_id)
+            homework = self._session_homework_context()
+            suggestion = suggest_session_minutes(
+                profile.get('session_minutes', 45), feedback, homework,
+                profile.get('_session_advisor_last_applied'))
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            self.lbl_session_advice.setText(f'Etüt önerisi okunamadı: {exc}. Profil değiştirilmedi.')
+            return
+        self._session_advice = suggestion
+        context = (f"Son 60 günde vadesi geçmiş {homework['due']} ödevden "
+                   f"{homework['done']} tamamlanmış (etüt süresini ölçmez)."
+                   if homework.get('available') and homework.get('due') else
+                   'Tamamlanmış ödev kaydı yok veya erişilemiyor; çalışma süresi tahmin edilmiyor.')
+        target = suggestion['suggested']
+        title = (f'Öneri: {target} dk. ' if suggestion['ready'] else 'Mevcut oturum korunuyor. ')
+        self.lbl_session_advice.setText(title + suggestion['reason'] + '\n' + context)
+        self.btn_accept_session_advice.setEnabled(bool(suggestion['ready']))
+
+    def _record_session_feedback(self, rating: str):
+        if not self.student_id:
+            return
+        try:
+            record_feedback(self.student_id, rating)
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            QMessageBox.warning(self, 'Gözlem Kaydedilemedi', str(exc))
+            return
+        self._refresh_session_advice()
+
+    def _apply_session_advice(self):
+        """Tek tıkla önerilen oturum süresini yalnızca bu öğrencinin profiline uygular."""
+        name = self.cmb_profiles.currentData()
+        if not name or not self.student_id:
+            return
+        self._refresh_session_advice()
+        suggestion = self._session_advice
+        if not suggestion or not suggestion['ready']:
+            return
+        try:
+            updated = dict(load_profiles())
+            source = updated.get(name)
+            if not isinstance(source, dict):
+                raise ValueError('Profil başka bir işlemde değişmiş. Yeniden seçin.')
+            observed = recent_feedback(self.student_id)
+            new_suggestion = suggest_session_minutes(
+                source.get('session_minutes', 45), observed,
+                self._session_homework_context(), source.get('_session_advisor_last_applied'))
+            if not new_suggestion['ready'] or new_suggestion['signature'] != suggestion['signature']:
+                self._refresh_session_advice()
+                return
+            updated, target_name = personal_profile_update(
+                updated, name, self.student_id,
+                new_suggestion['suggested'], new_suggestion['signature'])
+            personal = updated[target_name]
+            save_profiles(updated)
+            entries = load_assignments()
+            entries[str(self.student_id)] = target_name
+            save_assignments(entries)
+        except Exception as exc:
+            QMessageBox.warning(self, 'Etüt Önerisi Kaydedilemedi',
+                                f'Profil değişikliği tamamlanamadı: {exc}')
+            return
+        self.profiles = updated
+        self._load_profiles()
+        idx = self.cmb_profiles.findData(target_name)
+        if idx >= 0:
+            self.cmb_profiles.setCurrentIndex(idx)
+        self._on_profile_changed()
+        QMessageBox.information(self, 'Etüt Ayarı Kaydedildi',
+            f'Bu öğrenciye özel profil: {target_name}\n'
+            f'Etüt süresi: {new_suggestion["suggested"]} dk.\n'
+            'Diğer öğrencilerin profilleri ve ödevleri değiştirilmedi.')
 
     def _create_plan(self):
         data = self._gather_data()

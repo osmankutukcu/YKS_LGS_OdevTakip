@@ -8791,6 +8791,9 @@ class OdevTakipFormu(QWidget):
             from services.smart_calendar import SmartCalendarService
             
             s_name = self.cmbAd.currentText() + " " + self.cmbSoyad.currentText()
+            student_uid = self._secili_ogrenci_id() if hasattr(self, '_secili_ogrenci_id') else None
+            if not student_uid:
+                student_uid = self.cmbAd.currentData()
             
             # Kullanıcıdan Plan Notu İste (Yeni Gelişmiş Dialog)
             try:
@@ -8798,7 +8801,7 @@ class OdevTakipFormu(QWidget):
                 # Ders isimlerini topla (Autocomplete için)
                 lessons = [x.get('ders') for x in hw_list if x.get('ders')]
                 
-                dlg = PlanSettingsDialog(self, lesson_names=lessons, student_name=s_name)
+                dlg = PlanSettingsDialog(self, lesson_names=lessons, student_name=s_name, student_id=student_uid)
                 if dlg.exec():
                     details = dlg.get_details()
                 else:
@@ -8813,10 +8816,19 @@ class OdevTakipFormu(QWidget):
                 if not ok: return
                 details = note
 
-            html_content = SmartCalendarService.create_weekly_plan_pdf(s_name, hw_list, details)
-            
-            if not html_content:
+            plan_bundle = SmartCalendarService.create_weekly_plan_data(s_name, hw_list, details)
+            if not plan_bundle:
                 return
+            html_content = plan_bundle['html']
+
+            from services.plan_replanner import (create_snapshot, load_approved,
+                                                 compare_snapshots, summary_text,
+                                                 approve_snapshot, student_key)
+            snapshot = create_snapshot(plan_bundle, hw_list, details)
+            previous = load_approved(student_uid) if student_key(student_uid) else None
+            differences = compare_snapshots(previous, snapshot)
+            if differences['changed']:
+                QMessageBox.information(self, '🔄 Yeni Haftalık Plan Taslağı', summary_text(differences))
 
             # 3. Önizleme (A4 Yatay / Landscape)
             printer = QPrinter(QPrinter.PrinterMode.HighResolution)
@@ -8837,6 +8849,18 @@ class OdevTakipFormu(QWidget):
                 
             preview.paintRequested.connect(handle_print)
             preview.exec()
+
+            # Plan onaylama: kaydı yalnızca öğretmen onaylarsa kaydet
+            if student_key(student_uid) and differences['changed']:
+                confirmation = QMessageBox.question(
+                    self, 'Plan Taslağını Onayla',
+                    'Önizlediğiniz haftalık planı bu öğrenci için son onaylanmış plan '
+                    'olarak kaydetmek ister misiniz?\n\n'
+                    'Verilen Ödevler tablosu ve elle düzenlediğiniz planlar değişmez.',
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No)
+                if confirmation == QMessageBox.StandardButton.Yes:
+                    approve_snapshot(student_uid, snapshot)
             
         except ImportError:
             QMessageBox.warning(self, "Hata", "Takvim modülü yüklenemedi.")
