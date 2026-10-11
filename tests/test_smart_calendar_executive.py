@@ -132,3 +132,33 @@ def test_holiday_day_zero_capacity():
 
     window = SmartCalendarService._suggest_time_window(sunday, prof)
     assert "Tatil" in window
+
+
+def test_plan_profiles_path_safety(monkeypatch, tmp_path):
+    from ui.plan_settings_dialog import get_profiles_file_path
+    from pathlib import Path
+    
+    # Path returned should be a Path object ending in plan_profiles.json
+    path = get_profiles_file_path()
+    assert isinstance(path, Path)
+    assert path.name == "plan_profiles.json"
+    # Ensure parent dir exists or is writable
+    assert path.parent.exists()
+
+
+def test_plan_settings_dialog_flags():
+    import os
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    from PyQt6.QtWidgets import QApplication
+    from ui.plan_settings_dialog import PlanSettingsDialog
+    from PyQt6.QtCore import Qt
+    
+    app = QApplication.instance() or QApplication([])
+    dlg = PlanSettingsDialog(lesson_names=["Fizik", "Matematik"], student_name="Ali Veli")
+    flags = dlg.windowFlags()
+    # Check maximize button hint is enabled for low-res monitors
+    assert bool(flags & Qt.WindowType.WindowMaximizeButtonHint) is True
+    # Check minimum size is responsive
+    assert dlg.minimumWidth() <= 500
+    assert dlg.minimumHeight() <= 400
+

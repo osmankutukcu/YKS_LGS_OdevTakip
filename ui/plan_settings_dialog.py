@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from PyQt6.QtWidgets import (
@@ -16,6 +17,41 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTime, QRectF
 from PyQt6.QtGui import QIcon, QPainter, QColor, QPen, QBrush, QFont, QLinearGradient
 
+
+def get_profiles_file_path() -> Path:
+    """
+    plan_profiles.json dosyasının okunacağı ve yazılacağı güvenli platform AppData yolunu döner.
+    Windows Program Files altında çalışırken Permission Denied (Errno 13) hatasını kesin olarak önler.
+    """
+    try:
+        from db import _platform_appdata_dir, _exe_dir, _is_in_program_files, _is_dir_writable
+        exe_dir = _exe_dir()
+        if not _is_in_program_files(exe_dir) and _is_dir_writable(exe_dir):
+            return exe_dir / "plan_profiles.json"
+        
+        app_dir = _platform_appdata_dir()
+        app_dir.mkdir(parents=True, exist_ok=True)
+        target = app_dir / "plan_profiles.json"
+        
+        old_file = exe_dir / "plan_profiles.json"
+        if old_file.exists() and not target.exists():
+            try:
+                import shutil
+                shutil.copy2(old_file, target)
+            except Exception:
+                pass
+        return target
+    except Exception:
+        pass
+
+    try:
+        home_dir = Path.home() / ".yks_lgs_manager"
+        home_dir.mkdir(parents=True, exist_ok=True)
+        return home_dir / "plan_profiles.json"
+    except Exception:
+        return Path("plan_profiles.json")
+
+
 PROFILE_FILE = "plan_profiles.json"
 
 
@@ -26,11 +62,12 @@ class DayTimelineWidget(QFrame):
     """
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumHeight(96)
+        self.setMinimumHeight(68)
+        self.setMaximumHeight(74)
         self.setStyleSheet("""
             DayTimelineWidget {
                 background: #ffffff;
-                border-radius: 8px;
+                border-radius: 6px;
                 border: 1px solid #e2e8f0;
             }
         """)
@@ -122,31 +159,31 @@ class DayTimelineWidget(QFrame):
         mins = self.total_free % 60
         
         p.setPen(QColor("#0f172a"))
-        p.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        header_text = f"📅 {self.day_name} 24 Saatlik Zaman Çizelgesi"
-        p.drawText(16, 24, header_text)
+        p.setFont(QFont("Segoe UI", 8.5, QFont.Weight.Bold))
+        header_text = f"📅 {self.day_name} 24 Saatlik Çizelge"
+        p.drawText(14, 14, header_text)
         
         # Kalan kapasite rozeti
-        cap_text = f"🟢 Serbest Çalışma Kapasitesi: ~{hours} sa {mins} dk"
-        p.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
+        cap_text = f"🟢 Serbest: ~{hours} sa {mins} dk"
+        p.setFont(QFont("Segoe UI", 8, QFont.Weight.DemiBold))
         p.setPen(QColor("#059669"))
-        p.drawText(w - p.fontMetrics().horizontalAdvance(cap_text) - 18, 24, cap_text)
+        p.drawText(w - p.fontMetrics().horizontalAdvance(cap_text) - 14, 14, cap_text)
         
         # Çubuk Koordinatları
-        bar_y = 28
-        bar_h = 28
+        bar_y = 18
+        bar_h = 20
         start_min = 6 * 60  # 06:00
         end_min = 24 * 60   # 24:00
         total_range = end_min - start_min
         
         def min_to_x(m):
             ratio = (m - start_min) / total_range
-            return 20 + ratio * (w - 40)
+            return 14 + ratio * (w - 28)
             
-        # Zemin (Serbest çalışma açık mavi/gri)
+        # Zemin
         p.setBrush(QColor("#f1f5f9"))
         p.setPen(QPen(QColor("#cbd5e1"), 1))
-        p.drawRoundedRect(QRectF(20, bar_y, w - 40, bar_h), 5, 5)
+        p.drawRoundedRect(QRectF(14, bar_y, w - 28, bar_h), 4, 4)
         
         # Okul Alanı
         if self.school_times:
@@ -159,11 +196,11 @@ class DayTimelineWidget(QFrame):
                 grad_school.setColorAt(1, QColor("#fee2e2"))
                 p.setBrush(grad_school)
                 p.setPen(QPen(QColor("#f87171"), 1))
-                p.drawRoundedRect(QRectF(x1, bar_y + 2, x2 - x1, bar_h - 4), 4, 4)
-                if x2 - x1 > 45: 
+                p.drawRoundedRect(QRectF(x1, bar_y + 1, x2 - x1, bar_h - 2), 3, 3)
+                if x2 - x1 > 35: 
                     p.setPen(QColor("#991b1b"))
-                    p.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
-                    p.drawText(QRectF(x1, bar_y + 2, x2 - x1, bar_h - 4), Qt.AlignmentFlag.AlignCenter, "🏫 OKUL")
+                    p.setFont(QFont("Segoe UI", 7.5, QFont.Weight.Bold))
+                    p.drawText(QRectF(x1, bar_y + 1, x2 - x1, bar_h - 2), Qt.AlignmentFlag.AlignCenter, "🏫 OKUL")
         
         # Sabit Bloklar (Kurs, Etüt, Özel Ders)
         for s, e, lbl in self.blocks:
@@ -175,41 +212,38 @@ class DayTimelineWidget(QFrame):
                 grad_block.setColorAt(1, QColor("#ffedd5"))
                 p.setBrush(grad_block)
                 p.setPen(QPen(QColor("#fb923c"), 1))
-                p.drawRoundedRect(QRectF(x1, bar_y + 3, x2 - x1, bar_h - 6), 4, 4)
-                if x2 - x1 > 35: 
+                p.drawRoundedRect(QRectF(x1, bar_y + 2, x2 - x1, bar_h - 4), 3, 3)
+                if x2 - x1 > 30: 
                     p.setPen(QColor("#9a3412"))
-                    p.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
-                    short_lbl = lbl[:8] + ".." if len(lbl) > 8 else lbl
-                    p.drawText(QRectF(x1, bar_y + 3, x2 - x1, bar_h - 6), Qt.AlignmentFlag.AlignCenter, short_lbl)
+                    p.setFont(QFont("Segoe UI", 7.5, QFont.Weight.Bold))
+                    short_lbl = lbl[:6] + ".." if len(lbl) > 6 else lbl
+                    p.drawText(QRectF(x1, bar_y + 2, x2 - x1, bar_h - 4), Qt.AlignmentFlag.AlignCenter, short_lbl)
                      
         # Saat İşaretleri (Her 3 saatte bir)
         p.setPen(QColor("#64748b"))
-        p.setFont(QFont("Segoe UI", 7.5))
+        p.setFont(QFont("Segoe UI", 7))
         for h_val in range(6, 25, 3):
             mx = min_to_x(h_val * 60)
-            p.drawText(int(mx) - 12, bar_y + bar_h + 13, f"{h_val:02d}:00")
+            p.drawText(int(mx) - 10, bar_y + bar_h + 10, f"{h_val:02d}:00")
             
-        # Alt Lejant (Okul, Sabit Kısıt, Serbest Zaman)
-        p.setFont(QFont("Segoe UI", 8))
-        leg_y = bar_y + bar_h + 24
+        # Alt Lejant
+        p.setFont(QFont("Segoe UI", 7.5))
+        leg_y = bar_y + bar_h + 20
         
-        # Kırmızı nokta - Okul
         p.setBrush(QColor("#ef4444")); p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(22, leg_y - 7, 7, 7)
+        p.drawEllipse(16, leg_y - 6, 6, 6)
         p.setPen(QColor("#475569"))
-        p.drawText(33, leg_y, "Okul Saatleri")
+        p.drawText(25, leg_y, "Okul")
         
-        # Turuncu nokta - Kurs
         p.setBrush(QColor("#f97316")); p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(118, leg_y - 7, 7, 7)
+        p.drawEllipse(75, leg_y - 6, 6, 6)
         p.setPen(QColor("#475569"))
-        p.drawText(129, leg_y, "Sabit Ders/Kurs")
+        p.drawText(84, leg_y, "Sabit Rutin")
         
-        # Yeşil nokta - Serbest
         p.setBrush(QColor("#10b981")); p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(235, leg_y - 7, 7, 7)
+        p.drawEllipse(155, leg_y - 6, 6, 6)
         p.setPen(QColor("#475569"))
-        p.drawText(246, leg_y, "Ödev & Çalışma Alanı")
+        p.drawText(164, leg_y, "Ödev & Çalışma")
 
 
 class PlanSettingsDialog(QDialog):
@@ -236,16 +270,21 @@ class PlanSettingsDialog(QDialog):
         self.profiles = {}
         
         self.setWindowTitle("📅 Akıllı Haftalık Planlama & Takvim Sihirbazı")
+        self.setWindowFlags(
+            Qt.WindowType.Dialog | 
+            Qt.WindowType.WindowMaximizeButtonHint | 
+            Qt.WindowType.WindowCloseButtonHint
+        )
         
         screen = QApplication.primaryScreen()
         if screen:
             avail = screen.availableGeometry()
-            w = min(780, int(avail.width() * 0.90))
-            h = min(680, int(avail.height() * 0.90))
+            w = min(740, max(520, int(avail.width() * 0.88)))
+            h = min(600, max(420, int(avail.height() * 0.86)))
             self.resize(w, h)
         else:
-            self.resize(740, 640)
-        self.setMinimumSize(600, 480)
+            self.resize(720, 560)
+        self.setMinimumSize(480, 380)
         
         self.setStyleSheet("""
             QDialog {
@@ -255,20 +294,20 @@ class PlanSettingsDialog(QDialog):
             QTabWidget::pane {
                 border: 1px solid #cbd5e1;
                 border-top: 3px solid #2563eb;
-                border-radius: 8px;
+                border-radius: 6px;
                 background: #ffffff;
                 top: -1px;
             }
             QTabBar::tab {
                 background: #f1f5f9;
                 color: #475569;
-                font-size: 11.5px;
+                font-size: 11px;
                 font-weight: 600;
-                padding: 7px 14px;
+                padding: 6px 12px;
                 border: 1px solid #cbd5e1;
                 border-bottom: none;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
+                border-top-left-radius: 5px;
+                border-top-right-radius: 5px;
                 margin-right: 2px;
             }
             QTabBar::tab:selected {
@@ -285,38 +324,41 @@ class PlanSettingsDialog(QDialog):
             }
             QGroupBox { 
                 font-weight: 700;
-                font-size: 12px;
+                font-size: 11.5px;
                 border: 1px solid #e2e8f0;
-                border-radius: 7px;
-                margin-top: 8px;
+                border-radius: 6px;
+                margin-top: 6px;
                 background: #ffffff;
-                padding-top: 10px;
+                padding-top: 8px;
+                padding-bottom: 4px;
+                padding-left: 6px;
+                padding-right: 6px;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 10px;
+                left: 8px;
                 padding: 0 4px;
                 color: #1e3a8a;
             }
             QLabel { color: #334155; }
             QLineEdit, QTimeEdit, QSpinBox, QComboBox {
-                padding: 5px 8px;
+                padding: 4px 7px;
                 border: 1px solid #cbd5e1;
                 border-radius: 5px;
                 background: #ffffff;
                 selection-background-color: #2563eb;
-                font-size: 12px;
+                font-size: 11.5px;
             }
             QLineEdit:focus, QTimeEdit:focus, QSpinBox:focus, QComboBox:focus {
                 border-color: #2563eb;
             }
             QSpinBox, QTimeEdit {
-                padding-right: 20px;
+                padding-right: 18px;
             }
             QSpinBox::up-button, QTimeEdit::up-button {
                 subcontrol-origin: border;
                 subcontrol-position: top right;
-                width: 17px;
+                width: 16px;
                 border-left: 1px solid #cbd5e1;
                 border-bottom: 1px solid #e2e8f0;
                 background: #f8fafc;
@@ -326,14 +368,14 @@ class PlanSettingsDialog(QDialog):
             QSpinBox::up-arrow, QTimeEdit::up-arrow {
                 image: none;
                 width: 0; height: 0;
-                border-left: 3.5px solid transparent;
-                border-right: 3.5px solid transparent;
-                border-bottom: 4.5px solid #475569;
+                border-left: 3px solid transparent;
+                border-right: 3px solid transparent;
+                border-bottom: 4px solid #475569;
             }
             QSpinBox::down-button, QTimeEdit::down-button {
                 subcontrol-origin: border;
                 subcontrol-position: bottom right;
-                width: 17px;
+                width: 16px;
                 border-left: 1px solid #cbd5e1;
                 background: #f8fafc;
                 border-bottom-right-radius: 4px;
@@ -342,18 +384,18 @@ class PlanSettingsDialog(QDialog):
             QSpinBox::down-arrow, QTimeEdit::down-arrow {
                 image: none;
                 width: 0; height: 0;
-                border-left: 3.5px solid transparent;
-                border-right: 3.5px solid transparent;
-                border-top: 4.5px solid #475569;
+                border-left: 3px solid transparent;
+                border-right: 3px solid transparent;
+                border-top: 4px solid #475569;
             }
             QListWidget {
                 border: 1px solid #cbd5e1;
                 border-radius: 5px;
                 background: #ffffff;
-                padding: 3px;
+                padding: 2px;
             }
             QListWidget::item {
-                padding: 4px 6px;
+                padding: 3px 5px;
                 border-bottom: 1px solid #f1f5f9;
                 border-radius: 3px;
             }
@@ -361,6 +403,23 @@ class PlanSettingsDialog(QDialog):
                 background: #eff6ff;
                 color: #1e40af;
                 font-weight: 600;
+            }
+            QScrollBar:vertical {
+                background: #f1f5f9;
+                width: 8px;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: #cbd5e1;
+                min-height: 20px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #94a3b8;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
             }
         """)
         
@@ -380,24 +439,24 @@ class PlanSettingsDialog(QDialog):
             border-bottom: 1px solid #1d4ed8;
         """)
         head_lay = QVBoxLayout(header_widget)
-        head_lay.setContentsMargins(18, 10, 18, 10)
-        head_lay.setSpacing(8)
+        head_lay.setContentsMargins(14, 6, 14, 6)
+        head_lay.setSpacing(5)
         
         h_title = QHBoxLayout()
         lbl_icon = QLabel("🗓️")
-        lbl_icon.setStyleSheet("font-size: 24px;")
+        lbl_icon.setStyleSheet("font-size: 20px;")
         
         v_ti = QVBoxLayout()
-        v_ti.setSpacing(2)
+        v_ti.setSpacing(1)
         lbl_title = QLabel("Haftalık Çalışma & Akıllı Takvim Planlayıcı")
-        lbl_title.setStyleSheet("font-size: 15px; font-weight: 800; color: #ffffff;")
+        lbl_title.setStyleSheet("font-size: 13.5px; font-weight: 800; color: #ffffff;")
         
-        sub_text = "Öğrencinin okul saatleri, rutin kısıtları ve akademik hedeflerine göre dengeli bir çalışma takvimi oluşturun."
+        sub_text = "Öğrencinin okul saatleri, rutin kısıtları ve hedeflerine göre dengeli bir takvim oluşturun."
         if self.student_name:
             sub_text = f"Öğrenci: <b>{self.student_name}</b> • " + sub_text
             
         lbl_sub = QLabel(sub_text)
-        lbl_sub.setStyleSheet("color: #e0e7ff; font-size: 11px;")
+        lbl_sub.setStyleSheet("color: #e0e7ff; font-size: 10.5px;")
         v_ti.addWidget(lbl_title)
         v_ti.addWidget(lbl_sub)
         
@@ -408,18 +467,19 @@ class PlanSettingsDialog(QDialog):
         
         # Profil & Şablon Çubuğu
         h_prof = QHBoxLayout()
-        lbl_prof = QLabel("<font color='#e0e7ff'><b>📋 Kayıtlı Şablon / Profil:</b></font>")
-        lbl_prof.setStyleSheet("font-size: 11.5px;")
+        h_prof.setSpacing(6)
+        lbl_prof = QLabel("<font color='#e0e7ff'><b>📋 Kayıtlı Şablon:</b></font>")
+        lbl_prof.setStyleSheet("font-size: 11px;")
         h_prof.addWidget(lbl_prof)
         
         self.cmb_profiles = QComboBox()
-        self.cmb_profiles.setStyleSheet("background: white; border-radius: 5px; padding: 3px 8px; min-width: 200px;")
+        self.cmb_profiles.setStyleSheet("background: white; border-radius: 4px; padding: 2px 6px; min-width: 170px; font-size: 11px;")
         
-        btn_save_prof = QPushButton("💾 Profili Kaydet")
+        btn_save_prof = QPushButton("💾 Yeni Kaydet")
         btn_save_prof.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_save_prof.setStyleSheet("""
             QPushButton {
-                background: #10b981; color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 12px; font-size: 11.5px;
+                background: #10b981; color: white; font-weight: bold; border: none; border-radius: 4px; padding: 3px 10px; font-size: 11px;
             }
             QPushButton:hover { background: #059669; }
         """)
@@ -430,7 +490,7 @@ class PlanSettingsDialog(QDialog):
         btn_update_prof.setToolTip("Seçili profilin ayarlarını mevcut form verileriyle günceller")
         btn_update_prof.setStyleSheet("""
             QPushButton {
-                background: #2563eb; color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 11px; font-size: 11.5px;
+                background: #2563eb; color: white; font-weight: bold; border: none; border-radius: 4px; padding: 3px 9px; font-size: 11px;
             }
             QPushButton:hover { background: #1d4ed8; }
         """)
@@ -440,7 +500,7 @@ class PlanSettingsDialog(QDialog):
         btn_del_prof.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_del_prof.setStyleSheet("""
             QPushButton {
-                background: rgba(239, 68, 68, 0.85); color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 10px; font-size: 11.5px;
+                background: rgba(239, 68, 68, 0.85); color: white; font-weight: bold; border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px;
             }
             QPushButton:hover { background: #dc2626; }
         """)
@@ -467,7 +527,7 @@ class PlanSettingsDialog(QDialog):
         # --- 2. DÖRT SEKMELİ YAPI (Tabs) ---
         tab_container = QWidget()
         tab_container_lay = QVBoxLayout(tab_container)
-        tab_container_lay.setContentsMargins(12, 6, 12, 6)
+        tab_container_lay.setContentsMargins(8, 4, 8, 4)
         
         self.tabs = QTabWidget()
         tab_container_lay.addWidget(self.tabs)
@@ -478,13 +538,13 @@ class PlanSettingsDialog(QDialog):
         # ==========================================
         tab1 = QWidget()
         t1_lay = QVBoxLayout(tab1)
-        t1_lay.setContentsMargins(16, 14, 16, 14)
-        t1_lay.setSpacing(12)
+        t1_lay.setContentsMargins(10, 8, 10, 8)
+        t1_lay.setSpacing(8)
 
         # Okul ve Öğrenci Durumu Grubu
         grp_profile = QGroupBox("👤 1. Öğrenci Durumu & Okul Saatleri")
         lay_profile = QVBoxLayout(grp_profile)
-        lay_profile.setSpacing(10)
+        lay_profile.setSpacing(6)
         
         h_prof_type = QHBoxLayout()
         h_prof_type.addWidget(QLabel("<b>Öğrenci Tipi:</b>"))
@@ -512,7 +572,7 @@ class PlanSettingsDialog(QDialog):
         
         h_school.addWidget(QLabel("<b>Okul Başlangıç:</b>"))
         h_school.addWidget(self.time_school_start)
-        h_school.addSpacing(16)
+        h_school.addSpacing(14)
         h_school.addWidget(QLabel("<b>Okul Bitiş:</b>"))
         h_school.addWidget(self.time_school_end)
         h_school.addStretch()
@@ -522,10 +582,10 @@ class PlanSettingsDialog(QDialog):
         # Sabit Rutinler (Kurs, Özel Ders)
         grp_blocks = QGroupBox("📅 2. Sabit Saatler & Rutinler (Özel Ders, Kurs, Antrenman)")
         lay_blocks = QVBoxLayout(grp_blocks)
-        lay_blocks.setSpacing(8)
+        lay_blocks.setSpacing(6)
         
         lbl_hint = QLabel("Haftalık rutinde <b>KESİNLİKLE MEŞGUL</b> olan saatleri ekleyin. Takvim bu saatlere ödev yerleştirmez.")
-        lbl_hint.setStyleSheet("color: #64748b; font-size: 11.5px;")
+        lbl_hint.setStyleSheet("color: #64748b; font-size: 11px;")
         lay_blocks.addWidget(lbl_hint)
         
         h_add_block = QHBoxLayout()
@@ -544,7 +604,7 @@ class PlanSettingsDialog(QDialog):
         btn_add_block.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_add_block.setStyleSheet("""
             QPushButton {
-                background: #2563eb; color: white; font-weight: bold; border-radius: 6px; padding: 6px 14px;
+                background: #2563eb; color: white; font-weight: bold; border-radius: 5px; padding: 4px 11px; font-size: 11.5px;
             }
             QPushButton:hover { background: #1d4ed8; }
         """)
@@ -559,7 +619,7 @@ class PlanSettingsDialog(QDialog):
         lay_blocks.addLayout(h_add_block)
         
         self.lst_blocks = QListWidget()
-        self.lst_blocks.setMaximumHeight(85)
+        self.lst_blocks.setMaximumHeight(65)
         lay_blocks.addWidget(self.lst_blocks)
         
         h_rem = QHBoxLayout()
@@ -567,7 +627,7 @@ class PlanSettingsDialog(QDialog):
         btn_rem_block = QPushButton("🗑️ Seçili Rutin Saatini Kaldır")
         btn_rem_block.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_rem_block.clicked.connect(self._remove_block_item)
-        btn_rem_block.setStyleSheet("color: #ef4444; background: transparent; border: none; font-weight: 600; font-size: 11.5px;")
+        btn_rem_block.setStyleSheet("color: #ef4444; background: transparent; border: none; font-weight: 600; font-size: 11px;")
         h_rem.addWidget(btn_rem_block)
         lay_blocks.addLayout(h_rem)
         t1_lay.addWidget(grp_blocks)
@@ -583,12 +643,12 @@ class PlanSettingsDialog(QDialog):
         # ==========================================
         tab2 = QWidget()
         t2_lay = QVBoxLayout(tab2)
-        t2_lay.setContentsMargins(16, 14, 16, 14)
-        t2_lay.setSpacing(14)
+        t2_lay.setContentsMargins(10, 8, 10, 8)
+        t2_lay.setSpacing(8)
 
         grp_cap = QGroupBox("🚀 1. Günlük Çalışma Temposu & Hedef")
         lay_cap = QVBoxLayout(grp_cap)
-        lay_cap.setSpacing(12)
+        lay_cap.setSpacing(6)
         
         h_max = QHBoxLayout()
         lbl_max = QLabel("<b>Günlük Maksimum Ev Çalışma Süresi:</b>")
@@ -598,7 +658,7 @@ class PlanSettingsDialog(QDialog):
         self.spin_max.setSingleStep(15)
         self.spin_max.setValue(180)
         self.spin_max.setSuffix(" dakika (~3 saat)")
-        self.spin_max.setMinimumWidth(170)
+        self.spin_max.setMinimumWidth(160)
         self.spin_max.valueChanged.connect(self._on_max_spin_changed)
         
         h_max.addWidget(lbl_max)
@@ -609,9 +669,9 @@ class PlanSettingsDialog(QDialog):
         h_wk = QHBoxLayout()
         h_wk.addWidget(QLabel("<b>Hafta Sonu Yük Modu:</b>"))
         self.bg_weekend = QButtonGroup(self)
-        self.rb_w_relax = QRadioButton("🍃 Hafif (Dinlenme Odaklı)")
-        self.rb_w_normal = QRadioButton("⚖️ Dengeli (Standart)")
-        self.rb_w_hard = QRadioButton("🔥 Yoğun Kamp (Maksimum Verim)")
+        self.rb_w_relax = QRadioButton("🍃 Hafif")
+        self.rb_w_normal = QRadioButton("⚖️ Dengeli")
+        self.rb_w_hard = QRadioButton("🔥 Yoğun Kamp")
         self.rb_w_normal.setChecked(True)
         self.bg_weekend.addButton(self.rb_w_relax)
         self.bg_weekend.addButton(self.rb_w_normal)
@@ -626,7 +686,7 @@ class PlanSettingsDialog(QDialog):
 
         grp_bio = QGroupBox("🧠 2. Zihinsel Verim & Biyoritim Modu")
         lay_bio = QVBoxLayout(grp_bio)
-        lay_bio.setSpacing(8)
+        lay_bio.setSpacing(6)
         
         h_bio = QHBoxLayout()
         h_bio.addWidget(QLabel("<b>Verim Modu:</b>"))
@@ -640,13 +700,13 @@ class PlanSettingsDialog(QDialog):
         lay_bio.addLayout(h_bio)
         
         lbl_bio_hint = QLabel("<i>*Bu ayar, zorluk derecesi 4 ve 5 olan görevleri öğrencinin zihinsel verim saatine göre önceliklendirir.</i>")
-        lbl_bio_hint.setStyleSheet("color: #64748b; font-size: 11px;")
+        lbl_bio_hint.setStyleSheet("color: #64748b; font-size: 10.5px;")
         lay_bio.addWidget(lbl_bio_hint)
         t2_lay.addWidget(grp_bio)
 
         grp_holiday = QGroupBox("🏖️ 3. Haftalık Dinlenme Günü")
         lay_hol = QVBoxLayout(grp_holiday)
-        lay_hol.setSpacing(8)
+        lay_hol.setSpacing(6)
         
         h_empty = QHBoxLayout()
         self.chk_empty_day = QCheckBox("<b>Haftada 1 Gün Tam Tatil Ver (Ödev Atama):</b>")
@@ -669,19 +729,19 @@ class PlanSettingsDialog(QDialog):
         # ==========================================
         tab3 = QWidget()
         t3_lay = QVBoxLayout(tab3)
-        t3_lay.setContentsMargins(16, 14, 16, 14)
-        t3_lay.setSpacing(12)
+        t3_lay.setContentsMargins(10, 8, 10, 8)
+        t3_lay.setSpacing(8)
 
         grp_focus = QGroupBox("🔥 1. En Çok Zorlanılan / Öncelikli Dersler")
         lay_focus = QVBoxLayout(grp_focus)
-        lay_focus.setSpacing(10)
+        lay_focus.setSpacing(6)
         
         btn_ai = QPushButton("🤖 Yapay Zeka ile Eksik & Öncelik Analizi Yap")
         btn_ai.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_ai.setStyleSheet("""
             QPushButton { 
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #7c3aed, stop:1 #4f46e5); 
-                color: white; font-weight: bold; border-radius: 6px; padding: 10px; font-size: 13px;
+                color: white; font-weight: bold; border-radius: 5px; padding: 6px 12px; font-size: 12px;
             }
             QPushButton:hover { background: #6d28d9; }
         """)
@@ -697,7 +757,7 @@ class PlanSettingsDialog(QDialog):
         lay_focus.addWidget(lbl_pop)
 
         grid_lessons = QGridLayout()
-        grid_lessons.setSpacing(6)
+        grid_lessons.setSpacing(4)
         
         popular_lessons = [
             "TYT Matematik", "AYT Matematik", "Geometri", 
@@ -712,7 +772,7 @@ class PlanSettingsDialog(QDialog):
             btn.setStyleSheet("""
                 QPushButton { 
                     background: #f8fafc; color: #334155; border: 1px solid #cbd5e1; 
-                    border-radius: 5px; padding: 5px 8px; font-size: 11.5px; font-weight: 500;
+                    border-radius: 4px; padding: 3px 6px; font-size: 11px; font-weight: 500;
                 }
                 QPushButton:hover { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; font-weight: bold; }
             """)
@@ -724,7 +784,7 @@ class PlanSettingsDialog(QDialog):
 
         grp_notes = QGroupBox("📝 2. Özel Durum Notları & Ek Kısıtlamalar")
         lay_notes = QVBoxLayout(grp_notes)
-        lay_notes.setSpacing(8)
+        lay_notes.setSpacing(6)
         
         lbl_tmpl = QLabel("<b>Hazır Şablon Cümleleri (Tıklayınca Ekler):</b>")
         lbl_tmpl.setStyleSheet("font-size: 11px; color: #475569;")
@@ -740,7 +800,7 @@ class PlanSettingsDialog(QDialog):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setStyleSheet("""
                 QPushButton { 
-                    font-size: 11px; padding: 4px 8px; color: #4338ca; 
+                    font-size: 10.5px; padding: 3px 6px; color: #4338ca; 
                     background: #eef2ff; border: 1px dashed #a5b4fc; border-radius: 4px;
                 }
                 QPushButton:hover { background: #e0e7ff; }
@@ -752,7 +812,7 @@ class PlanSettingsDialog(QDialog):
         
         self.txt_notes = QTextEdit()
         self.txt_notes.setPlaceholderText("Öğrenciye özel durumlar (Örn: Çarşamba akşamı maç var, sabahları erken kalkamaz, Cuma akşamı tekrar günü olsun)...")
-        self.txt_notes.setMaximumHeight(75)
+        self.txt_notes.setMaximumHeight(55)
         lay_notes.addWidget(self.txt_notes)
         t3_lay.addWidget(grp_notes)
         t3_lay.addStretch(1)
@@ -764,13 +824,13 @@ class PlanSettingsDialog(QDialog):
         # ==========================================
         tab_help = QWidget()
         t_help_lay = QVBoxLayout(tab_help)
-        t_help_lay.setContentsMargins(16, 14, 16, 14)
-        t_help_lay.setSpacing(12)
+        t_help_lay.setContentsMargins(10, 8, 10, 8)
+        t_help_lay.setSpacing(8)
 
         # Kart 1: Zaman & Okul
         grp_h1 = QGroupBox("🕒 1. Zaman & Okul Rutini Nasıl Çalışır?")
         lay_h1 = QVBoxLayout(grp_h1)
-        lay_h1.setSpacing(6)
+        lay_h1.setSpacing(4)
         lbl_h1 = QLabel(
             "• <b>Öğrenci Tipi:</b> <i>Okula Gidiyor</i> seçildiğinde hafta içi okul saatleri otomatik kilitlenir. "
             "<i>Mezun</i> seçildiğinde sabah saatleri de çalışma bloğuna açılır.<br>"
@@ -779,14 +839,14 @@ class PlanSettingsDialog(QDialog):
             "• <b>24 Saatlik Zaman Çizelgesi:</b> Yaptığınız saat seçimleri aşağıdaki çizelgede anlık güncellenir."
         )
         lbl_h1.setWordWrap(True)
-        lbl_h1.setStyleSheet("color: #334155; font-size: 11.5px; line-height: 140%;")
+        lbl_h1.setStyleSheet("color: #334155; font-size: 11px; line-height: 135%;")
         lay_h1.addWidget(lbl_h1)
         t_help_lay.addWidget(grp_h1)
 
         # Kart 2: Hedef & Tempo
         grp_h2 = QGroupBox("🚀 2. Hedef, Biyoritim & Tatil Dengesi")
         lay_h2 = QVBoxLayout(grp_h2)
-        lay_h2.setSpacing(6)
+        lay_h2.setSpacing(4)
         lbl_h2 = QLabel(
             "• <b>Günlük Maksimum Ev Süresi:</b> Öğrencinin aşırı yüklenip bıkmasını (burnout) engeller. "
             "Ödevler bu süreyi aşmayacak şekilde günlere eşit dağıtılır (Örn: 180 dk = günde en fazla 3 saat).<br>"
@@ -797,14 +857,14 @@ class PlanSettingsDialog(QDialog):
             "• <b>Haftalık Dinlenme Günü:</b> Belirlediğiniz günde (örn. Pazar) öğrenciye sıfır ödev atanır."
         )
         lbl_h2.setWordWrap(True)
-        lbl_h2.setStyleSheet("color: #334155; font-size: 11.5px; line-height: 140%;")
+        lbl_h2.setStyleSheet("color: #334155; font-size: 11px; line-height: 135%;")
         lay_h2.addWidget(lbl_h2)
         t_help_lay.addWidget(grp_h2)
 
         # Kart 3: Akıllı Koçluk & Yapay Zeka
         grp_h3 = QGroupBox("🤖 3. Akıllı Koçluk & Yapay Zeka Analizi")
         lay_h3 = QVBoxLayout(grp_h3)
-        lay_h3.setSpacing(6)
+        lay_h3.setSpacing(4)
         lbl_h3 = QLabel(
             "• <b>Yapay Zeka Analiz Butonu:</b> Sistem, öğrencinin geciken ödevlerini ve deneme performansını tarayarak "
             "eksik olduğu ve takviye gereken dersleri otomatik bulur ve öncelik kutusuna yazar.<br>"
@@ -814,22 +874,22 @@ class PlanSettingsDialog(QDialog):
             "veya serbest metin olarak eklediğinizde plan bu kısıtlara göre optimize edilir."
         )
         lbl_h3.setWordWrap(True)
-        lbl_h3.setStyleSheet("color: #334155; font-size: 11.5px; line-height: 140%;")
+        lbl_h3.setStyleSheet("color: #334155; font-size: 11px; line-height: 135%;")
         lay_h3.addWidget(lbl_h3)
         t_help_lay.addWidget(grp_h3)
 
         # Kart 4: Pedagojik Başarı İpuçları
         grp_h4 = QGroupBox("💡 4. Koçluk Tavsiyesi: Başarılı Bir Planın Formülü")
         lay_h4 = QVBoxLayout(grp_h4)
-        lay_h4.setSpacing(6)
+        lay_h4.setSpacing(4)
         lbl_h4 = QLabel(
             "1. <b>Sürdürülebilirlik Hızdan Önemlidir:</b> İlk haftalarda günlük 120-180 dakika ile başlayın.<br>"
             "2. <b>Blok Çalışma & Mola:</b> Her 45-50 dakikalık çalışma sonrasında 10-15 dakika zihinsel mola verin.<br>"
             "3. <b>Farklı Branş Dağılımı:</b> Aynı gün üst üste 3 sayısal veya 3 sözel ders yerine dengeli dağıtım zihni canlı tutar."
         )
         lbl_h4.setWordWrap(True)
-        lbl_h4.setStyleSheet("color: #047857; font-size: 11.5px; font-weight: 500; line-height: 140%;")
-        grp_h4.setStyleSheet("QGroupBox { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; margin-top: 10px; font-weight: bold; color: #166534; }")
+        lbl_h4.setStyleSheet("color: #047857; font-size: 11px; font-weight: 500; line-height: 135%;")
+        grp_h4.setStyleSheet("QGroupBox { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; margin-top: 6px; font-weight: bold; color: #166534; }")
         lay_h4.addWidget(lbl_h4)
         t_help_lay.addWidget(grp_h4)
         t_help_lay.addStretch(1)
@@ -840,10 +900,10 @@ class PlanSettingsDialog(QDialog):
         footer_widget = QWidget()
         footer_widget.setStyleSheet("background-color: #ffffff; border-top: 1px solid #e2e8f0;")
         foot_lay = QHBoxLayout(footer_widget)
-        foot_lay.setContentsMargins(16, 8, 16, 8)
+        foot_lay.setContentsMargins(12, 6, 12, 6)
         
         self.lbl_footer_summary = QLabel("🎯 Hedef: ~180 dk/gün • Biyoritim: Dengeli")
-        self.lbl_footer_summary.setStyleSheet("color: #64748b; font-size: 11.5px; font-weight: 500;")
+        self.lbl_footer_summary.setStyleSheet("color: #64748b; font-size: 11px; font-weight: 500;")
         foot_lay.addWidget(self.lbl_footer_summary)
         foot_lay.addStretch(1)
         
@@ -852,7 +912,7 @@ class PlanSettingsDialog(QDialog):
         btn_cancel.setStyleSheet("""
             QPushButton {
                 background: #f1f5f9; color: #475569; font-weight: 600; 
-                padding: 7px 16px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px;
+                padding: 5px 14px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 11.5px;
             }
             QPushButton:hover { background: #e2e8f0; color: #0f172a; }
         """)
@@ -863,7 +923,7 @@ class PlanSettingsDialog(QDialog):
         btn_create.setStyleSheet("""
             QPushButton { 
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #059669, stop:1 #10b981); 
-                color: white; font-weight: 800; padding: 8px 20px; font-size: 12.5px; border: none; border-radius: 6px;
+                color: white; font-weight: 800; padding: 6px 16px; font-size: 12px; border: none; border-radius: 5px;
             }
             QPushButton:hover { background: #047857; }
         """)
@@ -1109,9 +1169,13 @@ class PlanSettingsDialog(QDialog):
         self.cmb_profiles.clear()
         self.cmb_profiles.addItem("Varsayılan Standart Ayarlar", None)
         
-        if os.path.exists(PROFILE_FILE):
+        prof_file = get_profiles_file_path()
+        if not prof_file.exists() and os.path.exists("plan_profiles.json"):
+            prof_file = Path("plan_profiles.json")
+
+        if prof_file.exists():
             try:
-                with open(PROFILE_FILE, "r", encoding="utf-8") as f:
+                with open(prof_file, "r", encoding="utf-8") as f:
                     self.profiles = json.load(f)
                 for name in self.profiles:
                     self.cmb_profiles.addItem(f"👤 {name}", name)
@@ -1128,7 +1192,9 @@ class PlanSettingsDialog(QDialog):
             data = self._gather_data()
             self.profiles[text] = data
             try:
-                with open(PROFILE_FILE, "w", encoding="utf-8") as f:
+                prof_file = get_profiles_file_path()
+                prof_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(prof_file, "w", encoding="utf-8") as f:
                     json.dump(self.profiles, f, ensure_ascii=False, indent=2)
                 
                 self._load_profiles()
@@ -1146,7 +1212,7 @@ class PlanSettingsDialog(QDialog):
             QMessageBox.information(
                 self, "Profil Güncelle",
                 "Şu anda 'Varsayılan Standart Ayarlar' seçili.\n\n"
-                "Mevcut ayarları yeni bir şablon / profil olarak kaydetmek için lütfen '💾 Profili Kaydet' butonunu kullanın."
+                "Mevcut ayarları yeni bir şablon / profil olarak kaydetmek için lütfen '💾 Kaydet' butonunu kullanın."
             )
             return
 
@@ -1160,7 +1226,9 @@ class PlanSettingsDialog(QDialog):
             data = self._gather_data()
             self.profiles[curr] = data
             try:
-                with open(PROFILE_FILE, "w", encoding="utf-8") as f:
+                prof_file = get_profiles_file_path()
+                prof_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(prof_file, "w", encoding="utf-8") as f:
                     json.dump(self.profiles, f, ensure_ascii=False, indent=2)
                 QMessageBox.information(self, "Başarılı", f"'{curr}' profili başarıyla güncellendi.")
             except Exception as e:
@@ -1179,7 +1247,9 @@ class PlanSettingsDialog(QDialog):
             if curr in self.profiles:
                 del self.profiles[curr]
                 try:
-                    with open(PROFILE_FILE, "w", encoding="utf-8") as f:
+                    prof_file = get_profiles_file_path()
+                    prof_file.parent.mkdir(parents=True, exist_ok=True)
+                    with open(prof_file, "w", encoding="utf-8") as f:
                         json.dump(self.profiles, f, ensure_ascii=False, indent=2)
                 except Exception:
                     pass
