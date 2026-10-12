@@ -20,6 +20,7 @@ from PyQt6.QtCore import Qt, QSize
 
 import db
 from utils import settings as appset
+from utils.auth_security_v13 import hash_password
 
 
 # =========================
@@ -38,7 +39,7 @@ def _ask_yes_no(parent, title: str, text: str) -> bool:
     return QMessageBox.question(parent, title, text, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes
 
 def _sha256(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return hash_password(text)
 
 def _now_str() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -46,7 +47,7 @@ def _now_str() -> str:
 
 @dataclass
 class PasswordPolicy:
-    min_len: int = 6
+    min_len: int = 12
     require_upper: bool = False
     require_lower: bool = False
     require_digit: bool = False
@@ -113,12 +114,7 @@ class UserManagerDialog(QWidget):
                     active INTEGER DEFAULT 1,
                     created_at TEXT DEFAULT (datetime('now'))
                 )""")
-                # Varsayılan admin
-                h = hashlib.sha256("admin".encode()).hexdigest()
-                try:
-                    cur.execute("INSERT INTO users(username, password_hash, role, active) VALUES(?, ?, ?, 1)", ('admin', h, 'admin'))
-                except:
-                    pass
+                # İlk yönetici yalnızca ilk giriş kurulum sihirbazıyla oluşturulur.
                 con.commit()
             con.close()
         except:
@@ -781,7 +777,7 @@ class UserManagerDialog(QWidget):
 
         # Şifre politikası (ayarlanabilir)
         self.sp_minlen = QComboBox()
-        for v in [4, 6, 8, 10, 12]:
+        for v in [12, 14, 16, 20]:
             self.sp_minlen.addItem(str(v), v)
 
         self.chk_up = QCheckBox("Büyük harf zorunlu")
@@ -966,15 +962,7 @@ class UserManagerDialog(QWidget):
             except:
                 pass # Zaten varsa hata verir
 
-            # Varsayılan admin
-            # Güvenlik için: eğer hiç kullanıcı yoksa ekle
-            cur.execute("SELECT COUNT(*) FROM users")
-            if cur.fetchone()[0] == 0:
-                h = hashlib.sha256("admin".encode()).hexdigest()
-                try:
-                    cur.execute("INSERT INTO users(username, password_hash, role, active) VALUES(?, ?, ?, 1)", ('admin', h, 'admin'))
-                except:
-                    pass
+            # Boş kullanıcı tablosu kendi kendine yönetici oluşturmaz.
             
             con.commit()
             con.close()
@@ -1074,29 +1062,25 @@ class UserManagerDialog(QWidget):
             table = self._users_cache[0]["_table"] if self._users_cache else "users"
             cols = self._users_cache[0]["_cols"] if self._users_cache else ["id", "username", "role", "active"]
 
-            # insert stratejisi
-            # users(id, username, role, active) / kullanicilar(id, kullanici_adi, rol, aktif)
-            if "username" in cols:
-                cur.execute(f"INSERT INTO {table} (username, role, active) VALUES (?, ?, ?)", (uname, role, 1))
-            elif "kullanici_adi" in cols:
-                cur.execute(f"INSERT INTO {table} (kullanici_adi, rol, aktif) VALUES (?, ?, ?)", (uname, role, 1))
+            # V13.2: parola NOT NULL ise iki aşamalı INSERT başarısız olur.
+            # Kimlik+rol+parola tek atomik INSERT ile yazılır.
+            columns = {row[1] for row in cur.execute(f"PRAGMA table_info({table})")}
+            pw_col = next((c for c in ('password_hash', 'sifre_hash', 'pass_hash') if c in columns), None)
+            if not pw_col:
+                raise ValueError('Parola sütunu bulunamadı')
+            if 'username' in columns:
+                name_col, role_col, active_col = 'username', 'role', 'active'
+            elif 'kullanici_adi' in columns:
+                name_col, role_col, active_col = 'kullanici_adi', 'rol', 'aktif'
             else:
-                _warn(self, "Uyarı", "Kullanıcı tablosu sütunları tanınamadı. Insert yapılamadı.")
-                return
-
-            # şifre alanı varsa yaz
-            # olası alanlar: password_hash, sifre_hash, pass_hash
-            pw_hash = _sha256(pwd)
-            updated = False
-            for pw_col in ["password_hash", "sifre_hash", "pass_hash"]:
-                try:
-                    # yeni eklenen id
-                    uid = cur.lastrowid
-                    cur.execute(f"UPDATE {table} SET {pw_col}=? WHERE id=?", (pw_hash, uid))
-                    updated = True
-                    break
-                except:
-                    continue
+                raise ValueError('Kullanıcı tablosu sütunları tanınamadı')
+            fields = [name_col, role_col, pw_col]
+            values = [uname, role, _sha256(pwd)]
+            if active_col in columns:
+                fields.append(active_col)
+                values.append(1)
+            cur.execute(f"INSERT INTO {table} ({','.join(fields)}) VALUES ({','.join('?' for _ in fields)})", values)
+            updated = True
 
             con.commit()
 
@@ -1296,13 +1280,11 @@ class UserManagerDialog(QWidget):
                 pass
 
     def _generate_temp_password(self, strong: bool = False) -> str:
-        import random
+        import secrets
         import string
-        base = string.ascii_letters + string.digits
-        if strong:
-            base += "!@#-_+?"
-        ln = max(self._policy.min_len, 8 if strong else self._policy.min_len)
-        return "".join(random.choice(base) for _ in range(ln))
+        base = string.ascii_letters + string.digits + "!@#-_+?"
+        ln = max(self._policy.min_len, 12)
+        return "".join(secrets.choice(base) for _ in range(ln))
 
     def _user_delete(self):
         uid = self._selected_user_id()
@@ -1453,7 +1435,7 @@ class UserManagerDialog(QWidget):
     # ======================================================
     def _load_password_policy(self) -> PasswordPolicy:
         try:
-            min_len = int(appset.ayar_get("pwd_min_len", 6))
+            min_len = max(12, int(appset.ayar_get("pwd_min_len", 12)))
             return PasswordPolicy(
                 min_len=min_len,
                 require_upper=str(appset.ayar_get("pwd_req_upper", "0")) == "1",
@@ -1466,7 +1448,7 @@ class UserManagerDialog(QWidget):
 
     def _save_password_policy(self):
         try:
-            min_len = int(self.sp_minlen.currentData() or 6)
+            min_len = max(12, int(self.sp_minlen.currentData() or 12))
             appset.ayar_set("pwd_min_len", str(min_len))
             appset.ayar_set("pwd_req_upper", "1" if self.chk_up.isChecked() else "0")
             appset.ayar_set("pwd_req_lower", "1" if self.chk_lo.isChecked() else "0")

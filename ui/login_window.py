@@ -7,13 +7,17 @@ import math
 from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QMessageBox, QGraphicsDropShadowEffect,
-    QFrame, QSizePolicy
+    QFrame, QSizePolicy, QFormLayout
 )
 from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, QRectF
 from PyQt6.QtGui import QFont, QColor, QPalette, QBrush, QLinearGradient, QRadialGradient, QPainter, QPainterPath
 
 import db
 from utils import settings as appset
+from utils.auth_security_v13 import (
+    create_initial_admin, bootstrap_password_error, hash_password,
+    verify_password, needs_upgrade, verify_and_upgrade_user,
+)
 
 class ModernLoginWindow(QDialog):
     """
@@ -275,6 +279,9 @@ class LoginCard(QFrame):
         if self.login_mode != "pass_only":
             self.txtUser.returnPressed.connect(lambda: self.txtPass.setFocus())
             
+        # Güvenli ilk kurulum: bilinen varsayılan hesap oluşturulmaz.
+        QTimer.singleShot(0, self._ensure_first_admin)
+
         # Basit giriş animasyonu (Scale Up)
         self.anim_timer = QTimer()
         self.opacity_anim = QPropertyAnimation(self, b"windowOpacity")
@@ -289,36 +296,135 @@ class LoginCard(QFrame):
             self.fade.setEasingCurve(QEasingCurve.Type.OutCubic)
             self.fade.start()
 
+    def _password_dialog(self, title: str, message: str):
+        """Two-field password confirmation; never shows a default password."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        layout = QVBoxLayout(dlg)
+        info = QLabel(message)
+        info.setWordWrap(True)
+        layout.addWidget(info)
+        form = QFormLayout()
+        one, two = QLineEdit(dlg), QLineEdit(dlg)
+        for field in (one, two):
+            field.setEchoMode(QLineEdit.EchoMode.Password)
+        form.addRow("Yeni yönetici parolası:", one)
+        form.addRow("Parolayı doğrula:", two)
+        layout.addLayout(form)
+        btn = QPushButton("Güvenli Parolayı Kaydet", dlg)
+        layout.addWidget(btn)
+
+        def submit():
+            if one.text() != two.text():
+                QMessageBox.warning(dlg, "Parola", "Parola doğrulaması uyuşmuyor.")
+                return
+            issue = bootstrap_password_error(one.text())
+            if issue:
+                QMessageBox.warning(dlg, "Parola", issue)
+                return
+            dlg.accept()
+        btn.clicked.connect(submit)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            return one.text()
+        return None
+
+    def _ensure_first_admin(self):
+        """Only on a genuinely empty users table; cancelling does not grant access."""
+        con = None
+        try:
+            con = db.get_conn()
+            count = con.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+            if count:
+                return
+            pwd = self._password_dialog(
+                "İlk Kurulum – Yönetici Parolası",
+                "İlk kullanımda admin hesabı için güvenli bir parola belirleyin. "
+                "En az 12 karakter, harf ve rakam gereklidir. Varsayılan parola yoktur.")
+            if pwd is None:
+                return
+            create_initial_admin(con, pwd)
+            if self.login_mode == "pass_only":
+                appset.ayar_set("login_mode", "user_pass")
+                self.login_mode = "user_pass"
+                self.txtUser.setVisible(True)
+                self.txtUser.setText("admin")
+                self.input_container.insertWidget(0, self.txtUser)
+            else:
+                self.txtUser.setText("admin")
+            QMessageBox.information(self, "Kurulum Tamam", "Yönetici oluşturuldu. Belirlediğiniz parolayla giriş yapın.")
+        except Exception as exc:
+            QMessageBox.critical(self, "Yönetici Kurulumu", f"Yönetici hesabı oluşturulamadı: {exc}")
+        finally:
+            if con is not None:
+                con.close()
+
+    def _force_replace_default_admin_password(self, con, user: str) -> bool:
+        """Known legacy admin password never grants a session before replacement."""
+        password = self._password_dialog(
+            "Güvenlik – Yönetici Parolasını Yenileyin",
+            "Eski varsayılan yönetici parolası güvenli değil. "
+            "Devam etmek için yeni ve güçlü bir parola belirleyin.")
+        if password is None:
+            return False
+        con.execute("UPDATE users SET password_hash=? WHERE username=?",
+                    (hash_password(password), user))
+        con.commit()
+        QMessageBox.information(self, "Parola Değiştirildi", "Yeni parolanız kaydedildi. Lütfen yeniden giriş yapın.")
+        self.txtPass.clear()
+        return False
+
     def _handle_login(self):
         user = self.txtUser.text().strip()
-        pwd = self.txtPass.text().strip()
-
+        pwd = self.txtPass.text()  # parolada baş/son boşluk da anlamlıdır
         if (self.login_mode != "pass_only" and not user) or not pwd:
             self._shake_animation()
             return
-
+        con = None
         try:
             con = db.get_conn()
-            pwd_hash = hashlib.sha256(pwd.encode()).hexdigest()
+            if con.execute('SELECT COUNT(*) FROM users').fetchone()[0] == 0:
+                self._ensure_first_admin()
+                return
             success = False
-            
             if self.login_mode == "pass_only":
                 sys_hash = appset.ayar_get("system_password_hash")
                 if not sys_hash:
                     row = con.execute("SELECT password_hash FROM users WHERE username='admin'").fetchone()
-                    if row: sys_hash = row[0]
-                success = (pwd_hash == sys_hash)
+                    sys_hash = row[0] if row else None
+                success = verify_password(pwd, sys_hash)
+                if success and pwd == "admin" and needs_upgrade(sys_hash):
+                    # Ortak parola admin hesabından alınıyorsa, o hesabı yenile.
+                    if not appset.ayar_get("system_password_hash"):
+                        self._force_replace_default_admin_password(con, "admin")
+                    else:
+                        replacement = self._password_dialog(
+                            "Ortak Parolayı Yenileyin",
+                            "Eski ortak parola güvenli değil. Devam etmeden önce yeni bir parola belirleyin.")
+                        if replacement is not None:
+                            appset.ayar_set("system_password_hash", hash_password(replacement))
+                            QMessageBox.information(self, "Parola", "Ortak parola yenilendi; yeniden giriş yapın.")
+                            self.txtPass.clear()
+                    return
+                if success and needs_upgrade(sys_hash) and appset.ayar_get("system_password_hash"):
+                    appset.ayar_set("system_password_hash", hash_password(pwd))
+                elif success and needs_upgrade(sys_hash):
+                    verify_and_upgrade_user(con, 'admin', pwd)
             else:
-                row = con.execute("SELECT id, role FROM users WHERE username=? AND password_hash=?", (user, pwd_hash)).fetchone()
-                success = (row is not None)
-            
+                row = con.execute("SELECT password_hash FROM users WHERE username=?", (user,)).fetchone()
+                if row and user.casefold() == 'admin' and pwd == 'admin' and needs_upgrade(row[0]):
+                    self._force_replace_default_admin_password(con, user)
+                    return
+                success = verify_and_upgrade_user(con, user, pwd) is not None
             if success:
                 self.login_success.emit()
             else:
                 self._shake_animation()
                 self.txtPass.clear()
-        except Exception as e:
-            QMessageBox.critical(self, "Hata", f"DB Hatası: {e}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Giriş Hatası", f"Kimlik doğrulama başarısız: {exc}")
+        finally:
+            if con is not None:
+                con.close()
 
     def _shake_animation(self):
         # Basit bir titreme animasyonu

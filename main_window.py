@@ -1166,16 +1166,20 @@ class AnaPencere(QMainWindow):
         v.addWidget(warn_card)
 
         lbl_hint = QLabel(
-            "İşlemi onaylamak için sıfırlama şifresini (<b>ok55..</b>) veya kutuya büyük harflerle <b>ONAYLIYORUM</b> yazınız:"
+            "Güvenlik için yönetici parolasını ve VERİLERİ SİL onayını giriniz:"
         )
         lbl_hint.setWordWrap(True)
         lbl_hint.setStyleSheet("font-size: 12px; color: #334155;")
         v.addWidget(lbl_hint)
 
         inp = QLineEdit()
-        inp.setPlaceholderText("Şifreyi (ok55..) veya ONAYLIYORUM yazınız...")
+        inp.setPlaceholderText("VERİLERİ SİL")
         inp.setStyleSheet("padding: 8px 12px; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 13px;")
         v.addWidget(inp)
+        admin_password = QLineEdit(dlg)
+        admin_password.setPlaceholderText("Yönetici parolası")
+        admin_password.setEchoMode(QLineEdit.EchoMode.Password)
+        v.addWidget(admin_password)
 
         btn_box = QHBoxLayout()
         btn_box.setSpacing(10)
@@ -1193,21 +1197,43 @@ class AnaPencere(QMainWindow):
         v.addLayout(btn_box)
 
         def _do_reset():
-            val = (inp.text() or "").strip()
-            if val != "ok55.." and val.upper() != "ONAYLIYORUM":
-                QMessageBox.warning(dlg, "Doğrulama Başarısız", "Girdiğiniz şifre veya onay kelimesi eşleşmedi. İşlem iptal edildi.")
+            from utils.auth_security_v13 import verify_password
+            if (inp.text() or '').strip() != 'VERİLERİ SİL':
+                QMessageBox.warning(dlg, 'Onay', 'İşlemi onaylamak için VERİLERİ SİL yazınız.')
                 return
-
-            p = self._aktif_db_path()
-            if p and os.path.exists(p):
-                bk_dir = os.path.join(os.path.dirname(p), "backups")
+            # Sabit şifre veya yalnızca metin onayı, veri silme yetkisi vermez.
+            auth_con = None
+            try:
+                auth_con = db.get_conn()
+                records = auth_con.execute("SELECT password_hash FROM users WHERE role='admin'").fetchall()
+                if not any(verify_password(admin_password.text(), r[0]) for r in records):
+                    QMessageBox.warning(dlg, 'Yetki', 'Yönetici parolası doğrulanamadı.')
+                    return
+                if QMessageBox.question(dlg, 'Son Onay',
+                       'Tüm öğrenci, ödev ve koçluk verileri silinecek. Devam edilsin mi?',
+                       QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                       QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+                    return
+                # WAL modunda salt dosya kopyası güvenilir değildir. SQLite online backup.
+                p = self._aktif_db_path()
+                if not p:
+                    raise ValueError('Aktif veritabanı yolu bulunamadı')
+                bk_dir = os.path.join(os.path.dirname(p), 'backups')
                 os.makedirs(bk_dir, exist_ok=True)
-                ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                safety_dst = os.path.join(bk_dir, f"pre_reset_safety_backup_{ts}.sqlite")
-                try:
-                    shutil.copy2(p, safety_dst)
-                except Exception:
-                    pass
+                ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+                safety_dst = os.path.join(bk_dir, f'pre_reset_safety_backup_{ts}.sqlite')
+                with sqlite3.connect(safety_dst) as backup_con:
+                    auth_con.backup(backup_con)
+                    result = backup_con.execute('PRAGMA integrity_check').fetchone()[0]
+                    if result != 'ok':
+                        raise RuntimeError(f'Yedek bütünlüğü doğrulanamadı: {result}')
+            except Exception as exc:
+                QMessageBox.critical(dlg, 'Sıfırlama Durduruldu',
+                    f'Güvenli yedek alınamadı veya kimlik doğrulama başarısız: {exc}')
+                return
+            finally:
+                if auth_con is not None:
+                    auth_con.close()
 
             try:
                 con = db.get_conn()
@@ -1238,7 +1264,8 @@ class AnaPencere(QMainWindow):
                 QMessageBox.information(
                     dlg, "Sıfırlandı",
                     "Veritabanındaki tüm veriler başarıyla silindi ve fabrika ayarlarına döndürüldü.\n\n"
-                    "Güvenlik amacıyla işlem öncesi yedeğiniz 'backups' klasörüne otomatik kaydedilmiştir."
+                    "Güvenli SQLite yedeği 'backups' klasörüne kaydedilmiştir. "
+                    "Yeni yönetici hesabı oluşturmak için uygulamayı yeniden başlatın."
                 )
                 dlg.accept()
             except Exception as e:

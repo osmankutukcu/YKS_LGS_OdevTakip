@@ -1018,13 +1018,8 @@ def init_db():
         role TEXT DEFAULT 'user',
         created_at TEXT DEFAULT (datetime('now'))
     )""")
-    # Varsayılan admin (Şifre: admin -> SHA256)
-    # sha256("admin") = 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
-    chk_admin = cur.execute("SELECT 1 FROM users WHERE username='admin'").fetchone()
-    if not chk_admin:
-        import hashlib
-        h = hashlib.sha256("admin".encode()).hexdigest()
-        cur.execute("INSERT INTO users(username, password_hash, role) VALUES(?, ?, ?)", ('admin', h, 'admin'))
+    # V13.2: Varsayılan/parolası bilinen hesap oluşturulmaz.
+    # İlk kurulum yöneticisi giriş ekranında güvenli parola seçerek oluşturulur.
 
     # --- v21: Audit Log (İşlem Geçmişi)
     cur.execute("""

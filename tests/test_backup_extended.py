@@ -23,6 +23,12 @@ def prepare(patched, monkeypatch, db_filename='veritabani.db'):
     make_db(db_file)
     monkeypatch.setenv('YKS_DB_PATH', str(db_file))
     (root / 'out').mkdir()
+    try:
+        import services.plan_profile_store as store
+        monkeypatch.setattr(store, 'legacy_paths', lambda: [])
+        monkeypatch.setattr(store, 'profile_path', lambda: root / 'no_such_profile.json')
+    except Exception:
+        pass
     return manager, root, db_file
 
 

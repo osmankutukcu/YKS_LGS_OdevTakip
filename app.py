@@ -344,13 +344,20 @@ def main() -> None:
         if hasattr(db, 'load_custom_lessons'):
             db.load_custom_lessons()
     except Exception as e:
-        print(e)
-        
+        QMessageBox.critical(None, "Veritabanı Hatası", f"Veritabanı güvenle başlatılamadı: {e}")
+        sys.exit(1)
+
     # 3.2) Giriş Ekranı (Login)
     # Login ekranı modülünün import edilmesi de zaman alabilir
     splash.set_progress(50, "Kullanıcı modülleri yükleniyor...")
     try:
-        enable_login = (appset.ayar_get("enable_login", "0") == "1")
+        # Yeni kurulumda kullanıcı tablosu boşsa giriş ekranı atlanamaz.
+        _security_con = db.get_conn()
+        try:
+            first_boot = _security_con.execute('SELECT COUNT(*) FROM users').fetchone()[0] == 0
+        finally:
+            _security_con.close()
+        enable_login = first_boot or (appset.ayar_get("enable_login", "1") == "1")
         if enable_login:
             # Login varsa Splash kapanır, Login açılır
             from ui.login_window import ModernLoginWindow
@@ -363,8 +370,9 @@ def main() -> None:
             # Login sonrası tekrar splash göstermiyoruz, ana pencereye geçeceğiz
             # Belki kısa bir "Hoşgeldiniz" splash'i? Gerek yok, hızlıca açalım.
     except Exception as e:
-        print("Login hatası:", e)
-        enable_login = False
+        # Giriş hatası güvenliği devre dışı bırakmamalı (fail closed).
+        QMessageBox.critical(None, "Güvenli Giriş Hatası", f"Giriş ekranı açılamadı: {e}")
+        sys.exit(1)
 
     # 3.3) Lisans Kontrolü
     splash.set_progress(65, "Lisans durumu doğrulanıyor...")

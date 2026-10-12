@@ -946,81 +946,33 @@ class OneriPaneli(QWidget):
 
     # ------------------------ Global / Already checks -------------------
     def _is_globally_done(self, ogr_id: int, ders: str, kitap: str, konu: str) -> bool:
-        """Aynı (ders/kitap/konu) için en son durum 'yapıldı/tamam' mı?"""
+        """Only the selected student's real completed tasks count."""
         if not db:
             return False
         try:
-            ders = (ders or "").strip().lower()
-            kitap = (kitap or "").strip().lower()
-            konu = (konu or "").strip().lower()
-            if not ogr_id or not ders or not kitap or not konu:
+            from utils.homework_integrity_v133 import student_completed_task
+            host = self._get_host()
+            current_id = host._secili_ogrenci_id() if host is not None else None
+            from utils.wizard_integrity_v8 import same_student
+            if not same_student(ogr_id, current_id):
                 return False
-
-            con = db.get_conn()
-            row = con.execute("""
-                SELECT LOWER(COALESCE(d.durum,'')) AS durum
-                  FROM odev d
-                  JOIN odev_kume k ON k.id = d.kume_id
-                 WHERE k.ogrenci_id = ?
-                   AND LOWER(COALESCE(d.ders,''))      = ?
-                   AND LOWER(COALESCE(d.kitap_ad,''))  = ?
-                   AND LOWER(COALESCE(d.konu_ad,''))   = ?
-                 ORDER BY k.id DESC, d.id DESC
-                 LIMIT 1
-            """, (ogr_id, ders, kitap, konu)).fetchone()
-
-            return bool(row) and row["durum"] in ("yapildi", "tamam")
+            return student_completed_task(db.get_conn(), current_id, ders, kitap, konu)
         except Exception:
             return False
+
 
     def _global_done_check(self, ders: str, kitap: str, konu: str) -> bool:
-        """Öğrenci bağımsız 'bu ödev geçmişte tamamlandı mı?' kontrolü (farklı şemalara uyumlu)."""
+        """Legacy entry point; never mix students in completion checks."""
         if not db:
             return False
         try:
-            con = db.get_conn()
-            d = (ders or "").strip()
-            k = (kitap or "").strip()
-            n = (konu or "").strip()
-
-            row = con.execute("""
-                SELECT 1
-                  FROM odev
-                 WHERE LOWER(COALESCE(ders,''))      = LOWER(?)
-                   AND COALESCE(kitap_ad,'')          = ?
-                   AND COALESCE(konu_ad,'')           = ?
-                   AND LOWER(COALESCE(durum,'')) IN ('yapildi','tamam')
-                 LIMIT 1
-            """, (d, k, n)).fetchone()
-            if row:
-                return True
-
-            try:
-                row2 = con.execute("""
-                    SELECT 1
-                      FROM odev_kume_item i
-                      JOIN odev_kume k ON k.id = i.kume_id
-                     WHERE i.ders = ? AND i.kitap = ? AND i.konu = ? AND i.yapildi = 1
-                     ORDER BY k.bitis_tarihi DESC
-                     LIMIT 1
-                """, (d, k, n)).fetchone()
-                if row2:
-                    return True
-            except Exception:
-                pass
-
-            try:
-                row3 = con.execute("""
-                    SELECT 1
-                      FROM odev
-                     WHERE ders = ? AND kitap = ? AND konu = ? AND yapildi = 1
-                     LIMIT 1
-                """, (d, k, n)).fetchone()
-                return bool(row3)
-            except Exception:
-                return False
+            host = self._get_host()
+            sid = host._secili_ogrenci_id() if host is not None else None
+            from utils.homework_integrity_v133 import student_completed_task
+            return student_completed_task(db.get_conn(), sid, ders, kitap, konu)
         except Exception:
             return False
+
 
     def _neden_eklenemez(self, ders: str, kitap: str, konu: str) -> tuple[bool, str]:
         """Eklemeyi engelleyen nedeni (varsa) döndürür."""
@@ -1898,81 +1850,33 @@ class OneriPaneli(QWidget):
 
     # ------------------------ Global / Already checks -------------------
     def _is_globally_done(self, ogr_id: int, ders: str, kitap: str, konu: str) -> bool:
-        """Aynı (ders/kitap/konu) için en son durum 'yapıldı/tamam' mı?"""
+        """Only the selected student's real completed tasks count."""
         if not db:
             return False
         try:
-            ders = (ders or "").strip().lower()
-            kitap = (kitap or "").strip().lower()
-            konu = (konu or "").strip().lower()
-            if not ogr_id or not ders or not kitap or not konu:
+            from utils.homework_integrity_v133 import student_completed_task
+            host = self._get_host()
+            current_id = host._secili_ogrenci_id() if host is not None else None
+            from utils.wizard_integrity_v8 import same_student
+            if not same_student(ogr_id, current_id):
                 return False
-
-            con = db.get_conn()
-            row = con.execute("""
-                SELECT LOWER(COALESCE(d.durum,'')) AS durum
-                  FROM odev d
-                  JOIN odev_kume k ON k.id = d.kume_id
-                 WHERE k.ogrenci_id = ?
-                   AND LOWER(COALESCE(d.ders,''))      = ?
-                   AND LOWER(COALESCE(d.kitap_ad,''))  = ?
-                   AND LOWER(COALESCE(d.konu_ad,''))   = ?
-                 ORDER BY k.id DESC, d.id DESC
-                 LIMIT 1
-            """, (ogr_id, ders, kitap, konu)).fetchone()
-
-            return bool(row) and row["durum"] in ("yapildi", "tamam")
+            return student_completed_task(db.get_conn(), current_id, ders, kitap, konu)
         except Exception:
             return False
+
 
     def _global_done_check(self, ders: str, kitap: str, konu: str) -> bool:
-        """Öğrenci bağımsız 'bu ödev geçmişte tamamlandı mı?' kontrolü (farklı şemalara uyumlu)."""
+        """Legacy entry point; never mix students in completion checks."""
         if not db:
             return False
         try:
-            con = db.get_conn()
-            d = (ders or "").strip()
-            k = (kitap or "").strip()
-            n = (konu or "").strip()
-
-            row = con.execute("""
-                SELECT 1
-                  FROM odev
-                 WHERE LOWER(COALESCE(ders,''))      = LOWER(?)
-                   AND COALESCE(kitap_ad,'')          = ?
-                   AND COALESCE(konu_ad,'')           = ?
-                   AND LOWER(COALESCE(durum,'')) IN ('yapildi','tamam')
-                 LIMIT 1
-            """, (d, k, n)).fetchone()
-            if row:
-                return True
-
-            try:
-                row2 = con.execute("""
-                    SELECT 1
-                      FROM odev_kume_item i
-                      JOIN odev_kume k ON k.id = i.kume_id
-                     WHERE i.ders = ? AND i.kitap = ? AND i.konu = ? AND i.yapildi = 1
-                     ORDER BY k.bitis_tarihi DESC
-                     LIMIT 1
-                """, (d, k, n)).fetchone()
-                if row2:
-                    return True
-            except Exception:
-                pass
-
-            try:
-                row3 = con.execute("""
-                    SELECT 1
-                      FROM odev
-                     WHERE ders = ? AND kitap = ? AND konu = ? AND yapildi = 1
-                     LIMIT 1
-                """, (d, k, n)).fetchone()
-                return bool(row3)
-            except Exception:
-                return False
+            host = self._get_host()
+            sid = host._secili_ogrenci_id() if host is not None else None
+            from utils.homework_integrity_v133 import student_completed_task
+            return student_completed_task(db.get_conn(), sid, ders, kitap, konu)
         except Exception:
             return False
+
 
     def _neden_eklenemez(self, ders: str, kitap: str, konu: str) -> tuple[bool, str]:
         """Eklemeyi engelleyen nedeni (varsa) döndürür."""
@@ -3056,8 +2960,9 @@ class OdevTakipFormu(QWidget):
         Veritabanına yazmaz. Başarısız/şüpheli hücreleri sağ tabloya bağımsız eklemez.
         """
         from utils.wizard_integrity_v8 import (
-            same_student, exact_task_key, find_exact_cell, valid_task
+            same_student, exact_task_key, valid_task
         )
+        from utils.homework_integrity_v133 import unique_exact_cell
         from PyQt6.QtCore import Qt
         current_id = self._secili_ogrenci_id()
         if not (same_student(current_id, expected_student_id)
@@ -3081,13 +2986,16 @@ class OdevTakipFormu(QWidget):
             if key in existing or key in imported:
                 issues.append(f"Zaten listede: {lesson} / {book} / {topic}")
                 continue
-            table, row, col = find_exact_cell(
+            table, row, col = unique_exact_cell(
                 getattr(self, '_ders_tablolari', {}), lesson, book, topic)
             if table is None:
                 issues.append(f"Birebir eşleşme yok: {lesson} / {book} / {topic}")
                 continue
             item = table.item(row, col)
-            if item is None or not (item.flags() & Qt.ItemFlag.ItemIsUserCheckable):
+            enabled_flag = getattr(Qt.ItemFlag, 'ItemIsEnabled', None)
+            if (item is None
+                    or not (item.flags() & Qt.ItemFlag.ItemIsUserCheckable)
+                    or (enabled_flag is not None and not (item.flags() & enabled_flag))):
                 issues.append(f"Kayıtlı veya kilitli hücre: {lesson} / {book} / {topic}")
                 continue
             if item.checkState() == Qt.CheckState.Checked:
@@ -8040,74 +7948,6 @@ class OdevTakipFormu(QWidget):
 
     # ---------------- Verilen Ödevler etkileşimi ----------------
 
-    def _tik_degisti(self, it, tablo, ders: str):
-        """Konulardaki checkbox değişince sağdaki 'verilen' tablosunu senkronize eder."""
-        from PyQt6.QtCore import Qt
-        from PyQt6.QtWidgets import QTableWidgetItem
-
-        if it is None or it.column() == 0:
-            return
-        if not (it.flags() & Qt.ItemFlag.ItemIsUserCheckable):
-            return
-        if getattr(self, "_in_verilen_update", False) or (it is None) or it.column() == 0:
-            return
-
-        konu_item = tablo.item(it.row(), 0)
-        if not konu_item:
-            return
-        konu_ad = (konu_item.text() or "").strip()
-
-        hdr = tablo.horizontalHeaderItem(it.column())
-        if not hdr:
-            return
-        kitap_ad = (hdr.text() or "").strip()
-
-        from utils.wizard_integrity_v8 import exact_task_key
-
-        def _vtext(r, c):
-            cell = self.verilen.item(r, c)
-            return (cell.text() if cell and cell.text() is not None else "").strip()
-
-        target_key = exact_task_key(ders, kitap_ad, konu_ad)
-        row_to_remove = None
-        for r in range(self.verilen.rowCount()):
-            row_key = exact_task_key(_vtext(r, 0), _vtext(r, 1), _vtext(r, 2))
-            if row_key == target_key or (_vtext(r, 0) == ders and _vtext(r, 1) == kitap_ad and _vtext(r, 2) == konu_ad):
-                row_to_remove = r
-                break
-
-        is_checked = (it.checkState() in (Qt.CheckState.Checked, 2))
-
-        self._in_verilen_update = True
-        sort_on = self.verilen.isSortingEnabled()
-        self.verilen.setSortingEnabled(False)
-        self.verilen.blockSignals(True)
-        try:
-            if is_checked:
-                if row_to_remove is None:
-                    r = self.verilen.rowCount()
-                    self.verilen.insertRow(r)
-                    self.verilen.setItem(r, 0, QTableWidgetItem(ders))
-                    self.verilen.setItem(r, 1, QTableWidgetItem(kitap_ad))
-                    self.verilen.setItem(r, 2, QTableWidgetItem(konu_ad))
-                    dk_val = self._tahmini_sure(ders, kitap_ad, konu_ad)
-                    def_dk = self._get_default_sure()
-                    self.verilen.setItem(r, 3, QTableWidgetItem(str(dk_val if dk_val and int(dk_val) > 0 else def_dk)))
-                    self.verilen.setItem(r, 4, QTableWidgetItem(""))
-            else:
-                if row_to_remove is not None:
-                    self.verilen.removeRow(row_to_remove)
-        finally:
-            self.verilen.blockSignals(False)
-            self.verilen.setSortingEnabled(sort_on)
-            self._in_verilen_update = False
-
-        try:
-            self._toplam_sure_guncelle()
-        except Exception:
-            pass
-        # Manuel işaretleme ve geri alma sonrası taslak veri modeli de güncel kalsın.
-        self._sync_verilen_rows_from_table()
 
     def _get_default_sure(self) -> int:
         if hasattr(self, "spVarsayilanSure"):
@@ -8335,6 +8175,14 @@ class OdevTakipFormu(QWidget):
                 kume_id = int(secim.get("kume_id") or 0)
                 if kume_id <= 0:
                     QMessageBox.warning(self, "Eksik", "Var olan küme seçilmedi.")
+                    return
+                owner = con.execute(
+                    "SELECT id FROM odev_kume WHERE id=? AND ogrenci_id=?",
+                    (kume_id, ogr_id)
+                ).fetchone()
+                if owner is None:
+                    QMessageBox.warning(self, "Öğrenci Uyuşmazlığı",
+                                        "Seçilen ödev kümesi bu öğrenciye ait değil. Kayıt iptal edildi.")
                     return
                 if secim.get("bitis_guncelle"):
                     cur.execute("UPDATE odev_kume SET bitis_tarihi=? WHERE id=?",
@@ -9340,19 +9188,10 @@ class OdevTakipFormu(QWidget):
     # ---------------- Hücre bulucu (ödev kontrol aktarımı için) ----------------
 
     def _hucre_bul(self, ders_key: str, kitap: str, konu: str):
-        tablo = getattr(self, "_ders_tablolari", {}).get(ders_key)
-        if not tablo:
-            return None, None, None
-        r = next((i for i in range(tablo.rowCount())
-                  if (tablo.item(i, 0) and (konu or '').lower() in (tablo.item(i, 0).text() or '').lower())), -1)
-        if r < 0:
-            return None, None, None
-        c = next((j for j in range(1, tablo.columnCount())
-                  if (tablo.horizontalHeaderItem(j) and (tablo.horizontalHeaderItem(j).text() or '').lower() ==
-                      (kitap or '').lower())), -1)
-        if c < 0:
-            return None, None, None
-        return tablo, r, c
+        """Only unambiguous full lesson/book/topic matches; never substrings."""
+        from utils.homework_integrity_v133 import unique_exact_cell
+        return unique_exact_cell(getattr(self, "_ders_tablolari", {}),
+                                 ders_key, kitap, konu)
 
     # ---------------- Yardımcılar ----------------
 

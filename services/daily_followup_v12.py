@@ -50,14 +50,35 @@ def load_open_homework(con, student_id: Any, *, today: date | None = None, limit
     student = con.execute('SELECT id, ad, soyad FROM ogrenci WHERE id=? AND aktif=1', (sid,)).fetchone()
     if student is None:
         raise ValueError('Öğrenci bulunamadı veya artık aktif değil.')
-    rows = con.execute('''
-        SELECT o.id, o.ders, o.konu_ad, o.kitap_ad, o.saat_dk, o.durum, k.bitis_tarihi
+    # Filter at SQL level *before* enforcing the safety cap. Previously, the
+    # oldest 251 rows (including completed work) could hide a recent overdue
+    # assignment. Invalid/missing due dates are retained for human review.
+    if not 1 <= int(limit) <= 10000:
+        raise ValueError('Takip sorgusu için geçerli kayıt sınırı gerekli.')
+    has_deleted = any(r[1] == 'silindi' for r in con.execute('PRAGMA table_info(odev)'))
+    deleted_clause = 'AND COALESCE(o.silindi, 0)=0' if has_deleted else ''
+    due_expression = """CASE
+        WHEN trim(k.bitis_tarihi) GLOB '[0-9][0-9].[0-9][0-9].[0-9][0-9][0-9][0-9]'
+        THEN substr(trim(k.bitis_tarihi),7,4)||'-'||substr(trim(k.bitis_tarihi),4,2)||'-'||substr(trim(k.bitis_tarihi),1,2)
+        ELSE date(k.bitis_tarihi)
+        END"""
+    sql = f"""WITH candidates AS (
+        SELECT o.id, o.ders, o.konu_ad, o.kitap_ad, o.saat_dk,
+               o.durum, k.bitis_tarihi,
+               {due_expression} AS due_iso
         FROM odev o JOIN odev_kume k
           ON k.id=o.kume_id AND k.ogrenci_id=o.ogrenci_id
         WHERE o.ogrenci_id=?
-        ORDER BY o.id LIMIT ?''', (sid, max(1, int(limit))+1)).fetchall()
+          AND lower(trim(coalesce(o.durum,''))) IN ('devam','')
+          {deleted_clause}
+    )
+    SELECT id, ders, konu_ad, kitap_ad, saat_dk, durum, bitis_tarihi
+    FROM candidates
+    WHERE due_iso IS NULL OR due_iso < ?
+    ORDER BY id LIMIT ?"""
+    rows = con.execute(sql, (sid, now.isoformat(), int(limit)+1)).fetchall()
     if len(rows) > limit:
-        raise ValueError('Çok fazla ödev kaydı var. Eksik listeyle plan üretilmedi.')
+        raise ValueError('Çok fazla açık/gecikmiş ödev var. Eksik listeyle plan üretilmedi.')
     tasks, unknown_duration = [], []
     for r in rows:
         row = dict(r) if hasattr(r, 'keys') else dict(zip(

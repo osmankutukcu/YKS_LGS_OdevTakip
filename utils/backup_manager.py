@@ -98,6 +98,70 @@ class BackupManager(QObject):
             dest_conn.close()
             source_conn.close()
 
+    @staticmethod
+    def _collect_profile_files():
+        """Gather the exact student routines used by the planner. Read only.
+
+        Profile files are optional on fresh installs. A present, malformed file
+        is *not* silently skipped: losing planner rules would be unacceptable.
+        """
+        from services.plan_profile_store import profile_path, assignment_path, legacy_paths
+        profile = profile_path()
+        if not profile.is_file():
+            profile = next((p for p in legacy_paths() if p.is_file()), None)
+        assignments = assignment_path()
+        selected = []
+        for kind, path, archive_name in (
+            ('profiles', profile, 'planner/plan_profiles.json'),
+            ('assignments', assignments if assignments.is_file() else None,
+             'planner/plan_student_assignments.json')):
+            if path is None:
+                continue
+            if not path.is_file() or path.stat().st_size > 4_000_000:
+                raise ValueError(f'{kind} dosyası okunamıyor veya aşırı büyük.')
+            payload = path.read_bytes()
+            value = json.loads(payload.decode('utf-8'))
+            if not isinstance(value, dict):
+                raise ValueError(f'{kind} dosyası JSON nesnesi değil.')
+            if kind == 'profiles' and not all(isinstance(v, dict) for v in value.values()):
+                raise ValueError('Plan profilleri hatalı; yedekleme iptal edildi.')
+            if kind == 'assignments' and not all(isinstance(k, str) and isinstance(v, str)
+                                                 for k, v in value.items()):
+                raise ValueError('Profil eşleştirmeleri hatalı; yedekleme iptal edildi.')
+            selected.append((archive_name, payload))
+        if selected and not any(name.endswith('plan_profiles.json') for name, _ in selected):
+            raise ValueError('Öğrenci eşleştirmesi var ama profil bulunamadı.')
+        return selected
+
+    @staticmethod
+    def verify_backup(archive_path):
+        """Verify manifest, hashes, ZIP and SQLite header; never restore/write."""
+        try:
+            with zipfile.ZipFile(archive_path) as z:
+                if z.testzip() is not None:
+                    raise ValueError('ZIP CRC doğrulaması başarısız.')
+                manifest = json.loads(z.read('backup_manifest.json'))
+                if manifest.get('format_version') not in (1, 2):
+                    raise ValueError('Yedek biçimi desteklenmiyor.')
+                entries = manifest.get('files', [])
+                if not entries or not isinstance(entries, list):
+                    raise ValueError('Yedekte veritabanı bulunamadı.')
+                seen = set()
+                for item in entries:
+                    name = item['name']
+                    if (not isinstance(name,str) or name in seen or name.startswith('/')
+                            or '..' in Path(name).parts or name not in z.namelist()):
+                        raise ValueError('Yedek dosya adı geçersiz veya tekrarlı.')
+                    seen.add(name)
+                    data = z.read(name)
+                    if len(data) != item['bytes'] or hashlib.sha256(data).hexdigest() != item['sha256']:
+                        raise ValueError('Yedek SHA256 doğrulaması başarısız.')
+                    if item.get('type','sqlite') == 'sqlite' and not data.startswith(b'SQLite format 3\0'):
+                        raise ValueError('SQLite yedeği geçersiz.')
+                return True, f'Doğrulandı: {len(entries)} dosya; geri yükleme yapılmadı.'
+        except (OSError, ValueError, KeyError, zipfile.BadZipFile, json.JSONDecodeError) as exc:
+            return False, f'Yedek doğrulanamadı: {exc}'
+
     def create_backup(self, target_dir=None):
         dest_value = target_dir if target_dir is not None else self.get_backup_path()
         if not dest_value or not Path(dest_value).is_dir():
@@ -135,6 +199,19 @@ class BackupManager(QObject):
                                               "sha256": sha256})
                     staged.append((db_copy, arcname))
 
+                # Add student scheduling profiles and assignments to the SAME
+                # manifest. This remains compatible with old DB-only v1 backups.
+                planner_files = self._collect_profile_files()
+                if planner_files:
+                    metadata['format_version'] = 2
+                for arcname, payload in planner_files:
+                    staged_path = scratch / arcname.replace('/', '_')
+                    staged_path.write_bytes(payload)
+                    metadata['files'].append({
+                        'name': arcname, 'type': 'json', 'bytes': len(payload),
+                        'sha256': hashlib.sha256(payload).hexdigest()})
+                    staged.append((staged_path, arcname))
+
                 # Create the archive on target volume, then rename atomically.
                 with tempfile.NamedTemporaryFile(prefix=".YKS_Yedek_", suffix=".part",
                                                  dir=dest, delete=False) as tmp:
@@ -154,7 +231,7 @@ class BackupManager(QObject):
                 partial_zip = None
 
             self._cleanup_old_backups(str(dest))
-            return True, f"Yedek başarıyla oluşturuldu ({len(db_paths)} veritabanı):\n{final_zip}"
+            return True, f"Yedek oluşturuldu ({len(db_paths)} veritabanı, {len(planner_files)} rutin/eşleştirme dosyası; şifresiz ZIP):\n{final_zip}"
         except Exception as exc:
             return False, f"Yedekleme başarısız: {exc}"
         finally:
