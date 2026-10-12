@@ -1368,6 +1368,12 @@ class TopicMapDialog(QDialog):
         v_search.addWidget(self.txt_search)
         h_top_lay.addLayout(v_search)
         
+        # V18: Optional read-only integrated evidence view (no writes to homework).
+        self.btn_topic_evidence_v18 = QPushButton('🔗 Birleşik Konu Kanıtları')
+        self.btn_topic_evidence_v18.setToolTip('Ana ödevler, harita kayıtları, koçluk ve ders düzeyi denemeler')
+        self.btn_topic_evidence_v18.clicked.connect(self._open_topic_evidence_v18)
+        h_top_lay.addWidget(self.btn_topic_evidence_v18)
+
         # PANO ÇIKTISI BUTONU (Yıldız Özellik!)
         self.btn_print_board = QPushButton("🖨️ Pano İçin Çıktı Al (PDF)")
         self.btn_print_board.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1766,6 +1772,15 @@ class TopicMapDialog(QDialog):
         self.btn_f_active.setChecked(code == "WORKING")
         self.btn_f_review.setChecked(code == "REVIEW")
         self._filter_cards()
+
+    def _open_topic_evidence_v18(self):
+        """Student is always taken from the *current* selector, never a cached name."""
+        sid = self.cmb_student.currentData()
+        if not sid:
+            QMessageBox.information(self, 'Öğrenci Seçimi', 'Önce bir öğrenci seçin.')
+            return
+        from ui.topic_evidence_dialog_v18 import TopicEvidenceDialog
+        TopicEvidenceDialog(sid, self).exec()
 
     def load_students(self):
         try:

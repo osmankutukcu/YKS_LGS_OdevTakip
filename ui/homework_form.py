@@ -2386,6 +2386,9 @@ class OdevTakipFormu(QWidget):
         # UI + öğrenci listesini yükle
         self._build_ui()
         self._ogrencileri_yukle()  # combolar burada dolar
+        # Initial combo fill suppresses signals: synchronize the optional V21 panel.
+        if getattr(self, '_workspace_v21', None) is not None:
+            self._workspace_v21.selection_changed()
 
         # Açılış tamamlanınca hedefi uygula:
         if self._pending_student_id is not None:
@@ -2824,6 +2827,10 @@ class OdevTakipFormu(QWidget):
                         self._bilgileri_getir()
                     except Exception:
                         pass
+                # Programmatic selection blocks combo signals; explicitly notify V21.
+                workspace = getattr(self, '_workspace_v21', None)
+                if workspace is not None:
+                    workspace.selection_changed()
         except Exception:
             pass
 
@@ -3116,6 +3123,15 @@ class OdevTakipFormu(QWidget):
         except Exception as exc:
             QMessageBox.warning(self, "Veri Denetimi", f"Salt okunur denetim açılamadı: {exc}")
 
+    def _open_homework_guide(self):
+        """Ödev Takip Formu, Öğrenci 360° ve Veri Denetimi hızlı kullanım rehberini açar."""
+        try:
+            from ui.homework_guide_dialog import OdevTakipRehberDialog
+            dlg = OdevTakipRehberDialog(self)
+            dlg.exec()
+        except Exception as exc:
+            QMessageBox.information(self, "Rehber", f"Rehber açılırken hata oluştu: {exc}")
+
     # ---- Yardımcılar ----
     def _secili_ogrenci_id(self) -> int | None:
         """
@@ -3170,8 +3186,8 @@ class OdevTakipFormu(QWidget):
 
         # ---------------- ROOT ----------------
         root = QVBoxLayout(self)
-        root.setContentsMargins(16, 8, 16, 12)
-        root.setSpacing(10)
+        root.setContentsMargins(8, 4, 8, 4)
+        root.setSpacing(3)
 
         # === STYLE INJECTION ===
         self.setStyleSheet("""
@@ -3325,21 +3341,21 @@ class OdevTakipFormu(QWidget):
         self.txtAraAd = QLineEdit()
         self.txtAraAd.setPlaceholderText("Ad ara…")
         self.txtAraAd.setFixedHeight(23)
-        self.txtAraAd.setFixedWidth(85)
+        self.txtAraAd.setFixedWidth(125)
         self.txtAraAd.setStyleSheet("font-size: 11px;")
 
         self.txtAraSoyad = QLineEdit()
         self.txtAraSoyad.setPlaceholderText("Soyad ara…")
         self.txtAraSoyad.setFixedHeight(23)
-        self.txtAraSoyad.setFixedWidth(85)
+        self.txtAraSoyad.setFixedWidth(125)
         self.txtAraSoyad.setStyleSheet("font-size: 11px;")
 
         self.cmbAd.setFixedHeight(23)
-        self.cmbAd.setFixedWidth(85)
+        self.cmbAd.setFixedWidth(125)
         self.cmbAd.setStyleSheet("font-size: 11px; font-weight: bold;")
 
         self.cmbSoyad.setFixedHeight(23)
-        self.cmbSoyad.setFixedWidth(85)
+        self.cmbSoyad.setFixedWidth(125)
         self.cmbSoyad.setStyleSheet("font-size: 11px; font-weight: bold;")
 
         ad_blk.addWidget(self.txtAraAd)
@@ -3355,6 +3371,7 @@ class OdevTakipFormu(QWidget):
         self.card_student_snapshot = QFrame()
         self.card_student_snapshot.setObjectName("StudentSnapshotCard")
         self.card_student_snapshot.setFixedHeight(27)
+        self.card_student_snapshot.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.card_student_snapshot.setStyleSheet("""
             QFrame#StudentSnapshotCard {
                 background: #f8fafc;
@@ -3372,6 +3389,8 @@ class OdevTakipFormu(QWidget):
 
         self.lbl_snap_target = QLabel("🎯 Hedef: —")
         self.lbl_snap_target.setStyleSheet("font-weight: 700; font-size: 10.5px; color: #1e3a8a; background: #eff6ff; padding: 1px 6px; border-radius: 4px; border: 1px solid #bfdbfe;")
+        self.lbl_snap_target.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self.lbl_snap_target.setMaximumWidth(185)
         
         self.lbl_snap_total = QLabel("📋 Toplam: 0")
         self.lbl_snap_total.setStyleSheet("font-size: 10.5px; font-weight: 600; color: #334155;")
@@ -3392,6 +3411,7 @@ class OdevTakipFormu(QWidget):
         h_snap.addWidget(self.lbl_snap_countdown)
         
         top.addWidget(self.card_student_snapshot)
+        top.addStretch(1)
 
         l_bitis = QHBoxLayout()
         l_bitis.setSpacing(3)
@@ -3409,66 +3429,72 @@ class OdevTakipFormu(QWidget):
         l_bitis.addWidget(self.dtpBitis)
         top.addLayout(l_bitis)
 
-        top.addStretch(1)
-
-        # Aksiyonlar (Kompakt & Modern Butonlar)
-        self.btnGetir = QPushButton("🔎 Getir")
-        self.btnGetir.setToolTip("Öğrenci Bilgilerini ve Derslerini Yükle")
+        # Aksiyonlar (Minimalist & İkon-Öncelikli Butonlar - Belirgin Canlı Simgeler)
+        self.btnGetir = QPushButton("🔄")
+        self.btnGetir.setToolTip("Öğrenci Bilgilerini ve Derslerini Getir / Yenile (Kısayol: F5)")
         self.btnGetir.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btnGetir.setFixedSize(36, 28)
         self.btnGetir.setStyleSheet("""
             QPushButton {
-                background-color: #3b82f6; color: white; font-weight: bold; border-radius: 6px; border: 1px solid #2563eb; padding: 4px 10px; font-size: 11.5px;
+                background-color: #eff6ff; border: 1.5px solid #60a5fa; border-radius: 6px;
+                font-size: 17px; padding: 0px;
             }
-            QPushButton:hover { background-color: #2563eb; }
+            QPushButton:hover { background-color: #dbeafe; border-color: #2563eb; }
         """)
 
-        self.btnKitap = QPushButton("📚 Kitaplar")
-        self.btnKitap.setToolTip("Kitap Ekle / Sil & Havuz Yönetimi")
+        self.btnKitap = QPushButton("📚")
+        self.btnKitap.setToolTip("Öğrencinin Kitapları ve Kaynak Havuzu Yönetimi")
         self.btnKitap.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btnKitap.setFixedSize(36, 28)
         self.btnKitap.setStyleSheet("""
             QPushButton {
-                background-color: #0891b2; color: white; font-weight: bold; border-radius: 6px; border: 1px solid #0e7490; padding: 4px 10px; font-size: 11.5px;
+                background-color: #f0fdfa; border: 1.5px solid #2dd4bf; border-radius: 6px;
+                font-size: 17px; padding: 0px;
             }
-            QPushButton:hover { background-color: #0e7490; }
+            QPushButton:hover { background-color: #ccfbf1; border-color: #0d9488; }
         """)
 
-        self.btnKaydet = QPushButton("💾 Kaydet")
-        self.btnKaydet.setToolTip("Verilen Ödevleri Sisteme Kaydet")
+        self.btnKaydet = QPushButton("💾")
+        self.btnKaydet.setToolTip("Verilen Ödevleri Sisteme Kaydet (Kısayol: Ctrl+S)")
         self.btnKaydet.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btnKaydet.setFixedSize(36, 28)
         self.btnKaydet.setStyleSheet("""
             QPushButton {
-                background-color: #059669; color: white; font-weight: bold; border-radius: 6px; border: 1px solid #047857; padding: 4px 12px; font-size: 11.5px;
+                background-color: #ecfdf5; border: 1.5px solid #34d399; border-radius: 6px;
+                font-size: 17px; padding: 0px;
             }
-            QPushButton:hover { background-color: #047857; }
+            QPushButton:hover { background-color: #d1fae5; border-color: #059669; }
         """)
 
-        self.btnPlan = QPushButton("📅 Plan")
-        self.btnPlan.setToolTip("Haftalık Akıllı Çalışma Planı Oluştur")
+        self.btnPlan = QPushButton("📅")
+        self.btnPlan.setToolTip("Haftalık Akıllı Çalışma Planı Oluştur / Takvim")
         self.btnPlan.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btnPlan.setFixedSize(36, 28)
         self.btnPlan.setStyleSheet("""
             QPushButton {
-                background-color: #6366f1; color: white; font-weight: bold; border-radius: 6px; border: 1px solid #4f46e5; padding: 4px 10px; font-size: 11.5px;
+                background-color: #f5f3ff; border: 1.5px solid #a78bfa; border-radius: 6px;
+                font-size: 17px; padding: 0px;
             }
-            QPushButton:hover { background-color: #4f46e5; }
+            QPushButton:hover { background-color: #ede9fe; border-color: #7c3aed; }
         """)
         
-        self.btnKontrol = QPushButton("✅ Kontrol")
-        self.btnKontrol.setToolTip("Ödev Kontrol & Değerlendirme Formunu Aç")
+        self.btnKontrol = QPushButton("✅")
+        self.btnKontrol.setToolTip("Ödev Kontrol ve Değerlendirme Formunu Aç (Kısayol: F2)")
         self.btnKontrol.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btnKontrol.setFixedSize(36, 28)
         self.btnKontrol.setStyleSheet("""
             QPushButton {
-                background-color: #2563eb; color: white; font-weight: bold; border-radius: 6px; border: 1px solid #1d4ed8; padding: 4px 10px; font-size: 11.5px;
+                background-color: #f0fdf4; border: 1.5px solid #4ade80; border-radius: 6px;
+                font-size: 17px; padding: 0px;
             }
-            QPushButton:hover { background-color: #1d4ed8; }
+            QPushButton:hover { background-color: #dcfce7; border-color: #16a34a; }
         """)
         
-        self.btnWhatsapp = QPushButton("WhatsApp'tan Gönder")
-
         for b in (self.btnGetir, self.btnKitap, self.btnKaydet, self.btnPlan, self.btnKontrol):
-            b.setFixedHeight(27)
             top.addWidget(b)
         
-        root.addLayout(top)
+        from ui.responsive_toolbar_v22 import install_scrollable_bar
+        self._top_bar_v22 = install_scrollable_bar(root, top, minimum_height=50)
 
         # ---------------- ORTA BÖLGE (H SPLITTER) ----------------
         mid_split = QSplitter(Qt.Orientation.Horizontal)
@@ -3479,7 +3505,7 @@ class OdevTakipFormu(QWidget):
         self.left_card = QWidget()
         left_lay = QVBoxLayout(self.left_card)
         left_lay.setContentsMargins(0, 0, 0, 0)
-        left_lay.setSpacing(6)
+        left_lay.setSpacing(3)
 
         tab_nav_bar = QFrame()
         tab_nav_bar.setObjectName("TabNavBar")
@@ -3487,15 +3513,15 @@ class OdevTakipFormu(QWidget):
             QFrame#TabNavBar {
                 background: #ffffff;
                 border: 1px solid #cbd5e1;
-                border-radius: 8px;
+                border-radius: 6px;
             }
         """)
         tab_nav_lay = QHBoxLayout(tab_nav_bar)
-        tab_nav_lay.setContentsMargins(8, 4, 8, 4)
-        tab_nav_lay.setSpacing(8)
+        tab_nav_lay.setContentsMargins(6, 2, 6, 2)
+        tab_nav_lay.setSpacing(5)
 
         lbl_nav = QLabel("<b>📚 Dersler:</b>")
-        lbl_nav.setStyleSheet("color: #1e293b; font-size: 12px;")
+        lbl_nav.setStyleSheet("color: #1e293b; font-size: 11.5px;")
         tab_nav_lay.addWidget(lbl_nav)
 
         self.btn_cat_all = QPushButton("🎯 Tümü")
@@ -3503,11 +3529,11 @@ class OdevTakipFormu(QWidget):
         self.btn_cat_soz = QPushButton("📖 Sözel & EA")
         for b in (self.btn_cat_all, self.btn_cat_say, self.btn_cat_soz):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setFixedHeight(26)
+            b.setFixedHeight(24)
             b.setStyleSheet("""
                 QPushButton {
-                    background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 13px;
-                    padding: 2px 12px; font-size: 11px; font-weight: 600; color: #475569;
+                    background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px;
+                    padding: 2px 9px; font-size: 10.5px; font-weight: 600; color: #475569;
                 }
                 QPushButton:hover { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
             """)
@@ -3517,31 +3543,39 @@ class OdevTakipFormu(QWidget):
 
         self.btn_sort_tabs = QPushButton("⇅ Sırala")
         self.btn_sort_tabs.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_sort_tabs.setFixedHeight(26)
+        self.btn_sort_tabs.setFixedHeight(24)
         self.btn_sort_tabs.setToolTip("Ders sekmelerinin sırasını özelleştir ve kalıcı olarak kaydet")
         self.btn_sort_tabs.setStyleSheet("""
             QPushButton {
-                background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 13px;
-                padding: 2px 10px; font-size: 11px; font-weight: 600; color: #475569;
+                background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px;
+                padding: 2px 8px; font-size: 10.5px; font-weight: 600; color: #475569;
             }
             QPushButton:hover { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
         """)
         self.btn_sort_tabs.clicked.connect(self._open_tab_reorder_dialog)
         tab_nav_lay.addWidget(self.btn_sort_tabs)
 
+        # V23.2: Tek düğmeyle müfredat kapsamı incelemesi, eski matris ve tikler aynı kalır.
+        try:
+            from ui.curriculum_matrix_preview_v232 import install_curriculum_preview_navigation
+            install_curriculum_preview_navigation(tab_nav_lay, self)
+        except Exception as exc:
+            print('Müfredat V23.2 gezinme bağlantısı atlandı:', exc)
+
         tab_nav_lay.addWidget(QLabel("<font color='#64748b' size='2'>🔍 Hızlı Geç:</font>"))
         self.cmb_quick_lesson = QComboBox()
-        self.cmb_quick_lesson.setMinimumWidth(180)
-        self.cmb_quick_lesson.setFixedHeight(26)
+        self.cmb_quick_lesson.setMinimumWidth(160)
+        self.cmb_quick_lesson.setFixedHeight(24)
         self.cmb_quick_lesson.setStyleSheet("""
             QComboBox {
-                background: white; border: 1px solid #cbd5e1; border-radius: 6px;
-                padding: 2px 8px; font-size: 11.5px; font-weight: 600; color: #1e293b;
+                background: white; border: 1px solid #cbd5e1; border-radius: 5px;
+                padding: 2px 6px; font-size: 11px; font-weight: 600; color: #1e293b;
             }
         """)
         tab_nav_lay.addWidget(self.cmb_quick_lesson)
 
-        left_lay.addWidget(tab_nav_bar)
+        from ui.responsive_toolbar_v22 import install_scrollable_widget
+        self._tab_nav_bar_v22 = install_scrollable_widget(left_lay, tab_nav_bar, minimum_height=34)
 
         self.tabs = QTabWidget()
         self.tabs.setTabPosition(QTabWidget.TabPosition.North)
@@ -3550,7 +3584,7 @@ class OdevTakipFormu(QWidget):
         self.tabs.tabBar().setExpanding(False)
         self.tabs.tabBar().setMovable(True)
         self.tabs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.tabs.setMinimumWidth(750)
+        self.tabs.setMinimumWidth(350)
         left_lay.addWidget(self.tabs, 1)
 
         # Sinyal bağlantıları
@@ -3566,7 +3600,7 @@ class OdevTakipFormu(QWidget):
         right_split.setChildrenCollapsible(False)
         right_split.setHandleWidth(6)
         right_split.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        right_split.setMinimumWidth(360)
+        right_split.setMinimumWidth(230)
         right_split.setMaximumWidth(560)
 
         # Üst (sağ): liste
@@ -3670,14 +3704,14 @@ class OdevTakipFormu(QWidget):
         btn_apply_all_dur.clicked.connect(self._apply_default_duration_to_all)
         v_top_row.addWidget(btn_apply_all_dur)
 
-        lst_lay.addLayout(v_top_row)
+        self._right_header_bar_v22 = install_scrollable_bar(lst_lay, v_top_row, minimum_height=32)
 
         self.verilen = QTableWidget(0, 5)
         self.verilen.setHorizontalHeaderLabels(["Ders", "Kitap", "Konu", "Süre(dk)", "Açıklama"])
         self.verilen.setSortingEnabled(True)
         self.verilen.verticalHeader().setDefaultSectionSize(28)
         self.verilen.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.verilen.setMinimumWidth(360)
+        self.verilen.setMinimumWidth(230)
         #s
         from PyQt6.QtCore import Qt, QPoint
         from PyQt6.QtWidgets import QMenu, QInputDialog
@@ -3727,13 +3761,15 @@ class OdevTakipFormu(QWidget):
         bar = QFrame()
         bar.setFrameShape(QFrame.Shape.NoFrame)
         bar_lay = QVBoxLayout(bar)
-        bar_lay.setContentsMargins(4, 4, 4, 4)
-        bar_lay.setSpacing(5)
+        bar_lay.setContentsMargins(2, 2, 2, 2)
+        bar_lay.setSpacing(2)
         bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        bar.setMinimumHeight(62)
 
         # 1) Metrikler & Filtre/Temizle Barı
         row1 = QHBoxLayout()
-        row1.setSpacing(6)
+        row1.setContentsMargins(0, 0, 0, 0)
+        row1.setSpacing(5)
         
         lbl_h = QLabel("<b>Hedef:</b>")
         lbl_h.setStyleSheet("font-size: 11px; color: #475569;")
@@ -3743,7 +3779,7 @@ class OdevTakipFormu(QWidget):
         self.spHedefSure.setRange(0, 9999)
         self.spHedefSure.setValue(90)
         self.spHedefSure.setSuffix(" dk")
-        self.spHedefSure.setFixedWidth(74)
+        self.spHedefSure.setFixedWidth(64)
         self.spHedefSure.setFixedHeight(26)
         self.spHedefSure.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.spHedefSure.setStyleSheet("""
@@ -3796,7 +3832,7 @@ class OdevTakipFormu(QWidget):
         self.progWorkload = QProgressBar()
         self.progWorkload.setRange(0, 100)
         self.progWorkload.setTextVisible(False)
-        self.progWorkload.setFixedWidth(65)
+        self.progWorkload.setFixedWidth(50)
         self.progWorkload.setFixedHeight(12)
         self.progWorkload.setToolTip("Haftalık Yük Durumu")
         self.progWorkload.setStyleSheet("""
@@ -3815,108 +3851,111 @@ class OdevTakipFormu(QWidget):
         row1.addWidget(self.lblLoadAnalysis)
 
         row1.addStretch(1)
+        self._right_actions1_v22 = install_scrollable_bar(bar_lay, row1, minimum_height=28)
 
-        self.btnFiltre = QToolButton()
-        self.btnFiltre.setText("🔍 Filtre")
-        self.btnFiltre.setToolTip("Tablo Filtrelerini Aç / Kapat")
-        self.btnFiltre.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btnFiltre.setFixedHeight(24)
-        self.btnFiltre.setStyleSheet("""
-            QToolButton {
-                color: #2563eb; font-weight: 600; font-size: 11px;
-                border: 1px solid #bfdbfe; border-radius: 5px; background: #eff6ff; padding: 2px 8px;
-            }
-            QToolButton:hover { background: #dbeafe; }
-        """)
-        row1.addWidget(self.btnFiltre)
-
-        self.btnTemizle = QPushButton("🧹 Temizle")
-        self.btnTemizle.setObjectName("btnDanger")
-        self.btnTemizle.setToolTip("Verilen Ödev Tablosunu Temizle")
-        self.btnTemizle.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btnTemizle.setFixedHeight(24)
-        self.btnTemizle.setStyleSheet("""
-            QPushButton {
-                background: #fef2f2; color: #dc2626; border: 1px solid #fecaca;
-                border-radius: 5px; font-size: 11px; font-weight: 600; padding: 2px 8px;
-            }
-            QPushButton:hover { background: #fee2e2; }
-        """)
-        row1.addWidget(self.btnTemizle)
-        bar_lay.addLayout(row1)
-
-        # 2) Eylemler (Kompakt Tek Sıra: Öneri, Takvim, Yazdır, WhatsApp)
+        # 2) Eylemler (Sol: Hızlı İşlemler, Sağ: Tablo Filtre & Temizle)
         row2 = QHBoxLayout()
+        row2.setContentsMargins(0, 0, 0, 0)
         row2.setSpacing(5)
 
-        self.btnOneriler = QPushButton("💡 Öneri")
+        self.btnOneriler = QPushButton("💡")
         self.btnOneriler.setToolTip("Öğrenciye Özel Akıllı Ödev ve Konu Önerileri")
         self.btnOneriler.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btnOneriler.setFixedHeight(26)
+        self.btnOneriler.setFixedSize(34, 26)
         self.btnOneriler.setStyleSheet("""
             QPushButton {
-                background: #f8fafc; color: #475569; border: 1px solid #cbd5e1;
-                border-radius: 6px; font-size: 11px; font-weight: 600; padding: 2px 6px;
+                background: #fefce8; color: #854d0e; border: 1px solid #fef08a;
+                border-radius: 6px; font-size: 13px; font-weight: 600; padding: 2px;
             }
-            QPushButton:hover { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
+            QPushButton:hover { background: #fef9c3; border-color: #eab308; }
         """)
         row2.addWidget(self.btnOneriler)
 
-        self.btnTakvim = QPushButton("🗓️ Takvim")
+        self.btnTakvim = QPushButton("🗓️")
         self.btnTakvim.setToolTip("Haftalık Çalışma & Akıllı Takvim Planı Oluştur")
         self.btnTakvim.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btnTakvim.setFixedHeight(26)
+        self.btnTakvim.setFixedSize(34, 26)
         self.btnTakvim.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #d97706, stop:1 #f59e0b);
-                color: white; font-weight: bold; border-radius: 6px; border: none; font-size: 11px; padding: 2px 8px;
+                background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa;
+                border-radius: 6px; font-size: 13px; font-weight: 600; padding: 2px;
             }
-            QPushButton:hover { background: #b45309; }
+            QPushButton:hover { background: #ffedd5; border-color: #f97316; }
         """)
         self.btnTakvim.clicked.connect(self._open_smart_calendar_pdf)
         row2.addWidget(self.btnTakvim)
 
-        self.btnYazdir = QPushButton("🖨️ Yazdır")
+        self.btnYazdir = QPushButton("🖨️")
         self.btnYazdir.setToolTip("Ödev Listesini Yazdır / PDF Al")
         self.btnYazdir.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btnYazdir.setFixedHeight(26)
+        self.btnYazdir.setFixedSize(34, 26)
         self.btnYazdir.setStyleSheet("""
             QPushButton {
-                background: #f8fafc; color: #475569; border: 1px solid #cbd5e1;
-                border-radius: 6px; font-size: 11px; font-weight: 600; padding: 2px 8px;
+                background: #f8fafc; color: #334155; border: 1px solid #cbd5e1;
+                border-radius: 6px; font-size: 13px; font-weight: 600; padding: 2px;
             }
-            QPushButton:hover { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
+            QPushButton:hover { background: #eff6ff; border-color: #3b82f6; }
         """)
         row2.addWidget(self.btnYazdir)
 
-        self.btnWhatsapp = QPushButton("💬 WhatsApp")
+        self.btnWhatsapp = QPushButton("💬")
         self.btnWhatsapp.setToolTip("Öğrenci ve Veliye WhatsApp Ödev Raporu Gönder")
         self.btnWhatsapp.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btnWhatsapp.setFixedHeight(26)
+        self.btnWhatsapp.setFixedSize(34, 26)
         self.btnWhatsapp.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #059669, stop:1 #10b981);
-                color: white; font-weight: bold; border-radius: 6px; border: none; font-size: 11px; padding: 2px 8px;
+                background: #f0fdf4; color: #166534; border: 1px solid #86efac;
+                border-radius: 6px; font-size: 13px; font-weight: 600; padding: 2px;
             }
-            QPushButton:hover { background: #047857; }
+            QPushButton:hover { background: #dcfce7; border-color: #22c55e; }
         """)
         row2.addWidget(self.btnWhatsapp)
 
-        bar_lay.addLayout(row2)
+        row2.addStretch(1)
+
+        self.btnFiltre = QToolButton()
+        self.btnFiltre.setText("🔍")
+        self.btnFiltre.setToolTip("Tablo Filtrelerini Aç / Kapat")
+        self.btnFiltre.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btnFiltre.setFixedSize(32, 26)
+        self.btnFiltre.setStyleSheet("""
+            QToolButton {
+                color: #1e40af; font-size: 14px;
+                border: 1.5px solid #bfdbfe; border-radius: 6px; background: #eff6ff; padding: 0px;
+            }
+            QToolButton:hover { background: #dbeafe; border-color: #3b82f6; }
+        """)
+        row2.addWidget(self.btnFiltre)
+
+        self.btnTemizle = QPushButton("🧹")
+        self.btnTemizle.setObjectName("btnDanger")
+        self.btnTemizle.setToolTip("Verilen Ödev Tablosunu Temizle (Kayıtlar silinmez)")
+        self.btnTemizle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btnTemizle.setFixedSize(32, 26)
+        self.btnTemizle.setStyleSheet("""
+            QPushButton {
+                background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca;
+                border-radius: 6px; font-size: 14px; padding: 0px;
+            }
+            QPushButton:hover { background: #fee2e2; border-color: #ef4444; }
+        """)
+        row2.addWidget(self.btnTemizle)
+
+        self._right_actions2_v22 = install_scrollable_bar(bar_lay, row2, minimum_height=28)
         right_split.addWidget(bar)
 
         # Sağ içi oranlar (Tabloya maksimum dikey alan)
-        right_split.setStretchFactor(0, 10)
-        right_split.setStretchFactor(1, 1)
-        right_split.setSizes([750, 68])
+        right_split.setStretchFactor(0, 1)
+        right_split.setStretchFactor(1, 0)
+        right_split.setSizes([700, 64])
 
         # ---- Orta splitter: sol+sağ ----
         mid_split.addWidget(self.left_card)
         mid_split.addWidget(right_split)
 
         # Minimumlar ve başlangıç oranı
-        self.tabs.setMinimumWidth(600)
-        right_split.setMinimumWidth(360)
+        self.tabs.setMinimumWidth(350)
+        right_split.setMinimumWidth(230)
         mid_split.setSizes([900, 480])  # ilk dağılım (sol geniş)
         mid_split.setStretchFactor(0, 7)  # sol
         mid_split.setStretchFactor(1, 3)  # sağ
@@ -3925,12 +3964,25 @@ class OdevTakipFormu(QWidget):
 
         # ---------------- ALT BAR (genel - MİNİMALİST) ----------------
         bottom = QHBoxLayout()
-        bottom.setContentsMargins(0, 2, 0, 0)
-        bottom.setSpacing(6)
-        self.btnExcel = QPushButton("📊 Excel")
+        bottom.setContentsMargins(0, 0, 0, 0)
+        bottom.setSpacing(4)
+        self.btnExcel = QPushButton("📊")
         self.btnExcel.setToolTip("Ödev ve ilerleme durumunu Excel formatında dışa aktar")
+        self.btnExcel.setFixedSize(28, 24)
+        self.btnExcel.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btnExcel.setStyleSheet("""
+            QPushButton {
+                background: #f0fdf4; border: 1px solid #86efac; border-radius: 5px;
+                font-size: 12px; font-weight: 600; padding: 2px;
+            }
+            QPushButton:hover { background: #dcfce7; border-color: #22c55e; }
+        """)
+        bottom.addWidget(self.btnExcel)
+
         self.btnPdfAyar = QPushButton("⚙️ PDF")
         self.btnPdfAyar.setToolTip("PDF çıktı ve rapor sayfa ayarlarını düzenle")
+        self.btnPdfAyar.setVisible(False)
+
         self.btnDetayRapor = QPushButton("📄 Rapor")
         self.btnDetayRapor.setToolTip("Öğrenci genel ödev ve performans detay raporu")
         self.btnOneriEksik = QPushButton("⚠️ Eksikler")
@@ -3942,21 +3994,20 @@ class OdevTakipFormu(QWidget):
         self.btnVeriDenetimi = QPushButton("🔎 Denetim")
         self.btnVeriDenetimi.setToolTip("Salt okunur öğrenci tik ve ödev bağlantı denetimi")
 
-        for b in (self.btnExcel, self.btnPdfAyar, self.btnDetayRapor, self.btnOneriEksik, self.btnOneriTakviye, self.btnSihirbaz, self.btnVeriDenetimi):
-            b.setFixedHeight(25)
+        for b in (self.btnDetayRapor, self.btnOneriEksik, self.btnOneriTakviye, self.btnSihirbaz, self.btnVeriDenetimi):
+            b.setFixedHeight(24)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setStyleSheet("""
                 QPushButton {
                     background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 5px;
-                    padding: 2px 8px; font-size: 11px; font-weight: 600; color: #475569;
+                    padding: 2px 7px; font-size: 10.5px; font-weight: 600; color: #475569;
                 }
                 QPushButton:hover {
                     background: #eff6ff; border-color: #3b82f6; color: #1d4ed8;
                 }
             """)
             bottom.addWidget(b)
-        bottom.addStretch(1)
-        root.addLayout(bottom)
+        self._bottom_bar_v22 = install_scrollable_bar(root, bottom, minimum_height=32)
 
         # ---------------- SİNYALLER ----------------
         self.btnGetir.clicked.connect(self._bilgileri_getir)
@@ -4007,6 +4058,32 @@ class OdevTakipFormu(QWidget):
         self.btnExcel.clicked.connect(self._export_all_lists_to_excel)
         self.btnSihirbaz.clicked.connect(self._open_smart_wizard)
         self.btnVeriDenetimi.clicked.connect(self._open_integrity_v135)
+
+        # V21: detachable-by-toggle, read-only Student 360 sidebar.
+        # Do not alter existing homework checkboxes, save handlers, or control dialog.
+        from ui.homework_workspace_bridge_v21 import HomeworkWorkspaceBridgeV21
+        self._right_split_v22 = right_split
+        self._workspace_v21 = HomeworkWorkspaceBridgeV21(self, mid_split, bottom)
+
+        self.btnRehber = QPushButton("ℹ️ Rehber")
+        self.btnRehber.setToolTip("Ödev Takip, Öğrenci 360° ve Veri Denetimi Hızlı Kullanım Rehberi")
+        self.btnRehber.setFixedHeight(24)
+        self.btnRehber.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btnRehber.setStyleSheet("""
+            QPushButton {
+                background: #eff6ff; border: 1.5px solid #93c5fd; border-radius: 5px;
+                padding: 2px 9px; font-size: 10.5px; font-weight: 700; color: #1e40af;
+            }
+            QPushButton:hover {
+                background: #dbeafe; border-color: #3b82f6; color: #1d4ed8;
+            }
+        """)
+        self.btnRehber.clicked.connect(self._open_homework_guide)
+        bottom.addWidget(self.btnRehber)
+
+        bottom.addStretch(1)
+        from ui.responsive_toolbar_v22 import update_bar_size
+        QTimer.singleShot(0, lambda: update_bar_size(self._bottom_bar_v22))
 
         self._yukle_verilen_kolon_genislik()
         self.verilen.horizontalHeader().sectionResized.connect(self._kaydet_verilen_kolon_genislik)
@@ -4274,27 +4351,6 @@ class OdevTakipFormu(QWidget):
         base_font.setPointSizeF(11.0)
         self.setFont(base_font)
 
-        pill_css = """
-        QPushButton {
-            background:#1d4ed8; color:#ffffff; border:none;
-            border-radius:12px; padding:6px 12px; font-weight:600;
-        }
-        QPushButton:hover { background:#2563eb; }
-        QPushButton:pressed { background:#1e3a8a; }
-        QPushButton:disabled { background:#93a5ff; color:#eef2ff; }
-        """
-        for b in (self.btnGetir, self.btnKitap, self.btnKaydet, self.btnPlan,
-                  self.btnKontrol, self.btnWhatsapp,
-                  self.btnTemizle, self.btnYazdir, self.btnOneriler,
-                  self.btnExcel, self.btnPdfAyar, self.btnDetayRapor,
-                  self.btnOneriEksik, self.btnOneriTakviye):
-            if b:
-                b.setStyleSheet(pill_css)
-
-        self.btnFiltre.setStyleSheet("""
-            QToolButton{ color:#2563eb; font-weight:600; padding:2px 4px; }
-            QToolButton:hover{ text-decoration: underline; }
-        """)
 
         self.dtpBitis.setStyleSheet("""
             QDateEdit {
@@ -5567,7 +5623,10 @@ class OdevTakipFormu(QWidget):
             grp = ""
             if stu:
                 grp = stu["hedef_bolum"] or f"{stu['ana_grup'] or ''} {stu['alt_grup'] or ''}".strip()
-            self.lbl_snap_target.setText(f"🎯 {grp or 'Hedef Belirtilmedi'}")
+            target_str = grp or 'Hedef Belirtilmedi'
+            disp_target = target_str if len(target_str) <= 22 else target_str[:20] + '..'
+            self.lbl_snap_target.setText(f"🎯 {disp_target}")
+            self.lbl_snap_target.setToolTip(f"Hedef Okul / Alan: {target_str}")
 
             # İstatistikler
             total = len(rows)
@@ -5577,8 +5636,11 @@ class OdevTakipFormu(QWidget):
             pct = int((done_cnt / total * 100)) if total > 0 else 0
 
             self.lbl_snap_total.setText(f"📋 Toplam: {total}")
+            self.lbl_snap_total.setToolTip(f"Toplam Verilen Ödev Sayısı: {total}")
             self.lbl_snap_pending.setText(f"⏳ Bekleyen: {pending_cnt}")
+            self.lbl_snap_pending.setToolTip(f"Bekleyen Ödev Sayısı: {pending_cnt}")
             self.lbl_snap_done.setText(f"✅ Biten: {done_cnt} (%{pct})")
+            self.lbl_snap_done.setToolTip(f"Tamamlanan Ödev Sayısı: {done_cnt} (%{pct})")
 
             # Kalan gün
             bitis_qdate = self.dtpBitis.date()
@@ -5586,12 +5648,15 @@ class OdevTakipFormu(QWidget):
             diff = today.daysTo(bitis_qdate)
             if diff < 0:
                 self.lbl_snap_countdown.setText(f"⚠️ {abs(diff)} Gün Gecikmiş!")
+                self.lbl_snap_countdown.setToolTip(f"Teslim tarihi {abs(diff)} gün önceydi!")
                 self.lbl_snap_countdown.setStyleSheet("font-size: 11px; font-weight: 800; color: #dc2626; background: #fee2e2; padding: 2px 8px; border-radius: 5px;")
             elif diff == 0:
                 self.lbl_snap_countdown.setText("🚨 Bugün Teslim!")
+                self.lbl_snap_countdown.setToolTip("Ödevlerin teslim tarihi bugün!")
                 self.lbl_snap_countdown.setStyleSheet("font-size: 11px; font-weight: 800; color: #b45309; background: #fef3c7; padding: 2px 8px; border-radius: 5px;")
             else:
                 self.lbl_snap_countdown.setText(f"⏰ {diff} Gün Kaldı")
+                self.lbl_snap_countdown.setToolTip(f"Bitiş tarihine kalan süre: {diff} gün ({bitis_qdate.toString('dd.MM.yyyy')})")
                 self.lbl_snap_countdown.setStyleSheet("font-size: 11px; font-weight: 800; color: #2563eb; background: #e0e7ff; padding: 2px 8px; border-radius: 5px;")
         except Exception:
             pass

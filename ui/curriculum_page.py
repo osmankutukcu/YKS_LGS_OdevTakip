@@ -28,6 +28,30 @@ class CurriculumPage(QWidget):
         except Exception as e:
              self.tabs.addTab(QLabel(f"Hata: {e}"), "Hata")
 
+        # V23: her iki menü aynı Ders/Konu düzenleyiciyi açar; ayrı konu editörü yoktur.
+        from PyQt6.QtWidgets import QGroupBox
+        bridge = QGroupBox("Ders/Konu Yönetimi — Ortak Düzenleyici")
+        bridge_layout = QVBoxLayout(bridge)
+        bridge_layout.addWidget(QLabel(
+            "Dersleri ve grup atamalarını burada, genel/grup/öğrenci konularını "
+            "tek ortak Ders/Konu Düzenle ekranında yönetin. "
+            "Kayıtlı ödevlerin konu bağlantıları korunur."))
+        open_editor = QPushButton("📚 Ders/Konu Düzenle ekranını aç")
+        open_editor.clicked.connect(self._open_topic_editor)
+        bridge_layout.addWidget(open_editor)
+        bridge_layout.addStretch()
+        self.tabs.addTab(bridge, "📚 Konu Düzenle")
+        self._topic_editor = None
+
+    def _open_topic_editor(self):
+        from ui.topic_editor import DersKonuEditor
+        if self._topic_editor is None:
+            self._topic_editor = DersKonuEditor()
+            self._topic_editor.destroyed.connect(lambda: setattr(self, '_topic_editor', None))
+        self._topic_editor.show()
+        self._topic_editor.raise_()
+        self._topic_editor.activateWindow()
+
     def save(self):
         # Eğer aktif tab "Mapping" ise veya genel kaydet denildiyse
         if hasattr(self, 'tab_mapping'):
@@ -84,8 +108,12 @@ class LessonListPage(QWidget):
             it_id = QTableWidgetItem(item['id'])
             it_id.setFlags(it_id.flags() ^ Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(r, 0, it_id)
-            self.table.setItem(r, 1, QTableWidgetItem(item['ad']))
-            self.table.setItem(r, 2, QTableWidgetItem(item['grup']))
+            it_ad = QTableWidgetItem(item['ad'])
+            it_ad.setFlags(it_ad.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            it_grup = QTableWidgetItem(item['grup'])
+            it_grup.setFlags(it_grup.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(r, 1, it_ad)
+            self.table.setItem(r, 2, it_grup)
             
             chk = QCheckBox()
             chk.setChecked(bool(item['aktif']))
@@ -101,8 +129,11 @@ class LessonListPage(QWidget):
             self.table.setItem(r, 4, it_tur)
             
     def toggle_active(self, lid, checked):
-        try: db.update_lesson_status(lid, checked)
-        except: pass
+        try:
+            db.update_lesson_status(lid, checked)
+        except Exception as exc:
+            QMessageBox.warning(self, "Ders durumu kaydedilemedi", str(exc))
+            self.refresh()
         
     def add_lesson(self):
         name, ok = QInputDialog.getText(self, "Yeni Ders", "Ders Adı:")
@@ -156,7 +187,7 @@ class GroupMappingPage(QWidget):
         self.btnSave = QPushButton("Değişiklikleri Kaydet")
         self.btnSave.setStyleSheet("background-color: #10b981; color: white; font-weight: bold; padding: 8px;")
         self.btnSave.clicked.connect(self.save_mapping)
-        self.btnReset = QPushButton("Varsayılana Dön (Hepsi)")
+        self.btnReset = QPushButton("Varsayılan Derslere Dön")
         self.btnReset.clicked.connect(self.reset_mapping)
         h_btn.addWidget(self.btnReset)
         h_btn.addWidget(self.btnSave)
@@ -279,10 +310,8 @@ class GroupMappingPage(QWidget):
             
             db.set_lessons_for_group(group_name, []) 
             
-            # UI update: Select All
-            for lid, chk in self.check_map.items():
-                chk.setChecked(True)
-                
-            QMessageBox.information(self, "Sıfırlandı", f"'{group_name}' grubu varsayılana döndürüldü (Tüm dersler aktif).")
+            # Gerçek varsayılanları tekrar yükle; tüm dersler varsayımı yanlıştır.
+            self.load_mapping(item, None)
+            QMessageBox.information(self, "Sıfırlandı", f"'{group_name}' grubu varsayılan ders listesine döndürüldü.")
         except Exception as e:
             QMessageBox.critical(self, "Hata", str(e))

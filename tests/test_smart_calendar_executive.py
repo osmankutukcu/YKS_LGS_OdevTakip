@@ -193,3 +193,49 @@ def test_weekly_plan_landscape_and_single_page_capacity():
     assert doc.pageCount() == 1
 
 
+def test_suggest_time_window_uses_actual_appointments():
+    from services.smart_calendar import _DayPlan, _Task
+    from datetime import date
+    import json
+
+    # 1. Day with actual appointments
+    task1 = _Task(raw={}, ders="Matematik", konu="Fonksiyonlar", sure=60, zorluk=3, priority=3, deadline=None, kitap="")
+    task2 = _Task(raw={}, ders="Fizik", konu="Kuvvet", sure=45, zorluk=3, priority=3, deadline=None, kitap="")
+    day = _DayPlan(
+        label="Cumartesi",
+        date_=date(2026, 10, 17),
+        tasks=[task1, task2],
+        is_school_day=False,
+        day_cap=180,
+        day_target=105,
+        windows=[(840, 1080)],  # 14:00 - 18:00
+        appointments=[(task1, 840, 900), (task2, 910, 955)]  # 14:00-15:00, 15:10-15:55
+    )
+    window_text = SmartCalendarService._suggest_time_window(day)
+    # The merged study window should show 14:00 - 15:55
+    assert window_text == "14:00 – 15:55"
+
+    # 2. End-to-end plan generation with blocked weekend hours
+    hw = [
+        {"ders": "Matematik", "konu": f"Konu {i}", "sure": 120, "soru_sayisi": 30}
+        for i in range(7)
+    ]
+    profile_data = {
+        "planner_version": 2,
+        "school_by_day": {"0": ["08:30", "15:40"], "1": ["08:30", "15:40"], "2": ["08:30", "15:40"], "3": ["08:30", "15:40"], "4": ["08:30", "15:40"]},
+        "after_school_buffer": 30,
+        "wake": "07:00",
+        "sleep": "23:30",
+        "max": 180,
+        "blocks": ["Cumartesi [11:00-13:00] Kurs", "Pazar [11:00-13:00] Kurs"]
+    }
+    details_str = "PLANNER_V2_JSON:" + json.dumps(profile_data)
+    res = SmartCalendarService.create_weekly_plan_data("Test Öğrenci", hw, details_str)
+    
+    # Check that Saturday and Sunday header does NOT display the blocked 11:00-13:15
+    for d in res["days"]:
+        if d.date_.weekday() in (5, 6) and d.appointments:
+            win = SmartCalendarService._suggest_time_window(d, res["profile"])
+            assert "11:00" not in win, f"Blocked hour appeared in window: {win}"
+
+

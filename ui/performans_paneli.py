@@ -54,10 +54,15 @@ import math
 import os
 import re
 import tempfile
+import shutil
+from html import escape as html_escape
 
 import xlsxwriter
 
 import db
+import sqlite3
+from services.performance_evidence_v14 import compute_evidence, MIN_RECOGNITION_SAMPLE
+from services.performance_coaching_v15 import compute_coach_rows
 
 
 # ------------------ Tarih yardımcıları ------------------
@@ -82,13 +87,10 @@ def _last30_bounds(d: date):
 
 class PerformansPaneli(QDialog):
     """
-    3 sekme:
-      1) Haftanın ilk 5’i        → son hafta en yüksek ilerleme yüzdesi
-      2) Gecikme trendi artanlar → son 30 güne göre geciken ödev sayısı artanlar
-      3) %80+ Kulübü             → haftalık ve/veya 30 günlük oranı >=80 olanlar
-
-    Hesaplamalar doğrudan günlüklere bakan `ogrenci_perf_gunluk`
-    tablosundan yapılıyor.
+    Beş sekme: haftalık ödev takibi, teslim dönemi açıkları,
+    %80+ tamamlama, tüm öğrenciler, deneme & koçluk.
+    Ödev ve sınav ölçümleri farklı kaynaklarda ayrı tutulur.
+    Bu panel akademik yeterlik puanı veya otomatik tanı üretmez.
     """
 
     def __init__(self, parent=None):
@@ -202,8 +204,10 @@ class PerformansPaneli(QDialog):
         self.tabTop5 = QTableWidget()
         self.tabTrend = QTableWidget()
         self.tabClub = QTableWidget()
+        self.tabEvidence = QTableWidget()
+        self.tabCoach = QTableWidget()
 
-        for t in (self.tabTop5, self.tabTrend, self.tabClub):
+        for t in (self.tabTop5, self.tabTrend, self.tabClub, self.tabEvidence, self.tabCoach):
             self._tune_table_widget(t)
 
         # Tab 1: Podyum + Tablo
@@ -216,10 +220,14 @@ class PerformansPaneli(QDialog):
         top5_lay.addWidget(self.podium_box)
         top5_lay.addWidget(self.tabTop5, 1)
 
-        self.tabs.addTab(top5_container, "🏆 Haftanın İlk 5'i (Liderlik)")
-        self.tabs.addTab(self._wrap(self.tabTrend), "📈 Gecikme Trendi")
-        self.tabs.addTab(self._wrap(self.tabClub), "🌟 %80+ Kulübü")
+        self.tabs.addTab(top5_container, "🏆 Haftalık Ödev Takibi")
+        self.tabs.addTab(self._wrap(self.tabTrend), "📈 Teslim Dönemi Açıkları")
+        self.tabs.addTab(self._wrap(self.tabClub), "🌟 %80+ Tamamlama")
 
+        self.tabs.addTab(self._wrap(self.tabEvidence), "🧭 Tüm Öğrenciler")
+        self.tabs.addTab(self._wrap(self.tabCoach), "🎯 Deneme & Koçluk")
+        self.tabs.setCurrentIndex(3)  # Daha güvenilir, açıklamalı görünümü önce göster.
+        self._evidence = None
         self._cached_top5_rows = []
         self._cached_club_rows = []
 
@@ -230,14 +238,7 @@ class PerformansPaneli(QDialog):
         # Export butonları
         self._add_visual_exports()
 
-        # Şema garantisi (varsa)
-        try:
-            con = db.get_conn()
-            if hasattr(db, "ensure_performance_schema"):
-                db.ensure_performance_schema(con)
-            con.close()
-        except Exception:
-            pass
+        # Salt okunur panel: açılışta şema migrasyonu veya özet tablo yazımı yok.
 
         # Açılışta verileri yükle
         self._yenile()
@@ -292,7 +293,7 @@ class PerformansPaneli(QDialog):
 
     def _filter_rows(self, text):
         text = text.lower().strip()
-        for tab in (self.tabTop5, self.tabTrend, self.tabClub):
+        for tab in (self.tabTop5, self.tabTrend, self.tabClub, self.tabEvidence, self.tabCoach):
             for r in range(tab.rowCount()):
                 item = tab.item(r, 0) # 0. indeks her zaman öğrenci adı
                 if not item: continue
@@ -318,104 +319,98 @@ class PerformansPaneli(QDialog):
     # --------- Veri yenile ---------
 
     def _yenile(self):
-        # Ref tarihe göre hafta hesapla
+        # Tek kaynak: kayıtlı ödevlerin güncel durumu, yalnızca SELECT.
+        # Bunun sınav başarısı olmadığını panelde açıkça belirtiyoruz.
         today = self.current_ref_date
-        ws, we = _week_bounds(today)
-        l30s, l30e = _last30_bounds(date.today()) # Son 30 gün sabit kalsın veya o da kaysın mı? 
-        # Kullanıcı "Tarih Aralığı" dediğinde genelde hepsi kaysın ister ama "Son 30 gün" adı üstünde son 30 gündür.
-        # Biz yine de tutarlılık için referans tarihten geriye 30 gün alalım:
-        l30s, l30e = _last30_bounds(today)
-
-        self.lblInfo.setText(
-            f"Hafta: {ws.isoformat()} – {we.isoformat()}   |   "
-            f"Son 30 gün: {l30s.isoformat()} – {l30e.isoformat()}"
-        )
-
         con = db.get_conn()
         try:
-            # Eski versiyon yardımcı fonksiyonlar varsa dene ama hata paneli bozmasın
+            self._evidence = compute_evidence(con, today)
+            ws, we = self._evidence.week_start, self._evidence.week_end
+            self.lblInfo.setText(
+                f"{ws:%d.%m}–{we:%d.%m.%Y} • Ödev takibi; sınav başarısı değildir"
+            )
+            self.lblInfo.setToolTip("\n".join(self._evidence.notes))
+            counts = [self._fill_top5(con, ws, we),
+                      self._fill_trend(con, self._evidence.last30_start, self._evidence.last30_end),
+                      self._fill_club(con, ws, we, self._evidence.last30_start, self._evidence.last30_end)]
+            self._fill_all_students()
             try:
-                if hasattr(db, "rebuild_performance_current_week"):
-                    db.rebuild_performance_current_week(con)
-                if hasattr(db, "rebuild_performance_last_30_days"):
-                    db.rebuild_performance_last_30_days(con)
-            except Exception:
-                pass
-
-            top5_cnt = self._fill_top5(con, ws, we)
-            trend_cnt = self._fill_trend(con, l30s, l30e)
-            club_cnt = self._fill_club(con, ws, we, l30s, l30e)
+                self._fill_coaching(con)
+            except (ValueError, TypeError, sqlite3.DatabaseError) as exam_exc:
+                self.tabCoach.clearContents()
+                self.tabCoach.setRowCount(0)
+                self.tabCoach.setToolTip(f"Deneme özeti okunamadı: {exam_exc}")
+            self._set_empty_message(None)
+            if sum(counts) == 0:
+                self.lblInfo.setText(self.lblInfo.text() + " | Liderlik için en az 5 geçerli ödev")
+            self._filter_rows(self.txtSearch.text())
+        except Exception as exc:
+            self._evidence = None
+            self._cached_top5_rows = []
+            self._cached_club_rows = []
+            self._set_empty_message("Performans özeti okunamadı. Kayıtları değiştirmedik. "
+                                    f"Teknik ayrıntı: {exc}")
         finally:
             con.close()
 
-        if (top5_cnt + trend_cnt + club_cnt) == 0:
-            self._set_empty_message(
-                "Henüz görüntülenecek performans özeti oluşmadı. "
-                "Ödev girişleri/sonuçları eklendikçe burada görünecek."
-            )
-        else:
-            self._set_empty_message(None)
+    def _fill_all_students(self):
+        headers = ["Öğrenci", "Hafta Bitti/Toplam", "Haftalık %",
+                   "Son 30 Gün Bitti/Toplam", "30 Gün %", "Toplam Gecikmiş", "Veri / Koçluk Notu"]
+        table = self.tabEvidence
+        table.clear()
+        table.setColumnCount(len(headers))
+        table.setHorizontalHeaderLabels(headers)
+        rows = self._evidence.students if self._evidence else []
+        table.setRowCount(len(rows))
+        for i, r in enumerate(rows):
+            pct_w = "—" if r.week.percent is None else f"%{r.week.percent:.1f}"
+            pct_m = "—" if r.last30.percent is None else f"%{r.last30.percent:.1f}"
+            note = r.summary()
+            if r.undated_count:
+                note += f"; {r.undated_count} tarihsiz ödev hariç"
+            if r.uncertain_count:
+                note += f"; {r.uncertain_count} kaynak belirsizliği"
+            values = [r.name, f"{r.week.completed}/{r.week.total}", pct_w,
+                      f"{r.last30.completed}/{r.last30.total}", pct_m,
+                      str(r.overdue_all), note]
+            for j, val in enumerate(values):
+                item = QTableWidgetItem(str(val))
+                if j == 0:
+                    item.setData(Qt.ItemDataRole.UserRole, r.student_id)
+                table.setItem(i, j, item)
+        table.resizeColumnsToContents()
+
+    def _fill_coaching(self, con):
+        """Salt-okunur sınav/ödev sinyalleri. Öğrencinin hiçbir kaydına dokunmaz."""
+        table = self.tabCoach
+        headers = ["Öğrenci", "30 Gün Ödev (B/T)", "Geciken", "Deneme Verisi",
+                   "Ölçüm Düzeyi", "Koçlukta Kontrol Edilecek"]
+        table.clear()
+        table.setColumnCount(len(headers))
+        table.setHorizontalHeaderLabels(headers)
+        rows = compute_coach_rows(con, self._evidence, as_of=self.current_ref_date)
+        table.setRowCount(len(rows))
+        for i, row in enumerate(rows):
+            values = [row.student_name, row.homework_label, str(row.overdue_count),
+                      row.exam_label, row.evidence_level, row.action]
+            for j, val in enumerate(values):
+                cell = QTableWidgetItem(str(val))
+                cell.setToolTip(row.detail)
+                if j == 0:
+                    cell.setData(Qt.ItemDataRole.UserRole, row.student_id)
+                table.setItem(i, j, cell)
+        table.resizeColumnsToContents()
+        table.setToolTip("Ödev takibi ile deneme sonuçları tek puana dönüştürülmez. "
+                         "Karşılaştırmalar yalnızca kontrol ipucudur; öğretmen onayı gerekir.")
 
     # --------- Sekme 1: Haftanın İlk 5’i ---------
 
     def _fill_top5(self, con, ws: date, we: date) -> int:
         ws_s, we_s = ws.isoformat(), we.isoformat()
 
-        rows = con.execute(
-            """
-            WITH haftalik AS (
-                SELECT
-                    op.ogrenci_id,
-                    SUM(op.tamam)                        AS gorev_bitti,
-                    SUM(op.tamam + op.kismi + op.yapilmadi) AS gorev_toplam
-                FROM ogrenci_perf_gunluk op
-                WHERE date(op.gun) BETWEEN date(?) AND date(?)
-                GROUP BY op.ogrenci_id
-            ),
-            ks AS (
-                SELECT
-                    s.ogrenci_id,
-                    DATE(COALESCE(s.tarih, k.bitis_tarihi)) AS gun,
-                    s.kume_id
-                FROM odev_satir s
-                LEFT JOIN odev_kume k ON k.id = s.kume_id
-                UNION ALL
-                SELECT
-                    o.ogrenci_id,
-                    DATE(k.bitis_tarihi)                    AS gun,
-                    o.kume_id
-                FROM odev o
-                LEFT JOIN odev_kume k ON k.id = o.kume_id
-            ),
-            kume_hafta AS (
-                SELECT
-                    ogrenci_id,
-                    COUNT(DISTINCT kume_id) AS kume_sayisi
-                FROM ks
-                WHERE gun IS NOT NULL AND date(gun) BETWEEN date(?) AND date(?)
-                GROUP BY ogrenci_id
-            )
-            SELECT
-                o.id AS ogrenci_id,
-                o.ad, o.soyad,
-                h.gorev_bitti,
-                h.gorev_toplam,
-                COALESCE(k.kume_sayisi, 0) AS kume_sayisi,
-                CASE
-                    WHEN COALESCE(h.gorev_toplam,0) = 0 THEN 0
-                    ELSE ROUND(100.0 * COALESCE(h.gorev_bitti,0) / h.gorev_toplam)
-                END AS ilerleme_yuzde
-            FROM ogrenci o
-            LEFT JOIN haftalik   h ON h.ogrenci_id = o.id
-            LEFT JOIN kume_hafta k ON k.ogrenci_id = o.id
-            WHERE COALESCE(h.gorev_toplam,0) > 0
-            ORDER BY ilerleme_yuzde DESC, h.gorev_bitti DESC
-            LIMIT 5
-            """,
-            (ws_s, we_s, ws_s, we_s),
-        ).fetchall()
+        rows = self._evidence.top5()
 
-        headers = ["Öğrenci", "İlerleme %", "Biten Görev", "Toplam Görev", "Küme Sayısı"]
+        headers = ["Öğrenci", "Tamamlama %", "Biten Ödev", "Teslimi Gelen", "Küme Sayısı"]
         self.tabTop5.setColumnCount(len(headers))
         self.tabTop5.setHorizontalHeaderLabels(headers)
         self.tabTop5.setRowCount(len(rows))
@@ -448,36 +443,9 @@ class PerformansPaneli(QDialog):
         prev_start = prev_end - timedelta(days=29)
         b_s, b_e = prev_start.isoformat(), prev_end.isoformat()
 
-        rows = con.execute(
-            """
-            WITH a AS (
-                SELECT ogrenci_id, SUM(geciken) AS gecikme_a
-                FROM ogrenci_perf_gunluk
-                WHERE date(gun) BETWEEN date(?) AND date(?)
-                GROUP BY ogrenci_id
-            ),
-            b AS (
-                SELECT ogrenci_id, SUM(geciken) AS gecikme_b
-                FROM ogrenci_perf_gunluk
-                WHERE date(gun) BETWEEN date(?) AND date(?)
-                GROUP BY ogrenci_id
-            )
-            SELECT
-                o.id AS ogrenci_id, o.ad, o.soyad,
-                COALESCE(a.gecikme_a,0) AS son30,
-                COALESCE(b.gecikme_b,0) AS onceki30,
-                (COALESCE(a.gecikme_a,0) - COALESCE(b.gecikme_b,0)) AS fark
-            FROM ogrenci o
-            LEFT JOIN a ON a.ogrenci_id = o.id
-            LEFT JOIN b ON b.ogrenci_id = o.id
-            WHERE COALESCE(a.gecikme_a,0) > COALESCE(b.gecikme_b,0)
-            ORDER BY fark DESC, son30 DESC
-            LIMIT 20
-            """,
-            (a_s, a_e, b_s, b_e),
-        ).fetchall()
+        rows = self._evidence.trend()
 
-        headers = ["Öğrenci", "Son 30 Gün Gecikme", "Önceki 30 Gün Gecikme", "Artış"]
+        headers = ["Öğrenci", "Son 30 Gün Açık", "Önceki 30 Gün Açık", "Fark"]
         self.tabTrend.setColumnCount(len(headers))
         self.tabTrend.setHorizontalHeaderLabels(headers)
         self.tabTrend.setRowCount(len(rows))
@@ -512,75 +480,7 @@ class PerformansPaneli(QDialog):
         ws_s, we_s = ws.isoformat(), we.isoformat()
         l30s_s, l30e_s = l30s.isoformat(), l30e.isoformat()
 
-        rows = con.execute(
-            """
-            WITH w AS (
-                SELECT
-                    op.ogrenci_id,
-                    SUM(op.tamam)                                   AS bitti_w,
-                    SUM(op.tamam + op.kismi + op.yapilmadi)         AS toplam_w
-                FROM ogrenci_perf_gunluk op
-                WHERE date(op.gun) BETWEEN date(?) AND date(?)
-                GROUP BY op.ogrenci_id
-            ),
-            w_pct AS (
-                SELECT
-                    ogrenci_id,
-                    bitti_w,
-                    toplam_w,
-                    CASE
-                        WHEN toplam_w > 0
-                            THEN ROUND(100.0 * bitti_w / toplam_w, 1)
-                        ELSE 0
-                    END AS w_pct
-                FROM w
-            ),
-            m AS (
-                SELECT
-                    op.ogrenci_id,
-                    SUM(op.tamam)                                   AS bitti_m,
-                    SUM(op.tamam + op.kismi + op.yapilmadi)         AS toplam_m
-                FROM ogrenci_perf_gunluk op
-                WHERE date(op.gun) BETWEEN date(?) AND date(?)
-                GROUP BY op.ogrenci_id
-            ),
-            m_pct AS (
-                SELECT
-                    ogrenci_id,
-                    bitti_m,
-                    toplam_m,
-                    CASE
-                        WHEN toplam_m > 0
-                            THEN ROUND(100.0 * bitti_m / toplam_m, 1)
-                        ELSE 0
-                    END AS m_pct
-                FROM m
-            )
-            SELECT
-                o.id AS ogrenci_id,
-                o.ad,
-                o.soyad,
-                COALESCE(wp.w_pct, 0)                     AS hafta_pct,
-                COALESCE(mp.m_pct, 0)                     AS ay_pct,
-                COALESCE(wp.bitti_w, 0)                   AS hafta_bitti,
-                COALESCE(wp.toplam_w, 0)                  AS hafta_toplam,
-                COALESCE(mp.bitti_m, 0)                   AS ay_bitti,
-                COALESCE(mp.toplam_m, 0)                  AS ay_toplam
-            FROM ogrenci o
-            LEFT JOIN w_pct  wp ON wp.ogrenci_id = o.id
-            LEFT JOIN m_pct  mp ON mp.ogrenci_id = o.id
-            WHERE COALESCE(wp.w_pct, 0) >= 80
-               OR COALESCE(mp.m_pct, 0) >= 80
-            ORDER BY
-                CASE
-                    WHEN COALESCE(wp.w_pct,0) >= COALESCE(mp.m_pct,0)
-                        THEN COALESCE(wp.w_pct,0)
-                    ELSE COALESCE(mp.m_pct,0)
-                END DESC
-            LIMIT 50
-            """,
-            (ws_s, we_s, l30s_s, l30e_s),
-        ).fetchall()
+        rows = self._evidence.club()
 
         # ------------ Tablo iskeleti ------------
         from PyQt6.QtWidgets import QTableWidgetItem, QStyledItemDelegate
@@ -594,13 +494,16 @@ class PerformansPaneli(QDialog):
             "Öğrenci",
             "Haftalık %",
             "30 Gün %",
-            "Değişim",
+            "Hafta−30 Gün*",
             "Hafta (B/T)",
             "30 Gün (B/T)",
             "Rozet",
         ]
         self.tabClub.setColumnCount(len(headers))
         self.tabClub.setHorizontalHeaderLabels(headers)
+        self.tabClub.horizontalHeaderItem(3).setToolTip(
+            "Haftalık dönem, son 30 günün bir parçasıdır. Bu fark bağımsız bir eğilim ölçüsü değildir."
+        )
 
         def _make_item(text, center=False, bold=False, user_data=None):
             it = QTableWidgetItem(str(text))
@@ -916,15 +819,15 @@ class PerformansPaneli(QDialog):
 
                 if diff >= 3:
                     color = QColor("#ef4444")
-                    msg = "⚠️ Dikkat! Gecikme artıyor"
+                    msg = "⚠️ Açık ödev daha fazla"
                 elif diff == 2:
                     color = QColor("#f59e0b")
-                    msg = "⏳ Küçük artış"
+                    msg = "⏳ Açık ödev farkı"
                 elif diff == 1:
-                    msg = "💪 Daha iyi gidiyorsun"
-                    color = QColor("#84cc16")
+                    msg = "⏳ Yeni açık ödev"
+                    color = QColor("#f59e0b")
                 else:
-                    msg = "✅ Süper istikrar"
+                    msg = "→ Değişim yok"
                     color = QColor("#22c55e")
 
                 painter.setPen(Qt.PenStyle.NoPen)
@@ -1124,9 +1027,12 @@ class PerformansPaneli(QDialog):
         progress.setMinimumDuration(0)
         progress.setValue(10)
         QApplication.processEvents()
+        tmpdir = None
         try:
             tmpdir = tempfile.mkdtemp(prefix="perfpanel_full_")
-            tab_map = [("Haftanın İlk 5'i", self.tabTop5), ("Gecikme Trendi", self.tabTrend), ("%80+ Kulübü", self.tabClub)]
+            tab_map = [("Haftanın İlk 5'i", self.tabTop5), ("Teslim Dönemi Açıkları", self.tabTrend),
+                       ("%80+ Tamamlama", self.tabClub), ("Tüm Öğrenciler", self.tabEvidence),
+                       ("Deneme ve Koçluk", self.tabCoach)]
             SCALE = 3.0
             images = []
             step_val = 10
@@ -1161,6 +1067,8 @@ class PerformansPaneli(QDialog):
             QMessageBox.critical(self, "Hata", f"PDF oluşturulurken bir hata oluştu:\n{str(e)}")
         finally:
             progress.close()
+            if tmpdir is not None:
+                shutil.rmtree(tmpdir, ignore_errors=True)
 
     def print_visual(self):
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
@@ -1205,24 +1113,29 @@ class PerformansPaneli(QDialog):
             progress.setValue(10)
             images = self.grab_all_tabs_images(scale=2.0)
             progress.setValue(40)
-            wb = xlsxwriter.Workbook(file)
-            ws_vis = wb.add_worksheet("Panolar")
-            row = 0
-            total_imgs = len(images)
-            for i, (name, img) in enumerate(images):
-                if progress.wasCanceled(): 
+            # Geçici görseller öğrenci verisi içerebilir: başarılı, hatalı ve
+            # iptal edilen bütün işlemlerde temizlenir. Windows'ta açık temp
+            # dosyasıyla yazma hatasından da kaçınılır.
+            with tempfile.TemporaryDirectory(prefix="perfpanel_excel_") as temp_dir:
+                wb = xlsxwriter.Workbook(file)
+                try:
+                    ws_vis = wb.add_worksheet("Panolar")
+                    row = 0
+                    total_imgs = max(1, len(images))
+                    for i, (name, img) in enumerate(images):
+                        if progress.wasCanceled():
+                            return
+                        progress.setLabelText(f"Sayfaya ekleniyor: {name}")
+                        png_path = os.path.join(temp_dir, f"panel_{i:03d}.png")
+                        if not img.save(png_path, "PNG"):
+                            raise OSError(f"Geçici görsel oluşturulamadı: {i}")
+                        ws_vis.write(row, 0, name)
+                        ws_vis.insert_image(row+1, 0, png_path, {'x_scale': 0.8, 'y_scale': 0.8})
+                        row += 50
+                        progress.setValue(40 + int((i+1)/total_imgs * 50))
+                        QApplication.processEvents()
+                finally:
                     wb.close()
-                    return
-                progress.setLabelText(f"Sayfaya ekleniyor: {name}")
-                tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-                img.save(tmp.name, "PNG")
-                ws_vis.write(row, 0, name)
-                ws_vis.insert_image(row+1, 0, tmp.name, {'x_scale': 0.8, 'y_scale': 0.8})
-                row += 50 
-                step = 40 + int((i+1)/total_imgs * 50)
-                progress.setValue(step)
-                QApplication.processEvents()
-            wb.close()
             progress.setValue(100)
             QMessageBox.information(self, "Başarılı", f"Excel dosyası oluşturuldu:\n\n📂 {file}\n\nTüm panolar görsel olarak eklendi.")
         except Exception as e:
@@ -1237,6 +1150,8 @@ class PerformansPaneli(QDialog):
         if current_idx == 0: table = self.tabTop5
         elif current_idx == 1: table = self.tabTrend
         elif current_idx == 2: table = self.tabClub
+        elif current_idx == 3: table = self.tabEvidence
+        elif current_idx == 4: table = self.tabCoach
         
         sid, name = None, None
         if table:
@@ -1270,6 +1185,8 @@ class PerformansPaneli(QDialog):
             if current_idx == 0: table = self.tabTop5
             elif current_idx == 1: table = self.tabTrend
             elif current_idx == 2: table = self.tabClub
+            elif current_idx == 3: table = self.tabEvidence
+            elif current_idx == 4: table = self.tabCoach
             if not table: return
             row = table.currentRow()
             if row < 0:
@@ -1460,7 +1377,7 @@ class PerformansPaneli(QDialog):
         top5_html = ""
         medals = ["🥇 1.", "🥈 2.", "🥉 3.", "⭐ 4.", "⭐ 5."]
         for i, r in enumerate(self._cached_top5_rows[:5]):
-            adsoyad = f"{(r['ad'] or '').strip()} {(r['soyad'] or '').strip()}".strip()
+            adsoyad = html_escape(f"{(r['ad'] or '').strip()} {(r['soyad'] or '').strip()}".strip())
             pct = int(r["ilerleme_yuzde"] or 0)
             bitti = int(r["gorev_bitti"] or 0)
             toplam = int(r["gorev_toplam"] or 0)
@@ -1473,7 +1390,7 @@ class PerformansPaneli(QDialog):
                 <td style="padding: 7pt; font-weight: bold; border-bottom: 1px solid #e2e8f0; color: #0f172a;">{adsoyad}</td>
                 <td style="padding: 7pt; font-weight: bold; border-bottom: 1px solid #e2e8f0; text-align: center; color: #15803d;">%{pct}</td>
                 <td style="padding: 7pt; border-bottom: 1px solid #e2e8f0; text-align: center; color: #475569;">{bitti} / {toplam} Görev</td>
-                <td style="padding: 7pt; border-bottom: 1px solid #e2e8f0; text-align: center; color: #2563eb; font-weight: bold;">{'⭐ Şampiyon' if i==0 else '🌟 Başarılı'}</td>
+                <td style="padding: 7pt; border-bottom: 1px solid #e2e8f0; text-align: center; color: #2563eb; font-weight: bold;">{'⭐ Ödev Takibi' if i==0 else '🌟 Devam'}</td>
             </tr>
             """
 
@@ -1485,8 +1402,8 @@ class PerformansPaneli(QDialog):
         cols_count = 3
         cells = []
         for r in self._cached_club_rows:
-            adsoyad = f"{(r['ad'] or '').strip()} {(r['soyad'] or '').strip()}".strip()
-            pct = float(r["w_pct"] or 0)
+            adsoyad = html_escape(f"{(r['ad'] or '').strip()} {(r['soyad'] or '').strip()}".strip())
+            pct = max(float(r["hafta_pct"] or 0), float(r["ay_pct"] or 0))
             badge_title = "Altın Yıldız" if pct >= 95 else ("Gümüş Yıldız" if pct >= 90 else "Bronz Yıldız")
             badge_bg = "#fef3c7" if pct >= 95 else ("#f1f5f9" if pct >= 90 else "#ffedd5")
             badge_border = "#f59e0b" if pct >= 95 else ("#94a3b8" if pct >= 90 else "#ea580c")
@@ -1517,12 +1434,12 @@ class PerformansPaneli(QDialog):
         podium_poster_html = ""
         if len(self._cached_top5_rows) > 0:
             r1 = self._cached_top5_rows[0]
-            n1 = f"{(r1['ad'] or '').strip()} {(r1['soyad'] or '').strip()}".strip()
+            n1 = html_escape(f"{(r1['ad'] or '').strip()} {(r1['soyad'] or '').strip()}".strip())
             p1 = int(r1["ilerleme_yuzde"] or 0)
             podium_poster_html += f"""
             <div style="background: #fffbeb; border: 2px solid #f59e0b; border-radius: 8pt; padding: 8pt 12pt; margin-bottom: 10pt; text-align: center;">
                 <div style="font-size: 18pt;">👑 🥇</div>
-                <div style="font-size: 13pt; font-weight: bold; color: #b45309; margin: 2pt 0;">HAFTANIN ŞAMPİYONU: {n1}</div>
+                <div style="font-size: 13pt; font-weight: bold; color: #b45309; margin: 2pt 0;">HAFTANIN ÖDEV TAKİP LİDERİ: {n1}</div>
                 <div style="font-size: 10pt; color: #78350f; font-weight: 600;">Tamamlama Oranı: %{p1} ({r1['gorev_bitti']}/{r1['gorev_toplam']} Ödev)</div>
             </div>
             """
@@ -1546,19 +1463,19 @@ class PerformansPaneli(QDialog):
         </head>
         <body>
             <div class="header">
-                <div class="h-title">🏆 HAFTALIK PERFORMANS VE BAŞARI PANOSU</div>
+                <div class="h-title">🏆 HAFTALIK ÖDEV TAKİP ÖZETİ</div>
                 <div class="h-sub">Kurumsal Öğrenci Takip Sistemi • Hafta: {period_str}</div>
             </div>
 
             {podium_poster_html}
 
-            <div class="section-title">🥇 HAFTANIN EN YÜKSEK PERFORMANS GÖSTERENLERİ (TOP 5)</div>
+            <div class="section-title">🥇 HAFTALIK ÖDEV TAMAMLAMA (EN AZ 5 KAYIT)</div>
             <table>
                 <thead>
                     <tr>
                         <th style="width: 15%;">Derece</th>
                         <th style="width: 40%; text-align: left; padding-left: 8pt;">Öğrenci Adı Soyadı</th>
-                        <th style="width: 15%;">Başarı %</th>
+                        <th style="width: 15%;">Tamamlama %</th>
                         <th style="width: 15%;">Ödevler</th>
                         <th style="width: 15%;">Durum</th>
                     </tr>
@@ -1568,7 +1485,7 @@ class PerformansPaneli(QDialog):
                 </tbody>
             </table>
 
-            <div class="section-title">🌟 %80+ BAŞARI KULÜBÜ GURUR LİSTESİ</div>
+            <div class="section-title">🌟 %80+ ÖDEV TAMAMLAMA KULÜBÜ GURUR LİSTESİ</div>
             <div style="margin-top: 4pt;">
                 {club_badges_html}
             </div>

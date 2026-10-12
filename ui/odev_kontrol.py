@@ -1003,6 +1003,13 @@ class OdevKontrolDialog(QDialog):
         """)
 
         flow.addWidget(self.btnListe)
+
+        # V23.4: a separate, modal scoped-homework controller.  It deliberately
+        # does not add scoped rows to the legacy checkbox grid or save path.
+        self.btnScopedV234 = _mk('🎯 Kapsam Ödevleri', 'btnInfo')
+        self.btnScopedV234.setToolTip('Grup/öğrenci özel ödevleri; ana tiklerden ayrı takip edilir.')
+        self.btnScopedV234.clicked.connect(self._open_scoped_control_v234)
+        flow.addWidget(self.btnScopedV234)
         btnBarLayout.addWidget(btnBar)
         root.addWidget(btnBarContainer)
 
@@ -1264,6 +1271,15 @@ class OdevKontrolDialog(QDialog):
         QShortcut(QKeySequence("F7"), self, activated=self._yapilmayanlari_geri_tasi)
         QShortcut(QKeySequence("Delete"), self, activated=getattr(self, "_satir_sil", lambda: None))
         QShortcut(QKeySequence("F8"), self, activated=self.aktar_silmeden)  # ✅ yeni
+
+    def _open_scoped_control_v234(self):
+        """Scoped tasks are managed modally; the old shortcut/save path stays off-screen."""
+        try:
+            from ui.scoped_control_v234 import ScopedControlDialogV234
+            ScopedControlDialogV234(self, student_id=self.ogr_id).exec()
+        except Exception as exc:
+            QMessageBox.warning(self, 'Kapsam Ödevleri',
+                                f'Kapsama özel ödev ekranı açılamadı: {exc}')
 
     # ---------------- Veri yükleme ----------------
     def _yukle_kumeler(self):

@@ -882,6 +882,12 @@ class CoachingManager(QWidget):
         self.tab_survey = SurveyManager()
         self.tabs.addTab(self.tab_survey, "🧠 Profesyonel Anketler")
 
+        # V16: optional read-only student data bridge. No changes to existing tabs.
+        from ui.student360_panel_v16 import Student360Panel
+        self.tab_student360 = Student360Panel(self)
+        self.tabs.addTab(self.tab_student360, "🔎 Öğrenci 360°")
+        self.tabs.currentChanged.connect(self._refresh_student360_v16)
+
         splitter.addWidget(self.right_widget)
 
         splitter.setStretchFactor(0, 24)
@@ -2433,6 +2439,12 @@ class CoachingManager(QWidget):
             
         self._load_plan()
         self._load_student_koc_info() # Görüşme saatini yükle
+        if hasattr(self, 'tab_student360'):
+            self.tab_student360.set_student(self.current_student_id)
+
+    def _refresh_student360_v16(self, index):
+        if getattr(self, 'tab_student360', None) is not None and self.tabs.widget(index) is self.tab_student360:
+            self.tab_student360.refresh()
 
     def _load_student_koc_info(self):
         if not self.current_student_id: return

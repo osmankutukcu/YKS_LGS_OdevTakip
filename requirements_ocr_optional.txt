@@ -1,0 +1,5 @@
+# OPTIONAL local-only scanned PDF / image OCR support (V20.2)
+# The Tesseract engine binary and eng trained-data must ALSO be installed.
+PyMuPDF>=1.24,<2
+pytesseract>=0.3.13,<1
+Pillow>=10,<12

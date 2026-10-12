@@ -551,6 +551,11 @@ class AnaPencere(QMainWindow):
         except Exception:
             pass
 
+        # V22: collapse the fixed 240px menu on Windows/low-resolution screens.
+        # The compact menu fires the ORIGINAL sidebar button signals.
+        from ui.responsive_shell_v22 import ResponsiveShellV22
+        self._responsive_shell_v22 = ResponsiveShellV22(self, self.sidebar, content_layout)
+
         # Otomatik hatırlatıcı
         try:
             self._setup_auto_reminder()
@@ -571,8 +576,9 @@ class AnaPencere(QMainWindow):
         # self.adjustSize()
         
         # Pencerenin çok küçülmesini engelle
-        self.setMinimumWidth(850)
-        self.setMinimumHeight(600)
+        # Qt6 is per-monitor DPI-aware; do not override Windows scaling.
+        self.setMinimumWidth(620)
+        self.setMinimumHeight(420)
         
         # Windows'ta ekran alanına göre tam ekran/maximize aç, Mac'te ideal boyutta aç
         if sys.platform.startswith("win"):

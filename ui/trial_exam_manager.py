@@ -36,6 +36,8 @@ import matplotlib.pyplot as plt
 import db
 from utils import settings as appset
 from ui.trial_exam_settings import TrialExamSettingsDialog, DEFAULT_CONFIG
+from ui.trial_exam_import_v17 import TrialExamImportDialog
+from services.trial_exam_import_v17 import prepare as prepare_exam_v17, apply as apply_exam_v17, ExamImportError
 from services.exam_score_calculator import (
     TURKEY_BENCHMARKS, calculate_exam_score, calculate_tyt_score, 
     calculate_ayt_score, calculate_lgs_score
@@ -710,6 +712,18 @@ class TrialExamManager(QWidget):
         self.btn_export.setStyleSheet("background-color: #0284c7; color: white; padding: 6px 12px; border-radius: 6px; font-weight: bold;")
         self.btn_export.clicked.connect(self._export_excel)
         dl.addWidget(self.btn_export)
+
+        self.btn_import_results_v17 = QPushButton('📥 CSV / Excel İçe Aktar')
+        self.btn_import_results_v17.setToolTip('Önce öğrenci/ders doğrulaması ve önizleme yapılır.')
+        self.btn_import_results_v17.clicked.connect(self._import_results_v17)
+        dl.addWidget(self.btn_import_results_v17)
+
+        # V19: teacher-reviewed question-to-topic evidence. Existing net scores
+        # and the main homework checkbox workflow are not modified here.
+        self.btn_question_evidence_v19 = QPushButton('🔗 Soru–Konu')
+        self.btn_question_evidence_v19.setToolTip('Öğrenci satırını seçin; soru bazlı CSV/Excel kanıtlarını önizleyin.')
+        self.btn_question_evidence_v19.clicked.connect(self._import_question_evidence_v19)
+        dl.addWidget(self.btn_question_evidence_v19)
         
         self.btn_card_selected = QPushButton("📄 Karne Çıkar (PDF)")
         self.btn_card_selected.setStyleSheet("background-color: #7c3aed; color: white; padding: 6px 12px; border-radius: 6px; font-weight: bold;")
@@ -1051,6 +1065,13 @@ class TrialExamManager(QWidget):
         try:
             students = con.execute("SELECT id, ad, soyad FROM ogrenci WHERE aktif=1 ORDER BY ad, soyad").fetchall()
             rows = con.execute("SELECT * FROM deneme_sonuclari WHERE deneme_id=?", (self.current_exam_id,)).fetchall()
+            # An already loaded value may change elsewhere before the next Save.
+            # Keep an exact baseline for optimistic concurrency checking.
+            self._loaded_score_baseline = {}
+            for old_row in rows:
+                k = (int(old_row['ogrenci_id']), str(old_row['ders_adi']))
+                self._loaded_score_baseline[k] = (old_row['id'], old_row['dogru'],
+                    old_row['yanlis'], old_row['bos'], old_row['net'])
             scores_map = {}
             for r in rows:
                 scores_map[(r["ogrenci_id"], r["ders_adi"])] = dict(r)
@@ -1114,46 +1135,87 @@ class TrialExamManager(QWidget):
             con.close()
             self._update_dash_stats()
 
-    def _save_scores(self):
-        if not self.current_exam_id: return
-        con = db.get_conn()
-        try:
-            con.execute("DELETE FROM deneme_sonuclari WHERE deneme_id=?", (self.current_exam_id,))
-            row_count = self.table_scores.rowCount()
-            
-            for r in range(row_count):
-                it_name = self.table_scores.item(r, 0)
-                if not it_name: continue
-                stu_id = it_name.data(Qt.ItemDataRole.UserRole)
-                col_idx = 1
-                
-                for subj in self.current_subjects:
-                    d_item = self.table_scores.item(r, col_idx)
-                    y_item = self.table_scores.item(r, col_idx+1)
-                    
-                    d_val = int(d_item.text()) if d_item and d_item.text().isdigit() else 0
-                    y_val = int(y_item.text()) if y_item and y_item.text().isdigit() else 0
-                    
-                    net_val = d_val - (y_val / 4.0)
-                    if net_val < 0: net_val = 0.0
-                    
-                    self.table_scores.item(r, col_idx+2).setText(f"{net_val:.2f}")
-                    
-                    if d_val > 0 or y_val > 0:
-                        con.execute("""
-                            INSERT INTO deneme_sonuclari (deneme_id, ogrenci_id, ders_adi, dogru, yanlis, net)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        """, (self.current_exam_id, stu_id, subj, d_val, y_val, net_val))
-                    col_idx += 3
-                    
-            con.commit()
-            QMessageBox.information(self, "Kaydedildi", "Deneme sonuçları ve puanları başarıyla kaydedildi.")
+    def _import_results_v17(self):
+        if not self.current_exam_id:
+            QMessageBox.warning(self, 'Deneme seçilmedi', 'Önce bir deneme seçin.')
+            return
+        dialog = TrialExamImportDialog(db.get_conn, int(self.current_exam_id),
+                                       list(self.current_subjects), self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._load_scores()
             self._load_ranking()
             self._update_dash_stats()
-        except Exception as e:
-            QMessageBox.critical(self, "Hata", f"Kaydetme hatası: {e}")
-        finally:
-            con.close()
+
+    def _import_question_evidence_v19(self):
+        """Student ID from selected grid row, never default to first student."""
+        if not self.current_exam_id:
+            QMessageBox.warning(self, 'Deneme', 'Önce bir deneme seçin.')
+            return
+        row=self.table_scores.currentRow()
+        item=self.table_scores.item(row,0) if row>=0 else None
+        student_id=item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+        if type(student_id) is not int or student_id<=0:
+            QMessageBox.information(self,'Öğrenci','Önce sonuç tablosundan ilgili öğrenciyi seçin.')
+            return
+        from ui.question_evidence_import_v19 import QuestionEvidenceImportDialog
+        dialog=QuestionEvidenceImportDialog(student_id,self,preselect_exam_id=int(self.current_exam_id))
+        dialog.exec()
+
+    def _save_scores(self):
+        """Save only explicitly filled results. Never wipe unshown students."""
+        if not self.current_exam_id:
+            return
+        records = []
+        try:
+            for row in range(self.table_scores.rowCount()):
+                student = self.table_scores.item(row, 0)
+                if student is None:
+                    continue
+                student_id = student.data(Qt.ItemDataRole.UserRole)
+                for idx, subject in enumerate(self.current_subjects):
+                    col = idx * 3 + 1
+                    d_item = self.table_scores.item(row, col)
+                    y_item = self.table_scores.item(row, col+1)
+                    d = d_item.text().strip() if d_item else ''
+                    y = y_item.text().strip() if y_item else ''
+                    if not d and not y:
+                        # Clearing cells does not delete a past result.
+                        # Deletion must be a separate, explicit, audited operation.
+                        continue
+                    if not d or not y:
+                        raise ExamImportError(f'{student.text()} / {subject}: doğru ve yanlış birlikte girilmeli.')
+                    records.append({'ogrenci_id': student_id, 'ders': subject,
+                                    'dogru': d, 'yanlis': y, '_row': row+1})
+            if not records:
+                QMessageBox.information(self, 'Sonuç yok',
+                    'Kaydedilecek dolu sonuç bulunamadı. Var olan sonuçlar korunuyor.')
+                return
+            con = db.get_conn()
+            try:
+                preview = prepare_exam_v17(con, int(self.current_exam_id),
+                    self.current_subjects, records,
+                    baseline=getattr(self, '_loaded_score_baseline', None))
+                if preview.errors:
+                    raise ExamImportError('\n'.join(preview.errors[:8]))
+                counts = preview.counts
+                if counts['new'] + counts['update'] == 0:
+                    QMessageBox.information(self, 'Güncel', 'Sonuçlarda yeni bir değişiklik yok.')
+                    return
+                response = QMessageBox.question(self, 'Kaydetme onayı',
+                    f'{counts["new"]} yeni, {counts["update"]} değişen sonuç kaydedilecek.\n'
+                    'Ekranda bulunmayan öğrencilerin sonuçları korunacak. Devam edilsin mi?')
+                if response != QMessageBox.StandardButton.Yes:
+                    return
+                applied = apply_exam_v17(con, int(self.current_exam_id), preview)
+            finally:
+                con.close()
+            QMessageBox.information(self, 'Kaydedildi',
+                f'{applied["new"]} yeni ve {applied["update"]} değişen sonuç kaydedildi.')
+            self._load_scores()
+            self._load_ranking()
+            self._update_dash_stats()
+        except (ExamImportError, ValueError, sqlite3.Error) as exc:
+            QMessageBox.warning(self, 'Kaydetme durduruldu', str(exc))
 
     def _recalc_row_total(self, row):
         net_dict = {}

@@ -14,6 +14,8 @@ import db
 # Yeni yardımcılar
 from utils.konu_helper import get_active_list
 from utils.konu_rename import rename_topic
+from services.curriculum_v23 import (topic_impact, save_topics,
+                                     delete_unused_topics, CurriculumSafetyError)
 
 # ---- Sabit grup listeleri ----
 ANA_GRUPLAR = ["YKS", "LGS", "Ara Sınıf"]
@@ -32,6 +34,7 @@ class DersKonuEditor(QWidget):
 
         self.settings: QSettings = QSettings("EduApps", "YKS_LGS_HomeworkManager")
         self._loading = False
+        self._loaded_topic_names = {}
         self._ensure_aux_tables()
 
         self._build_ui()
@@ -155,9 +158,9 @@ class DersKonuEditor(QWidget):
         
         action_layout.addStretch()
         
-        self.btnOsymHighlight = QPushButton("⭐ ÖSYM Trend Konuları Vurgula")
+        self.btnOsymHighlight = QPushButton("⭐ Konu Öneri Vurgusu")
         self.btnOsymHighlight.setStyleSheet("background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-weight: 600; border-radius: 4px; padding: 6px 12px;")
-        self.btnOsymHighlight.setToolTip("ÖSYM ve LGS sınavlarında en çok soru gelen konuları tespit et ve renklendir")
+        self.btnOsymHighlight.setToolTip("Anahtar kelime eşleşmelerini gösterir; resmî sınav frekansı değildir.")
         self.btnOsymHighlight.clicked.connect(self._highlight_osym_topics)
         action_layout.addWidget(self.btnOsymHighlight)
         
@@ -530,6 +533,7 @@ class DersKonuEditor(QWidget):
     # Veri yükleme
     def _yukle(self):
         scope, p = self._current_scope()
+        self._loaded_topic_names = {}
         
         # Eğer ders seçili değilse işlem yapma (Hata Önleme)
         if not p.get("ders"):
@@ -555,6 +559,7 @@ class DersKonuEditor(QWidget):
                     ORDER BY id
                 """, (p["ogrenci_id"], p["ders"])).fetchall()
 
+        self._loaded_topic_names = {int(r["id"]): str(r["konu"]) for r in rows}
         self._loading = True
         self.tab.setRowCount(0)
         for r in rows:
@@ -580,7 +585,7 @@ class DersKonuEditor(QWidget):
 
 
     def _highlight_osym_topics(self):
-        """ÖSYM ve LGS sınavlarında en sık sorulan kritik konuları tespit edip altın sarısı renkle vurgular."""
+        """Anahtar kelimeye göre ön inceleme vurgusu; resmî sınav sıklığı iddiası yok."""
         keywords = [
             "paragraf", "problem", "üslü", "köklü", "fonksiyon", "türev", "integral",
             "trigonometri", "polinom", "limit", "asit", "baz", "periyodik", "mol",
@@ -597,12 +602,12 @@ class DersKonuEditor(QWidget):
             if any(k in txt for k in keywords):
                 it.setBackground(QColor("#fef9c3"))
                 it.setForeground(QColor("#854d0e"))
-                it.setToolTip("⭐ ÖSYM / Sınav Trend Yüksek Frekanslı Konu")
+                it.setToolTip("Anahtar kelime eşleşmesi (resmî sıklık verisi değildir)")
                 count += 1
         if count > 0:
-            QMessageBox.information(self, "⭐ ÖSYM Trend Konuları", f"Bu derste sınavlarda en çok çıkan {count} kritik konu tespit edildi ve altın sarısı renkle vurgulandı.")
+            QMessageBox.information(self, "Konu Öneri Vurgusu", f"{count} konu anahtar kelimeyle eşleşti. Bu, sınavda çıkma sıklığı kanıtı değildir.")
         else:
-            QMessageBox.information(self, "ÖSYM Trend Konuları", "Bu ders listesinde standart anahtar kelimelerle eşleşen konu bulunamadı.")
+            QMessageBox.information(self, "Konu Öneri Vurgusu", "Bu listede seçili anahtar kelimelerle eşleşen konu bulunamadı.")
 
     def _validate_rows(self):
         """Konu adı boş olanları kırmızı işaretle."""
@@ -623,49 +628,25 @@ class DersKonuEditor(QWidget):
     # ---------------------------------------------------------------------
     # Kaydet
     def _kaydet(self):
+        """V23: tek ve kapsamı denetlenen atomik kayıt; eski ödevlere dokunmaz."""
         scope, p = self._current_scope()
-        con = db.get_conn(); cur = con.cursor()
-
+        rows = []
         for i in range(self.tab.rowCount()):
-            idt = self._cell(i, 0)
-            konu = self._cell(i, 1)
-            ort_soru = (self._cell(i, 2).strip() or None)
-            ort_sure = (self._cell(i, 3).strip() or None)
-            if not konu.strip():
-                continue
-
-            if scope == "Genel":
-                if idt.strip():
-                    cur.execute(
-                        f"UPDATE {p['ders']} SET konu=?, ort_soru=?, ort_sure=? WHERE id=?",
-                        (konu, ort_soru, ort_sure, int(idt))
-                    )
-                else:
-                    cur.execute(
-                        f"INSERT INTO {p['ders']}(konu, ort_soru, ort_sure) VALUES(?,?,?)",
-                        (konu, ort_soru, ort_sure)
-                    )
-            elif scope == "Grup":
-                cur.execute("""
-                    INSERT INTO grup_konu_duzen(ana_grup, alt_grup, ders, konu, ort_soru, ort_sure)
-                    VALUES(?,?,?,?,?,?)
-                    ON CONFLICT(ana_grup, alt_grup, ders, konu)
-                    DO UPDATE SET ort_soru=excluded.ort_soru, ort_sure=excluded.ort_sure
-                """, (p["ana_grup"], p["alt_grup"], p["ders"], konu, ort_soru, ort_sure))
-            else:
-                if not p.get("ogrenci_id"):
-                    QMessageBox.warning(self, "Eksik Bilgi", "Öğrenci seçilmedi.")
-                    return
-                cur.execute("""
-                    INSERT INTO ogrenci_konu_duzen(ogrenci_id, ders, konu, ort_soru, ort_sure)
-                    VALUES(?,?,?,?,?)
-                    ON CONFLICT(ogrenci_id, ders, konu)
-                    DO UPDATE SET ort_soru=excluded.ort_soru, ort_sure=excluded.ort_sure
-                """, (p["ogrenci_id"], p["ders"], konu, ort_soru, ort_sure))
-
-        con.commit()
+            rows.append({"id": self._cell(i, 0), "konu": self._cell(i, 1),
+                         "ort_soru": self._cell(i, 2), "ort_sure": self._cell(i, 3)})
+        con = db.get_conn()
+        try:
+            save_topics(con, scope=scope, ders=p["ders"], rows=rows,
+                        ana_grup=p.get("ana_grup"), alt_grup=p.get("alt_grup"),
+                        ogrenci_id=p.get("ogrenci_id"),
+                        expected_names=self._loaded_topic_names)
+        except Exception as exc:
+            QMessageBox.warning(self, "Kayıt korunuyor", str(exc))
+            return
+        finally:
+            con.close()
         self._yukle()
-        QMessageBox.information(self, "Kaydedildi", "Değişiklikler kaydedildi.")
+        QMessageBox.information(self, "Kaydedildi", "Konular güvenli biçimde kaydedildi.")
 
     # ---------------------------------------------------------------------
     # Satır ekle/sil
@@ -683,23 +664,39 @@ class DersKonuEditor(QWidget):
         self.tab.setCurrentCell(r, 1)
 
     def _sil_satir(self):
+        """V23: eski ödev veya istatistikte kullanılan konu silinemez."""
         rows = sorted({it.row() for it in self.tab.selectedItems()}, reverse=True)
         if not rows:
             return
         scope, p = self._current_scope()
-        con = db.get_conn(); cur = con.cursor()
+        ids = []
         for r in rows:
-            idit = self.tab.item(r, 0)
-            if idit and idit.text().strip():
-                idv = int(idit.text())
-                if scope == "Genel":
-                    cur.execute(f"DELETE FROM {p['ders']} WHERE id=?", (idv,))
-                elif scope == "Grup":
-                    cur.execute("DELETE FROM grup_konu_duzen WHERE id=?", (idv,))
-                else:
-                    cur.execute("DELETE FROM ogrenci_konu_duzen WHERE id=?", (idv,))
+            old_id = self._cell(r, 0).strip()
+            if old_id:
+                ids.append(int(old_id))
+        if ids:
+            choice = QMessageBox.question(
+                self, "Konu silme güvenliği",
+                f"{len(ids)} kayıtlı konu silinmek üzere seçildi.\n"
+                "Geçmiş ödev/istatistikte kullanılan konular silinmeyecek. Devam edilsin mi?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No)
+            if choice != QMessageBox.StandardButton.Yes:
+                return
+            con = db.get_conn()
+            try:
+                delete_unused_topics(con, scope=scope, ders=p['ders'], ids=ids,
+                                     ana_grup=p.get('ana_grup'), alt_grup=p.get('alt_grup'),
+                                     ogrenci_id=p.get('ogrenci_id'))
+            except Exception as exc:
+                QMessageBox.warning(self, "Silme engellendi", str(exc))
+                return
+            finally:
+                con.close()
+        # Sadece başarıyla silinen veya henüz kaydedilmemiş satırlar kaldırılır.
+        for r in rows:
             self.tab.removeRow(r)
-        con.commit()
+        self._yukle()
 
     # ---------------------------------------------------------------------
     # Toplu ekle (sağ panel)
@@ -820,8 +817,10 @@ class DersKonuEditor(QWidget):
         # Etkin liste + ad değiştirme
         menu.addSeparator()
         act_preview_active = QAction("Etkin Listeyi Göster (Önceliklenmiş)", self)
+        act_identity = QAction("Konu Kimliği ve Çakışma Denetimi (V23.1)…", self)
         act_rename_topic   = QAction("Ad Değiştirme Sihirbazı…", self)
         menu.addAction(act_preview_active)
+        menu.addAction(act_identity)
         menu.addAction(act_rename_topic)
 
         # Tıklanan satır
@@ -851,6 +850,7 @@ class DersKonuEditor(QWidget):
         act_from_gen_replace.triggered.connect(lambda: self._copy_from_general(mode="replace"))
 
         act_preview_active.triggered.connect(self._preview_active_list)
+        act_identity.triggered.connect(self._open_identity_audit_v231)
         act_rename_topic.triggered.connect(self._rename_topic_wizard)
 
         menu.exec(self.tab.mapToGlobal(pos))
@@ -989,6 +989,11 @@ class DersKonuEditor(QWidget):
         self._loading = False
         self.tab.resizeColumnsToContents()
 
+    def _open_identity_audit_v231(self):
+        """Konu kaydını değiştirmeden ortak kimlik denetimini aç."""
+        from ui.curriculum_identity_dialog_v231 import open_identity_audit
+        open_identity_audit(self)
+
     # ---------------------------------------------------------------------
     # Etkin Liste önizleme
     def _preview_active_list(self):
@@ -1051,32 +1056,38 @@ class DersKonuEditor(QWidget):
             return
         new_name = new_name.strip()
 
-        # Geçmişi güncelle?
-        reply = QMessageBox.question(
-            self,
-            "Geçmişi Güncelle?",
-            "Geçmiş ödev kayıtlarındaki konu adlarını da güncellemek ister misiniz?\n"
-            "(Önerilen: Evet)",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes
-        )
-        update_history = (reply == QMessageBox.StandardButton.Yes)
-
+        # V23: Geçmişi otomatik değiştirmek özellikle grup/öğrenci konularında güvensiz.
+        # Konu ID'sini koruyarak yalnızca katalog adını güncelleriz.
         scope, p = self._current_scope()
+        topic_id = self._cell(row, 0).strip()
+        if not topic_id:
+            QMessageBox.warning(self, "Önce kaydediniz", "Yeni konuyu önce kaydediniz.")
+            return
         con = db.get_conn()
-
-        rename_topic(
-            con,
-            ders=p["ders"],
-            old_name=old_name,
-            new_name=new_name,
-            scope=scope,
-            ana_grup=p.get("ana_grup"),
-            alt_grup=p.get("alt_grup"),
-            ogrenci_id=p.get("ogrenci_id"),
-            merge_if_exists=True,
-            update_history=update_history,
-        )
+        try:
+            impact = topic_impact(con, scope=scope, ders=p['ders'], name=old_name,
+                                  topic_id=int(topic_id), ana_grup=p.get('ana_grup'),
+                                  alt_grup=p.get('alt_grup'), ogrenci_id=p.get('ogrenci_id'))
+            references = sum(impact['references'].values())
+            reply = QMessageBox.question(
+                self, "Güvenli konu adı değişikliği",
+                f"'{old_name}' → '{new_name}'\n\n"
+                f"Geçmiş tablolarındaki referans satırları: {references} (tablolar arası tekrar olabilir).\n"
+                "Geçmiş ödevler ve istatistikler değiştirilmez. Konu kimliği korunur.\n"
+                "Bu güvenli katalog adı değişikliği yapılsın mı?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No)
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+            rename_topic(con, ders=p['ders'], old_name=old_name, new_name=new_name,
+                         scope=scope, ana_grup=p.get('ana_grup'),
+                         alt_grup=p.get('alt_grup'), ogrenci_id=p.get('ogrenci_id'),
+                         topic_id=int(topic_id), update_history=False)
+        except Exception as exc:
+            QMessageBox.warning(self, "Ad değiştirme engellendi", str(exc))
+            return
+        finally:
+            con.close()
 
         self._yukle()
         QMessageBox.information(self, "Tamam", f"'{old_name}' → '{new_name}' olarak güncellendi.")

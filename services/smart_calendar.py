@@ -807,6 +807,22 @@ class SmartCalendarService:
         if not d.tasks:
             return "☕ Serbest Gün / Dinlenme & Tekrar"
 
+        if d.appointments:
+            sorted_appts = sorted(d.appointments, key=lambda x: x[1])
+            blocks = []
+            cur_s, cur_e = sorted_appts[0][1], sorted_appts[0][2]
+            for _, s, e in sorted_appts[1:]:
+                if s - cur_e <= 45:
+                    cur_e = max(cur_e, e)
+                else:
+                    blocks.append((cur_s, cur_e))
+                    cur_s, cur_e = s, e
+            blocks.append((cur_s, cur_e))
+            if len(blocks) == 1:
+                s, e = blocks[0]
+                return f"{s//60:02d}:{s%60:02d} – {e//60:02d}:{e%60:02d}"
+            return " / ".join(f"{s//60:02d}:{s%60:02d}–{e//60:02d}:{e%60:02d}" for s, e in blocks)
+
         wd = d.date_.weekday()
         is_weekend = wd in (5, 6)
         w_start = 8 * 60 if is_weekend else 7 * 60 + 30
