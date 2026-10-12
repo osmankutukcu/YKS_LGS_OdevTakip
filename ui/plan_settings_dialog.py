@@ -144,112 +144,116 @@ class DayTimelineWidget(QFrame):
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        w = self.width()
-        h = self.height()
-        
-        # Üst Başlık & Kapasite Özeti
-        hours = self.total_free // 60
-        mins = self.total_free % 60
-        
-        p.setPen(QColor("#0f172a"))
-        p.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        header_text = f"📅 {self.day_name} 24 Saatlik Zaman Çizelgesi"
-        p.drawText(16, 24, header_text)
-        
-        # Kalan kapasite rozeti
-        cap_text = f"🟢 Kısıt sonrası boş aralık: {hours} sa {mins} dk"
-        p.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-        p.setPen(QColor("#059669"))
-        p.drawText(w - p.fontMetrics().horizontalAdvance(cap_text) - 18, 24, cap_text)
-        
-        # Çubuk Koordinatları
-        bar_y = 28
-        bar_h = 28
-        start_min = 6 * 60  # 06:00
-        end_min = 24 * 60   # 24:00
-        total_range = end_min - start_min
-        
-        def min_to_x(m):
-            ratio = (m - start_min) / total_range
-            return 20 + ratio * (w - 40)
+        try:
+            w = self.width()
+            h = self.height()
             
-        # Zemin (Serbest çalışma açık mavi/gri)
-        p.setBrush(QColor("#f1f5f9"))
-        p.setPen(QPen(QColor("#cbd5e1"), 1))
-        p.drawRoundedRect(QRectF(20, bar_y, w - 40, bar_h), 5, 5)
-        
-        # Yeşil çalışma pencereleri: günün gerçekten kullanılabilir alanları.
-        p.setBrush(QColor('#dcfce7'))
-        p.setPen(QPen(QColor('#4ade80'), 1))
-        for start, end in self.study_windows:
-            x1 = max(20, min_to_x(start))
-            x2 = min(w - 20, min_to_x(end))
-            if x2 > x1:
-                p.drawRoundedRect(QRectF(x1, bar_y + 2, x2 - x1, bar_h - 4), 3, 3)
+            # Üst Başlık & Kapasite Özeti
+            hours = self.total_free // 60
+            mins = self.total_free % 60
+            
+            p.setPen(QColor("#0f172a"))
+            p.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+            header_text = f"📅 {self.day_name} 24 Saatlik Zaman Çizelgesi"
+            p.drawText(16, 24, header_text)
+            
+            # Kalan kapasite rozeti
+            cap_text = f"🟢 Kısıt sonrası boş aralık: {hours} sa {mins} dk"
+            p.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
+            p.setPen(QColor("#059669"))
+            p.drawText(w - p.fontMetrics().horizontalAdvance(cap_text) - 18, 24, cap_text)
+            
+            # Çubuk Koordinatları
+            bar_y = 28
+            bar_h = 28
+            start_min = 6 * 60  # 06:00
+            end_min = 24 * 60   # 24:00
+            total_range = end_min - start_min
+            
+            def min_to_x(m):
+                ratio = (m - start_min) / total_range
+                return 20 + ratio * (w - 40)
+                
+            # Zemin (Serbest çalışma açık mavi/gri)
+            p.setBrush(QColor("#f1f5f9"))
+            p.setPen(QPen(QColor("#cbd5e1"), 1))
+            p.drawRoundedRect(QRectF(20, bar_y, w - 40, bar_h), 5, 5)
+            
+            # Yeşil çalışma pencereleri: günün gerçekten kullanılabilir alanları.
+            p.setBrush(QColor('#dcfce7'))
+            p.setPen(QPen(QColor('#4ade80'), 1))
+            for start, end in self.study_windows:
+                x1 = max(20, min_to_x(start))
+                x2 = min(w - 20, min_to_x(end))
+                if x2 > x1:
+                    p.drawRoundedRect(QRectF(x1, bar_y + 2, x2 - x1, bar_h - 4), 3, 3)
 
-        # Okul Alanı
-        if self.school_times:
-            s, e = self.school_times
-            x1 = min_to_x(s)
-            x2 = min_to_x(e)
-            if x2 > x1:
-                grad_school = QLinearGradient(x1, bar_y, x2, bar_y + bar_h)
-                grad_school.setColorAt(0, QColor("#fecaca"))
-                grad_school.setColorAt(1, QColor("#fee2e2"))
-                p.setBrush(grad_school)
-                p.setPen(QPen(QColor("#f87171"), 1))
-                p.drawRoundedRect(QRectF(x1, bar_y + 2, x2 - x1, bar_h - 4), 4, 4)
-                if x2 - x1 > 45: 
-                    p.setPen(QColor("#991b1b"))
-                    p.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
-                    p.drawText(QRectF(x1, bar_y + 2, x2 - x1, bar_h - 4), Qt.AlignmentFlag.AlignCenter, "🏫 OKUL")
-        
-        # Sabit Bloklar (Kurs, Etüt, Özel Ders)
-        for s, e, lbl in self.blocks:
-            x1 = min_to_x(s)
-            x2 = min_to_x(e)
-            if x2 > x1:
-                grad_block = QLinearGradient(x1, bar_y, x2, bar_y + bar_h)
-                grad_block.setColorAt(0, QColor("#fed7aa"))
-                grad_block.setColorAt(1, QColor("#ffedd5"))
-                p.setBrush(grad_block)
-                p.setPen(QPen(QColor("#fb923c"), 1))
-                p.drawRoundedRect(QRectF(x1, bar_y + 3, x2 - x1, bar_h - 6), 4, 4)
-                if x2 - x1 > 35: 
-                    p.setPen(QColor("#9a3412"))
-                    p.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
-                    short_lbl = lbl[:8] + ".." if len(lbl) > 8 else lbl
-                    p.drawText(QRectF(x1, bar_y + 3, x2 - x1, bar_h - 6), Qt.AlignmentFlag.AlignCenter, short_lbl)
-                     
-        # Saat İşaretleri (Her 3 saatte bir)
-        p.setPen(QColor("#64748b"))
-        p.setFont(QFont("Segoe UI", 7.5))
-        for h_val in range(6, 25, 3):
-            mx = min_to_x(h_val * 60)
-            p.drawText(int(mx) - 12, bar_y + bar_h + 13, f"{h_val:02d}:00")
+            # Okul Alanı
+            if self.school_times:
+                s, e = self.school_times
+                x1 = min_to_x(s)
+                x2 = min_to_x(e)
+                if x2 > x1:
+                    grad_school = QLinearGradient(x1, bar_y, x2, bar_y + bar_h)
+                    grad_school.setColorAt(0, QColor("#fecaca"))
+                    grad_school.setColorAt(1, QColor("#fee2e2"))
+                    p.setBrush(grad_school)
+                    p.setPen(QPen(QColor("#f87171"), 1))
+                    p.drawRoundedRect(QRectF(x1, bar_y + 2, x2 - x1, bar_h - 4), 4, 4)
+                    if x2 - x1 > 45: 
+                        p.setPen(QColor("#991b1b"))
+                        p.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+                        p.drawText(QRectF(x1, bar_y + 2, x2 - x1, bar_h - 4), Qt.AlignmentFlag.AlignCenter, "🏫 OKUL")
             
-        # Alt Lejant (Okul, Sabit Kısıt, Serbest Zaman)
-        p.setFont(QFont("Segoe UI", 8))
-        leg_y = bar_y + bar_h + 24
-        
-        # Kırmızı nokta - Okul
-        p.setBrush(QColor("#ef4444")); p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(22, leg_y - 7, 7, 7)
-        p.setPen(QColor("#475569"))
-        p.drawText(33, leg_y, "Okul Saatleri")
-        
-        # Turuncu nokta - Kurs
-        p.setBrush(QColor("#f97316")); p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(118, leg_y - 7, 7, 7)
-        p.setPen(QColor("#475569"))
-        p.drawText(129, leg_y, "Sabit Ders/Kurs")
-        
-        # Yeşil nokta - Serbest
-        p.setBrush(QColor("#10b981")); p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(235, leg_y - 7, 7, 7)
-        p.setPen(QColor("#475569"))
-        p.drawText(246, leg_y, "Ödev & Çalışma Alanı")
+            # Sabit Bloklar (Kurs, Etüt, Özel Ders)
+            for s, e, lbl in self.blocks:
+                x1 = min_to_x(s)
+                x2 = min_to_x(e)
+                if x2 > x1:
+                    grad_block = QLinearGradient(x1, bar_y, x2, bar_y + bar_h)
+                    grad_block.setColorAt(0, QColor("#fed7aa"))
+                    grad_block.setColorAt(1, QColor("#ffedd5"))
+                    p.setBrush(grad_block)
+                    p.setPen(QPen(QColor("#fb923c"), 1))
+                    p.drawRoundedRect(QRectF(x1, bar_y + 3, x2 - x1, bar_h - 6), 4, 4)
+                    if x2 - x1 > 35: 
+                        p.setPen(QColor("#9a3412"))
+                        p.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+                        short_lbl = lbl[:8] + ".." if len(lbl) > 8 else lbl
+                        p.drawText(QRectF(x1, bar_y + 3, x2 - x1, bar_h - 6), Qt.AlignmentFlag.AlignCenter, short_lbl)
+                         
+            # Saat İşaretleri (Her 3 saatte bir)
+            p.setPen(QColor("#64748b"))
+            p.setFont(QFont("Segoe UI", 8))
+            for h_val in range(6, 25, 3):
+                mx = min_to_x(h_val * 60)
+                p.drawText(int(mx) - 12, bar_y + bar_h + 13, f"{h_val:02d}:00")
+                
+            # Alt Lejant (Okul, Sabit Kısıt, Serbest Zaman)
+            p.setFont(QFont("Segoe UI", 8))
+            leg_y = bar_y + bar_h + 24
+            
+            # Kırmızı nokta - Okul
+            p.setBrush(QColor("#ef4444")); p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(22, leg_y - 7, 7, 7)
+            p.setPen(QColor("#475569"))
+            p.drawText(33, leg_y, "Okul Saatleri")
+            
+            # Turuncu nokta - Kurs
+            p.setBrush(QColor("#f97316")); p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(118, leg_y - 7, 7, 7)
+            p.setPen(QColor("#475569"))
+            p.drawText(129, leg_y, "Sabit Ders/Kurs")
+            
+            # Yeşil nokta - Serbest
+            p.setBrush(QColor("#10b981")); p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(235, leg_y - 7, 7, 7)
+            p.setPen(QColor("#475569"))
+            p.drawText(246, leg_y, "Ödev & Çalışma Alanı")
+        except Exception:
+            pass
+        finally:
+            p.end()
 
 
 class PlanSettingsDialog(QDialog):
@@ -1301,7 +1305,7 @@ class PlanSettingsDialog(QDialog):
                     f'📊 Haftalık üst kapasite: {total//60} sa {total%60} dk '
                     f'(günlük üst sınırlar ve gerçek boş aralıklar birlikte hesaplandı)')
             self.timeline.update()
-        except ValueError as err:
+        except (ValueError, Exception) as err:
             self.timeline.total_free = 0
             self.timeline.study_windows = []
             if hasattr(self, 'lbl_advanced_capacity'):
