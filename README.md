@@ -29,8 +29,3 @@ konular ders tablolarına yüklenir.
 - Bu, kapsamlı isteğinizin çekirdek işlevlerini çalışır şekilde örnekleyen bir başlangıçtır.
 - Ödev kontrol ekranı, yazdırma/PDF, WhatsApp otomasyonu, hücre kilitleme/renklendirme gibi ileri özellikler
   bir sonraki yinelemede eklenecek şekilde yer tutucularla işaretlenmiştir.
-
-
-## V13.6 – güvenli ödev bağlantısı uzlaştırma
-
-V13.5 Denetim ekranına ek olarak ayrı komut satırı incelemesi ve sadece **yeni SQLite kopyasına** yönetici onaylı bağlantı uzlaştırma aracı vardır. Ana form, gerçek tik kaydı veya kullanıcı verileri değiştirilmemiştir. Detaylar: [`V13_6_VERI_UZLASTIRMA_KULLANIM.md`](V13_6_VERI_UZLASTIRMA_KULLANIM.md).
