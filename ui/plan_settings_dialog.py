@@ -465,18 +465,20 @@ class PlanSettingsDialog(QDialog):
         
         # Profil & Şablon Çubuğu
         h_prof = QHBoxLayout()
-        lbl_prof = QLabel("<font color='#e0e7ff'><b>📋 Kayıtlı Şablon / Profil:</b></font>")
+        h_prof.setSpacing(6)
+        lbl_prof = QLabel("<font color='#e0e7ff'><b>📋 Şablon:</b></font>")
         lbl_prof.setStyleSheet("font-size: 11.5px;")
         h_prof.addWidget(lbl_prof)
         
         self.cmb_profiles = QComboBox()
-        self.cmb_profiles.setStyleSheet("background: white; border-radius: 5px; padding: 3px 8px; min-width: 200px;")
+        self.cmb_profiles.setStyleSheet("background: white; border-radius: 5px; padding: 3px 6px; min-width: 140px; font-size: 11.5px;")
         
-        btn_save_prof = QPushButton("💾 Profili Kaydet")
+        btn_save_prof = QPushButton("💾 Kaydet")
         btn_save_prof.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_save_prof.setToolTip("Mevcut ayarları yeni bir şablon/profil olarak kaydeder")
         btn_save_prof.setStyleSheet("""
             QPushButton {
-                background: #10b981; color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 12px; font-size: 11.5px;
+                background: #10b981; color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 10px; font-size: 11.5px;
             }
             QPushButton:hover { background: #059669; }
         """)
@@ -487,17 +489,30 @@ class PlanSettingsDialog(QDialog):
         btn_update_prof.setToolTip("Seçili profilin ayarlarını mevcut form verileriyle günceller")
         btn_update_prof.setStyleSheet("""
             QPushButton {
-                background: #2563eb; color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 11px; font-size: 11.5px;
+                background: #2563eb; color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 10px; font-size: 11.5px;
             }
             QPushButton:hover { background: #1d4ed8; }
         """)
         btn_update_prof.clicked.connect(self._update_current_profile)
         
+        btn_assign = QPushButton('🎯 Öğrenciye Ata')
+        btn_assign.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_assign.setEnabled(bool(self.student_id))
+        btn_assign.setToolTip('Seçili şablonu bu öğrenci için sonraki açılışlarda otomatik seçer')
+        btn_assign.setStyleSheet("""
+            QPushButton {
+                background: #7c3aed; color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 10px; font-size: 11.5px;
+            }
+            QPushButton:hover { background: #6d28d9; }
+            QPushButton:disabled { background: #94a3b8; color: #e2e8f0; }
+        """)
+        btn_assign.clicked.connect(self._assign_to_student)
+
         btn_del_prof = QPushButton("🗑️ Sil")
         btn_del_prof.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_del_prof.setStyleSheet("""
             QPushButton {
-                background: rgba(239, 68, 68, 0.85); color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 10px; font-size: 11.5px;
+                background: rgba(239, 68, 68, 0.85); color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 9px; font-size: 11.5px;
             }
             QPushButton:hover { background: #dc2626; }
         """)
@@ -506,10 +521,6 @@ class PlanSettingsDialog(QDialog):
         h_prof.addWidget(self.cmb_profiles, 1)
         h_prof.addWidget(btn_save_prof)
         h_prof.addWidget(btn_update_prof)
-        btn_assign = QPushButton('🎯 Öğrenciye Ata')
-        btn_assign.setEnabled(bool(self.student_id))
-        btn_assign.setToolTip('Seçili şablonu bu öğrenci için sonraki açılışlarda otomatik seçer')
-        btn_assign.clicked.connect(self._assign_to_student)
         h_prof.addWidget(btn_assign)
         h_prof.addWidget(btn_del_prof)
         head_lay.addLayout(h_prof)

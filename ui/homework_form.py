@@ -3102,6 +3102,20 @@ class OdevTakipFormu(QWidget):
 
 
 
+    def _open_integrity_v135(self):
+        """V13.5: on-demand, read-only integrity diagnostics. Never alter tasks."""
+        try:
+            from pathlib import Path
+            from ui.homework_integrity_dialog_v135 import IntegrityDialog
+            db_path = getattr(db, "DB_PATH", None)
+            if db_path is None:
+                QMessageBox.warning(self, "Veri Denetimi", "Veritabanı yolu bulunamadı.")
+                return
+            dialog = IntegrityDialog(self, Path(db_path), self)
+            dialog.exec()
+        except Exception as exc:
+            QMessageBox.warning(self, "Veri Denetimi", f"Salt okunur denetim açılamadı: {exc}")
+
     # ---- Yardımcılar ----
     def _secili_ogrenci_id(self) -> int | None:
         """
@@ -3925,8 +3939,10 @@ class OdevTakipFormu(QWidget):
         self.btnOneriTakviye.setToolTip("Yaklaşan ve geciken ödevler için takviye planı oluştur")
         self.btnSihirbaz = QPushButton("✨ Sihirbaz")
         self.btnSihirbaz.setToolTip("Akıllı ödevlendirme ve konu öneri sihirbazı")
+        self.btnVeriDenetimi = QPushButton("🔎 Denetim")
+        self.btnVeriDenetimi.setToolTip("Salt okunur öğrenci tik ve ödev bağlantı denetimi")
 
-        for b in (self.btnExcel, self.btnPdfAyar, self.btnDetayRapor, self.btnOneriEksik, self.btnOneriTakviye, self.btnSihirbaz):
+        for b in (self.btnExcel, self.btnPdfAyar, self.btnDetayRapor, self.btnOneriEksik, self.btnOneriTakviye, self.btnSihirbaz, self.btnVeriDenetimi):
             b.setFixedHeight(25)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setStyleSheet("""
@@ -3990,6 +4006,7 @@ class OdevTakipFormu(QWidget):
         self.btnOneriler.clicked.connect(self._open_oneri_dialog)
         self.btnExcel.clicked.connect(self._export_all_lists_to_excel)
         self.btnSihirbaz.clicked.connect(self._open_smart_wizard)
+        self.btnVeriDenetimi.clicked.connect(self._open_integrity_v135)
 
         self._yukle_verilen_kolon_genislik()
         self.verilen.horizontalHeader().sectionResized.connect(self._kaydet_verilen_kolon_genislik)
@@ -8149,6 +8166,11 @@ class OdevTakipFormu(QWidget):
         if not ogr_id:
             QMessageBox.warning(self, "Eksik", "Öğrenci seçiniz.")
             return
+        from utils.wizard_integrity_v8 import same_student
+        if not same_student(ogr_id, getattr(self, '_loaded_student_id', None)):
+            QMessageBox.warning(self, "Öğrenci Uyuşmazlığı",
+                "Konu/kitap tablosu başka öğrenciye ait olabilir. Bilgileri Getir ile yeniden yükleyin.")
+            return
         if self.verilen.rowCount() == 0:
             QMessageBox.information(self, "Bilgi", "Verilecek ödev bulunmuyor.")
             return
@@ -8219,45 +8241,26 @@ class OdevTakipFormu(QWidget):
             else:
                 QMessageBox.information(self, "Güncellendi", f"Ödev kümesi #{kume_id} içine eklemeler yapıldı.")
 
-            try:
-                sarı = QColor("#FFF59D")
-                if hasattr(self, "_ders_tablolari"):
-                    for r in range(self.verilen.rowCount()):
-                        ders = _v(r, 0)
-                        kitap = _v(r, 1)
-                        konu = _v(r, 2)
-                        if not ders or not kitap or not konu:
-                            continue
-                        tablo = self._ders_tablolari.get(ders)
-                        if not tablo:
-                            continue
-                        hedef_satir = -1
-                        for rr in range(tablo.rowCount()):
-                            it = tablo.item(rr, 0)
-                            if it and (it.text() or "").strip().lower() == konu.lower():
-                                hedef_satir = rr
-                                break
-                        if hedef_satir < 0:
-                            continue
-                        hedef_sutun = -1
-                        for cc in range(1, tablo.columnCount()):
-                            h = tablo.horizontalHeaderItem(cc)
-                            if h and (h.text() or "").strip().lower() == kitap.lower():
-                                hedef_sutun = cc
-                                break
-                        if hedef_sutun < 0:
-                            continue
-
-                        cell = tablo.item(hedef_satir, hedef_sutun)
-                        if cell is None:
-                            from PyQt6.QtWidgets import QTableWidgetItem
-                            cell = QTableWidgetItem(" ")
-                            tablo.setItem(hedef_satir, hedef_sutun, cell)
-                        cell.setCheckState(Qt.CheckState.Checked)
-                        cell.setBackground(sarı)
-                        cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEditable & ~Qt.ItemFlag.ItemIsUserCheckable)
-            except Exception:
-                pass
+            # Mark only unambiguous exact cells after a successful commit.
+            # A partial topic name must never lock a different task.
+            sarı = QColor("#FFF59D")
+            from utils.homework_integrity_v133 import unique_exact_cell
+            for r in range(self.verilen.rowCount()):
+                lesson, book, topic = _v(r, 0), _v(r, 1), _v(r, 2)
+                if not all((lesson, book, topic)):
+                    continue
+                table, row, col = unique_exact_cell(
+                    getattr(self, '_ders_tablolari', {}), lesson, book, topic)
+                if table is None:
+                    continue
+                cell = table.item(row, col)
+                if cell is None:
+                    continue
+                with self._mute_table(table):
+                    cell.setCheckState(Qt.CheckState.Checked)
+                    cell.setBackground(sarı)
+                    cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEditable
+                                  & ~Qt.ItemFlag.ItemIsUserCheckable)
 
         except Exception as e:
             try:
@@ -9262,111 +9265,46 @@ class OdevTakipFormu(QWidget):
             pass
 
     def _uygula_aktar_listesi(self, kalan_listesi):
+        """Reintroduce returned work as a NEW draft only through manual checkbox flow.
+
+        Do not clear recorded yellow/green/red locks as the legacy implementation did.
+        The canonical transfer path validates current student and exact cell identity.
         """
-        Kalan (aktar) ödevleri 'yeni verilecek' gibi işaretle:
-        - ilgili ders tablosundaki hücrelerde kilidi kaldır,
-        - arka planı sıfırla,
-        - checkbox=Checked yap.
-        """
-        from PyQt6.QtCore import Qt
-        from PyQt6.QtWidgets import QTableWidgetItem
-
-        if not kalan_listesi:
-            return
-
-        was_locked = getattr(self, "_in_verilen_update", False)
-        self._in_verilen_update = True
-        try:
-            for row in kalan_listesi:
-                ders = (row.get("ders") or "").strip()
-                kitap = (row.get("kitap") or "").strip()
-                konu = (row.get("konu") or "").strip()
-                tablo = getattr(self, "_ders_tablolari", {}).get(ders)
-                if not tablo:
-                    continue
-
-                # konu satırı
-                hedef_satir = -1
-                for rr in range(tablo.rowCount()):
-                    it = tablo.item(rr, 0)
-                    if it and (it.text() or "").strip().lower() == konu.lower():
-                        hedef_satir = rr
-                        break
-                if hedef_satir < 0:
-                    continue
-
-                # kitap sütunu
-                hedef_sutun = -1
-                for cc in range(1, tablo.columnCount()):
-                    h = tablo.horizontalHeaderItem(cc)
-                    if h and (h.text() or "").strip().lower() == kitap.lower():
-                        hedef_sutun = cc
-                        break
-                if hedef_sutun < 0:
-                    continue
-
-                cell = tablo.item(hedef_satir, hedef_sutun)
-                if cell is None:
-                    cell = QTableWidgetItem(" ")
-                    tablo.setItem(hedef_satir, hedef_sutun, cell)
-
-                cell.setFlags(cell.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
-                cell.setBackground(Qt.GlobalColor.transparent)
-                cell.setCheckState(Qt.CheckState.Checked)
-        finally:
-            self._in_verilen_update = was_locked
-
-        try:
-            self._toplam_sure_guncelle()
-        except Exception:
-            pass
+        student_id = self._secili_ogrenci_id()
+        return self._wizard_transfer_tasks(
+            list(kalan_listesi or []), expected_student_id=student_id
+        )
 
     def _odev_kayit_sonucu_tamamlanan(self, tamamlanan_listesi):
-        """
-        Ödev Kontrol sayfasında 'Kaydet' sonrası gelen tamamlanan satırları,
-        konu tablolarında YEŞİL + KİLİT yap ve gecikme işaretlerini temizle.
-        """
+        """Apply confirmed completion visuals, never on another student's matrix."""
         from PyQt6.QtGui import QColor
         from PyQt6.QtCore import Qt
+        from utils.homework_integrity_v133 import unique_exact_cell
+        from utils.wizard_integrity_v8 import same_student
+        if not same_student(self._secili_ogrenci_id(),
+                            getattr(self, '_loaded_student_id', None)):
+            return
         yesil = QColor("#C8E6C9")
-
-        for row in (tamamlanan_listesi or []):
-            ders = (row.get("ders") or "").strip()
-            kitap = (row.get("kitap") or "").strip()
-            konu = (row.get("konu") or "").strip()
-            tablo = getattr(self, "_ders_tablolari", {}).get(ders)
-            if not tablo:
+        for task in (tamamlanan_listesi or []):
+            lesson = (task.get('ders') or '').strip()
+            book = (task.get('kitap') or '').strip()
+            topic = (task.get('konu') or '').strip()
+            table, row, col = unique_exact_cell(
+                getattr(self, '_ders_tablolari', {}), lesson, book, topic)
+            if table is None:
+                continue   # Never mark a lookalike topic or duplicate header.
+            cell = table.item(row, col)
+            if cell is None:
                 continue
-
-            hedef_satir = -1
-            for rr in range(tablo.rowCount()):
-                it = tablo.item(rr, 0)
-                if it and (it.text() or "").strip().lower() == konu.lower():
-                    hedef_satir = rr
-                    break
-            if hedef_satir < 0:
-                continue
-
-            hedef_sutun = -1
-            for cc in range(1, tablo.columnCount()):
-                h = tablo.horizontalHeaderItem(cc)
-                if h and (h.text() or "").strip().lower() == kitap.lower():
-                    hedef_sutun = cc
-                    break
-            if hedef_sutun < 0:
-                continue
-
-            cell = tablo.item(hedef_satir, hedef_sutun)
-            if cell:
+            with self._mute_table(table):
                 cell.setCheckState(Qt.CheckState.Checked)
                 cell.setBackground(yesil)
-                # gecikme metadata'sını temizle
                 cell.setText("")
                 cell.setToolTip("")
                 cell.setData(OVERDUE_FLAG_ROLE, None)
                 cell.setData(OVERDUE_DAYS_ROLE, None)
-                # kullanıcı değiştirmesin
-                cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsUserCheckable & ~Qt.ItemFlag.ItemIsEditable)
+                cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsUserCheckable
+                              & ~Qt.ItemFlag.ItemIsEditable)
 
     # =========================
     # Part 5/7 — Senkronizasyon, Overdue İşaretleme, Kaydet Modu,
@@ -9420,8 +9358,14 @@ class OdevTakipFormu(QWidget):
         from PyQt6.QtWidgets import QTableWidgetItem
 
         ogr_id = self._secili_ogrenci_id()
-        if not ogr_id:
+        from utils.wizard_integrity_v8 import same_student, exact_task_key
+        if not ogr_id or not same_student(ogr_id, getattr(self, '_loaded_student_id', None)):
             return
+
+        # Work selected on the matrix but not yet saved to SQLite must survive
+        # status refresh triggered by the Homework Control dialog.
+        draft_keys = {exact_task_key(self._vtext(r, 0), self._vtext(r, 1), self._vtext(r, 2))
+                      for r in range(self.verilen.rowCount())}
 
         sarı = QColor("#FFF59D")  # devam
         yesil = QColor("#A5D6A7")  # tamam
@@ -9482,7 +9426,13 @@ class OdevTakipFormu(QWidget):
                             it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEditable & ~Qt.ItemFlag.ItemIsUserCheckable)
 
                         else:
-                            # kayıt yok/kapalı: kullanıcıya açık, boş
+                            topic = (it0.text() or '').strip() if it0 else ''
+                            if (exact_task_key(ders_key, kitap_ad, topic) in draft_keys
+                                    and it.checkState() == Qt.CheckState.Checked
+                                    and bool(it.flags() & Qt.ItemFlag.ItemIsUserCheckable)):
+                                # Existing unsaved assignment: keep the exact UI draft.
+                                continue
+                            # No recorded homework or matching draft: truly blank cell.
                             it.setCheckState(Qt.CheckState.Unchecked)
                             it.setBackground(Qt.GlobalColor.transparent)
                             it.setText("")
@@ -10794,12 +10744,8 @@ class OdevTakipFormu(QWidget):
             return (cell.text() if cell and cell.text() is not None else "").strip()
 
         target_key = exact_task_key(ders, kitap_ad, konu_ad)
-        row_to_remove = None
-        for r in range(self.verilen.rowCount()):
-            row_key = exact_task_key(_vtext(r, 0), _vtext(r, 1), _vtext(r, 2))
-            if row_key == target_key or (_vtext(r, 0) == ders and _vtext(r, 1) == kitap_ad and _vtext(r, 2) == konu_ad):
-                row_to_remove = r
-                break
+        matching_rows = [r for r in range(self.verilen.rowCount())
+                         if exact_task_key(_vtext(r, 0), _vtext(r, 1), _vtext(r, 2)) == target_key]
 
         is_checked = (it.checkState() in (Qt.CheckState.Checked, 2))
 
@@ -10809,7 +10755,7 @@ class OdevTakipFormu(QWidget):
         self.verilen.blockSignals(True)
         try:
             if is_checked:
-                if row_to_remove is None:
+                if not matching_rows:
                     r = self.verilen.rowCount()
                     self.verilen.insertRow(r)
                     self.verilen.setItem(r, 0, QTableWidgetItem(ders))
@@ -10820,8 +10766,8 @@ class OdevTakipFormu(QWidget):
                     self.verilen.setItem(r, 3, QTableWidgetItem(str(dk_val if dk_val and int(dk_val) > 0 else def_dk)))
                     self.verilen.setItem(r, 4, QTableWidgetItem(""))
             else:
-                if row_to_remove is not None:
-                    self.verilen.removeRow(row_to_remove)
+                for match_row in reversed(matching_rows):
+                    self.verilen.removeRow(match_row)
         finally:
             self.verilen.blockSignals(False)
             self.verilen.setSortingEnabled(sort_on)
