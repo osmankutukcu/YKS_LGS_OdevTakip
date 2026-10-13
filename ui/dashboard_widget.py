@@ -47,13 +47,14 @@ class SimpleDonutChart(QWidget):
         p.setPen(QPen(QColor(self.color), thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
         # 0 derece saat 3'te, -90 saat 12'de
         # PyQt drawArc: 1 birim = 1/16 derece
-        span_angle = int(-self.percent * 3.6 * 16)
-        p.drawArc(int(cx-radius), int(cy-radius), int(radius*2), int(radius*2), 90*16, span_angle)
+        if self.percent is not None:
+            span_angle = int(-self.percent * 3.6 * 16)
+            p.drawArc(int(cx-radius), int(cy-radius), int(radius*2), int(radius*2), 90*16, span_angle)
         
         # Ortadaki yazı
         p.setPen(QColor("#1e293b"))
         f = p.font(); f.setBold(True); f.setPixelSize(16); p.setFont(f)
-        p.drawText(rect, Qt.AlignmentFlag.AlignCenter, f"%{int(self.percent)}")
+        p.drawText(rect, Qt.AlignmentFlag.AlignCenter, "—" if self.percent is None else f"%{int(self.percent)}")
 
 
 class DashboardCard(QFrame):
@@ -220,6 +221,7 @@ class _SimpleBarChart(QWidget):
         for i, item in enumerate(self.data):
             val = item['val']
             day_str = item['day']
+            has_data = item.get('total', 1) > 0
             
             # Yükseklik
             bar_h = (val / max_val) * (h - 20) # 20px alttan metin payı
@@ -236,7 +238,8 @@ class _SimpleBarChart(QWidget):
             # Barı çiz
             path = QPainterPath()
             path.addRoundedRect(QRectF(float(x), float(y), float(bar_width), float(bar_h)), 4.0, 4.0)
-            p.fillPath(path, color)
+            if has_data:
+                p.fillPath(path, color)
             
             # Etiket (Gün)
             p.setPen(QColor("#64748b"))
@@ -247,7 +250,7 @@ class _SimpleBarChart(QWidget):
             # Sadece yer varsa çizelim
             p.setPen(QColor("#334155"))
             val_rect = QRectF(float(x) - 5, float(y) - 15, float(bar_width) + 10, 15.0)
-            p.drawText(val_rect, Qt.AlignmentFlag.AlignCenter, str(int(val)))
+            p.drawText(val_rect, Qt.AlignmentFlag.AlignCenter, str(int(val)) if has_data else "—")
 
 class WeeklyTrendWidget(QFrame):
     """
@@ -282,7 +285,7 @@ class WeeklyTrendWidget(QFrame):
         title_v.setSpacing(2)
         lbl_h = QLabel("Haftalık Performans Trendi")
         lbl_h.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b; border:none; background:transparent;")
-        lbl_desc = QLabel("Son 7 gündeki ödev tamamlama oranları")
+        lbl_desc = QLabel("Son 7 günde teslim günü gelen ödevlerin durumu")
         lbl_desc.setStyleSheet("font-size: 11px; color: #64748b; border:none; background:transparent;")
         title_v.addWidget(lbl_h); title_v.addWidget(lbl_desc)
         top_h.addLayout(title_v)
@@ -310,16 +313,22 @@ class WeeklyTrendWidget(QFrame):
         self.chart_area.update()
         
         # Ortalamayı hesapla
-        if daily_stats:
-            avg = sum(d['val'] for d in daily_stats) / len(daily_stats)
+        total = sum(d.get('total', 1) for d in daily_stats)
+        if total:
+            # Weighted by homework item, not by number of calendar days.
+            if all('done' in d for d in daily_stats):
+                avg = 100 * sum(d['done'] for d in daily_stats) / total
+            else:
+                avg = sum(d['val'] for d in daily_stats) / len(daily_stats)
             self.lbl_week_avg.setText(f"%{int(avg)}")
         else:
-            self.lbl_week_avg.setText("-")
+            self.lbl_week_avg.setText("—")
 
 class DashboardWidget(QWidget):
     sig_open_today = pyqtSignal()
     sig_open_students = pyqtSignal()
     sig_open_overdue = pyqtSignal()
+    sig_open_adaptive = pyqtSignal()
     
 
 
@@ -338,6 +347,22 @@ class DashboardWidget(QWidget):
         # --- 0. BİLGİ PANOSU (YENİ - WEB) ---
         self.info_board = InfoBoardWidget()
         main_layout.addWidget(self.info_board)
+        # V26: visible decision workflow; never calculates false mastery scores.
+        from services.adaptive_coaching_v26.flags import enabled as adaptive_v26_enabled
+        if adaptive_v26_enabled():
+            coachbar = QFrame()
+            coachbar.setStyleSheet("QFrame {background:#eaf1fb;border:1px solid #d5e3f4;border-radius:9px;}")
+            coachrow = QHBoxLayout(coachbar)
+            coachrow.setContentsMargins(12,7,12,7)
+            prompt = QLabel('🧠  Öğretmen Karar Masası · Önce kazanımı ölç, sonra kişisel ödev öner')
+            prompt.setWordWrap(True)
+            prompt.setStyleSheet('font-size:12px;font-weight:600;color:#173354;border:0;background:transparent;')
+            coachrow.addWidget(prompt,1)
+            opencoach = QPushButton('Adaptif Koçluk Merkezi  →')
+            opencoach.setStyleSheet('background:white;color:#1d4ed8;padding:8px 10px;border:1px solid #b9cfee;border-radius:7px;font-weight:700;')
+            opencoach.clicked.connect(self.sig_open_adaptive.emit)
+            coachrow.addWidget(opencoach)
+            main_layout.addWidget(coachbar)
 
         # Üst Sıra (Mevcut Kartlar)
         top_row = QHBoxLayout()
@@ -377,7 +402,7 @@ class DashboardWidget(QWidget):
         
         self.chart = SimpleDonutChart("Genel Başarı", 0, "#8b5cf6")
         
-        lbl_chart_title = QLabel("Başarı")
+        lbl_chart_title = QLabel("Tamamlama")
         lbl_chart_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_chart_title.setStyleSheet("color: #6b7280; font-size: 11px; font-weight: 600;")
         
@@ -415,351 +440,51 @@ class DashboardWidget(QWidget):
 
 
     def refresh_stats(self):
+        """Read one reliable snapshot, then refresh the *existing* UI widgets.
+
+        No homework writes; the navigation signals, layouts and paint styles
+        retain their old behavior. Errors remain visible rather than becoming 0.
+        """
+        import logging
+        from services.dashboard_metrics_v35 import build_snapshot, build_teacher_insight
+
+        con = None
         try:
             con = db.get_conn()
-            today_str = date.today().strftime("%Y-%m-%d")
-            
-            # --- 1) AKTİF ÖĞRENCİ SAYISI ---
-            try:
-                count_std = con.execute("SELECT COUNT(*) FROM ogrenci WHERE aktif = 1").fetchone()[0]
-                self.card_students.set_value(f"{count_std}")
-            except Exception:
-                count_std = 0
-                self.card_students.set_value("0")
+            snapshot = build_snapshot(con)
+        except Exception:
+            logging.getLogger(__name__).exception("Dashboard KPI computation failed")
+            self.card_students.set_value("—")
+            self.card_tasks.set_value("—")
+            self.card_overdue.set_value("—")
+            self.chart.set_data(None)
+            self.trend_widget.set_data([])
+            self.badge_widget.refresh_badges({"total_students": None,
+                                             "total_homeworks": 0,
+                                             "alerts": [{"text": "İstatistikler şu anda hesaplanamadı.",
+                                                         "severity": "medium",
+                                                         "tip": "Veritabanını kontrol edip yenileyin."}]})
+            self.smart_card.set_insight(
+                "Veriler hesaplanamadı. Yeniden deneyin; sonuçları sıfır olarak yorumlamayın.",
+                "⚠️")
+            return
+        finally:
+            if con is not None:
+                con.close()
 
-            # --- EĞER HİÇ AKTİF ÖĞRENCİ YOKSA: TÜM METRİKLERİ TEMİZ VE SIFIR GÖSTER ---
-            if count_std == 0:
-                self.card_tasks.set_value("0")
-                self.card_overdue.set_value("0")
-                self.chart.set_data(0)
-                
-                # Trend grafiğini sıfırla
-                days_tr = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
-                dt_today = date.today()
-                empty_trend = []
-                for i in range(6, -1, -1):
-                    d = dt_today - datetime.timedelta(days=i)
-                    empty_trend.append({'day': days_tr[d.weekday()], 'val': 0})
-                self.trend_widget.set_data(empty_trend)
-                
-                # Rozetleri sıfırla
-                empty_stats = {
-                    "success_rate": 0,
-                    "total_homeworks": 0,
-                    "total_students": 0,
-                    "streak_days": 0,
-                    "weekly_minutes": 0,
-                    "alerts": [],
-                    "top_worker": None,
-                    "top_ratio": None,
-                    "top_marathon": None
-                }
-                if hasattr(self, "badge_widget"):
-                    self.badge_widget.refresh_badges(empty_stats)
-                    
-                # Karşılama İpucu
-                self.smart_card.set_insight(
-                    "Hoş geldiniz! Sisteme henüz kayıtlı aktif öğrenci bulunmuyor. Sol menüdeki 'Öğrenci Kaydı' bölümünden ilk öğrencilerinizi ekleyerek ödev ve performans takibine başlayabilirsiniz.",
-                    "🌱",
-                    ("#3b82f6", "#1d4ed8")
-                )
-                return
+        self.card_students.set_value(snapshot.active_students)
+        self.card_tasks.set_value(snapshot.due_today_sets)
+        self.card_overdue.set_value(snapshot.overdue_items)
+        self.chart.set_data(snapshot.completion_pct)
+        self.trend_widget.set_data(snapshot.trend)
+        self.badge_widget.refresh_badges(snapshot.to_gamification_stats())
+        self.smart_card.set_insight(build_teacher_insight(snapshot), "🎯")
 
-            # --- 2) AKTİF ÖĞRENCİLER VARSA İSTATİSTİKLERİ ÇEK ---
-            
-            # 2.1) BUGÜNKÜ ÖDEVLER (Sadece aktif öğrencilere ait)
-            sql_today = """
-                SELECT COUNT(DISTINCT k.id) FROM odev_kume k
-                JOIN ogrenci o ON o.id = k.ogrenci_id
-                WHERE o.aktif = 1 AND k.bitis_tarihi = ?
-                AND EXISTS (
-                    SELECT 1 FROM odev od 
-                    WHERE od.kume_id = k.id 
-                    AND (od.durum IS NULL OR lower(od.durum) NOT IN ('yapildi', 'tamam', 'tamamlandı', 'tamamlandi'))
-                )
-            """
-            try:
-                count_today = con.execute(sql_today, (today_str,)).fetchone()[0]
-                self.card_tasks.set_value(f"{count_today}")
-            except Exception:
-                count_today = 0
-                self.card_tasks.set_value("0")
-
-            # 2.2) GECİKENLER (Sadece aktif öğrencilere ait)
-            sql_overdue = """
-                SELECT COUNT(DISTINCT k.id) FROM odev_kume k
-                JOIN ogrenci o ON o.id = k.ogrenci_id
-                WHERE o.aktif = 1 AND k.bitis_tarihi < ? AND k.bitis_tarihi != ''
-                AND EXISTS (
-                    SELECT 1 FROM odev od 
-                    WHERE od.kume_id = k.id 
-                    AND (od.durum IS NULL OR lower(od.durum) NOT IN ('yapildi', 'tamam', 'tamamlandı', 'tamamlandi'))
-                )
-            """
-            try:
-                count_overdue = con.execute(sql_overdue, (today_str,)).fetchone()[0]
-                self.card_overdue.set_value(f"{count_overdue}")
-            except Exception:
-                count_overdue = 0
-                self.card_overdue.set_value("0")
-            
-            # 2.3) GENEL BAŞARI (Sadece aktif öğrencilere ait)
-            total_q = 0
-            done_q = 0
-            ratio = 0
-            try:
-                sql_ratio = """
-                    SELECT 
-                        COUNT(od.id) as total_q,
-                        SUM(CASE WHEN lower(od.durum) IN ('yapildi', 'tamam', 'tamamlandı', 'tamamlandi') THEN 1 ELSE 0 END) as done_q
-                    FROM odev od
-                    JOIN odev_kume k ON k.id = od.kume_id
-                    JOIN ogrenci o ON o.id = k.ogrenci_id
-                    WHERE o.aktif = 1
-                """
-                row_r = con.execute(sql_ratio).fetchone()
-                if row_r:
-                    total_q = row_r[0] or 0
-                    done_q = row_r[1] or 0
-                    ratio = (done_q / total_q * 100) if total_q > 0 else 0
-                self.chart.set_data(ratio)
-                
-                # Rozet ve Uyarılar güncelleme
-                alerts = []
-                try:
-                    # Gecikenleri isimle çek (Sadece aktif öğrenciler)
-                    sql_alerts = """
-                        SELECT o.ad, o.soyad, COUNT(k.id) as cnt
-                        FROM odev_kume k
-                        JOIN ogrenci o ON o.id = k.ogrenci_id
-                        WHERE o.aktif = 1 AND k.bitis_tarihi < ? AND k.bitis_tarihi != ''
-                        AND EXISTS (
-                             SELECT 1 FROM odev od 
-                             WHERE od.kume_id = k.id 
-                             AND (od.durum IS NULL OR lower(od.durum) NOT IN ('yapildi', 'tamam', 'tamamlandı', 'tamamlandi'))
-                        )
-                        GROUP BY o.id
-                        ORDER BY cnt DESC
-                        LIMIT 3
-                    """
-                    recs = con.execute(sql_alerts, (today_str,)).fetchall()
-                    for r in recs:
-                        ad = (r[0] or "")
-                        soyad = (r[1] or "")
-                        tam_ad = f"{ad} {soyad[0]}." if soyad else ad
-                        
-                        cnt = r[2]
-                        sev = "high" if cnt > 5 else "medium"
-                        tip = "Acil görüşme planla." if cnt > 5 else "Kısa bir telafi programı oluştur."
-                        
-                        alerts.append({
-                            "text": f"{tam_ad} - {cnt} ödev gecikmiş",
-                            "severity": sev,
-                            "tip": tip
-                        })
-                        
-                    if not alerts and count_overdue > 0:
-                        alerts.append({
-                            "text": f"{count_overdue} genel gecikme var",
-                            "severity": "medium",
-                            "tip": "Listeyi kontrol et."
-                        })
-                except Exception:
-                    pass
-
-                # --- Streak & Dakika Hesabı ---
-                streak_days = 0
-                weekly_minutes = 0
-                try:
-                    days_check = [date.today() - datetime.timedelta(days=i) for i in range(14)]
-                    qs = ",".join(f"'{d.strftime('%Y-%m-%d')}'" for d in days_check)
-                    
-                    try:
-                        sql_streak = f"""
-                            SELECT k.bitis_tarihi, SUM(od.sure)
-                            FROM odev_kume k
-                            JOIN odev od ON od.kume_id = k.id
-                            JOIN ogrenci o ON o.id = k.ogrenci_id
-                            WHERE o.aktif = 1 AND k.bitis_tarihi IN ({qs})
-                            AND lower(od.durum) IN ('yapildi','tamam','tamamlandı','tamamlandi')
-                            GROUP BY k.bitis_tarihi
-                        """
-                        rows_st = con.execute(sql_streak).fetchall()
-                        map_st = {r[0]: (r[1] or 0) for r in rows_st} 
-                    except Exception:
-                        sql_streak_fallback = f"""
-                            SELECT k.bitis_tarihi, COUNT(od.id)
-                            FROM odev_kume k
-                            JOIN odev od ON od.kume_id = k.id
-                            JOIN ogrenci o ON o.id = k.ogrenci_id
-                            WHERE o.aktif = 1 AND k.bitis_tarihi IN ({qs})
-                            AND lower(od.durum) IN ('yapildi','tamam','tamamlandı','tamamlandi')
-                            GROUP BY k.bitis_tarihi
-                        """
-                        rows_st = con.execute(sql_streak_fallback).fetchall()
-                        map_st = {r[0]: (r[1] * 40) for r in rows_st}
-                    
-                    # Streak
-                    current_streak = 0
-                    for i in range(14):
-                        d_chk = (date.today() - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
-                        if d_chk in map_st and map_st[d_chk] > 0:
-                            current_streak += 1
-                        elif i == 0:
-                            continue
-                        else:
-                            break
-                    streak_days = current_streak
-                    
-                    # Weekly Minutes (Son 7 gün)
-                    d7 = (date.today() - datetime.timedelta(days=6)).strftime("%Y-%m-%d")
-                    weekly_minutes = sum(val for d, val in map_st.items() if d >= d7)
-                except Exception as e:
-                    print("Stats calc error:", e)
-
-                # --- MVP Analizi (Sadece aktif öğrenciler) ---
-                top_worker_name = None
-                top_worker_count = 0
-                
-                best_ratio_name = None
-                best_ratio_val = 0
-                
-                try:
-                    # 1. En çok ödev yapan (Canavar)
-                    sql_top_worker = """
-                        SELECT o.ad, COUNT(od.id) as cnt
-                        FROM odev od
-                        JOIN odev_kume k ON k.id = od.kume_id
-                        JOIN ogrenci o ON o.id = k.ogrenci_id
-                        WHERE o.aktif = 1 AND lower(od.durum) IN ('yapildi','tamam','tamamlandı','tamamlandi')
-                        GROUP BY o.id
-                        ORDER BY cnt DESC
-                        LIMIT 1
-                    """
-                    row_w = con.execute(sql_top_worker).fetchone()
-                    if row_w and row_w[1] > 0:
-                        top_worker_name = row_w[0]
-                        top_worker_count = row_w[1]
-
-                    # 2. En yüksek oran (Zirve) - En az 5 ödevi olan aktif öğrenciler
-                    sql_best_ratio = """
-                        SELECT o.ad, 
-                               CAST(SUM(CASE WHEN lower(od.durum) IN ('yapildi','tamam','tamamlandı','tamamlandi') THEN 1 ELSE 0 END) AS FLOAT) / COUNT(od.id) * 100 as ratio
-                        FROM odev od
-                        JOIN odev_kume k ON k.id = od.kume_id
-                        JOIN ogrenci o ON o.id = k.ogrenci_id
-                        WHERE o.aktif = 1
-                        GROUP BY o.id
-                        HAVING COUNT(od.id) >= 5
-                        ORDER BY ratio DESC
-                        LIMIT 1
-                    """
-                    row_br = con.execute(sql_best_ratio).fetchone()
-                    if row_br:
-                        best_ratio_name = row_br[0]
-                        best_ratio_val = int(row_br[1])
-                except Exception as e:
-                    print("MVP Calc Error:", e)
-
-                # --- 3. Maratoncu Analizi (Sadece aktif öğrenciler) ---
-                top_marathon_name = None
-                top_marathon_min = 0
-                try:
-                    sql_marathon = """
-                        SELECT o.ad, SUM(od.sure) as total_min
-                        FROM odev od
-                        JOIN odev_kume k ON k.id = od.kume_id
-                        JOIN ogrenci o ON o.id = k.ogrenci_id
-                        WHERE o.aktif = 1
-                        AND lower(od.durum) IN ('yapildi','tamam','tamamlandı','tamamlandi')
-                        AND date(k.verilis_tarihi) > date('now', '-7 days')
-                        GROUP BY o.id
-                        ORDER BY total_min DESC
-                        LIMIT 1
-                    """
-                    row_m = con.execute(sql_marathon).fetchone()
-                    if row_m and (row_m[1] or 0) > 0:
-                        top_marathon_name = row_m[0]
-                        top_marathon_min = row_m[1] or 0
-                except Exception:
-                    if top_worker_name:
-                        top_marathon_name = top_worker_name
-                        top_marathon_min = top_worker_count * 40
-
-                g_stats = {
-                    "success_rate": int(ratio),
-                    "total_homeworks": total_q,
-                    "total_students": count_std,
-                    "streak_days": streak_days,
-                    "weekly_minutes": int(weekly_minutes),
-                    "alerts": alerts,
-                    "top_worker": {"name": top_worker_name, "val": top_worker_count} if top_worker_name else None,
-                    "top_ratio": {"name": best_ratio_name, "val": best_ratio_val} if best_ratio_name else None,
-                    "top_marathon": {"name": top_marathon_name, "val": top_marathon_min} if top_marathon_name else None
-                }
-                if hasattr(self, "badge_widget"):
-                    self.badge_widget.refresh_badges(g_stats)
-
-            except Exception as e:
-                print("Global Stats Error:", e)
-                self.chart.set_data(0)
-            
-            # --- 2.4) TREND VERİSİ (SON 7 GÜN - Sadece aktif öğrenciler) ---
-            dt_today = date.today()
-            last_7_days_stats = []
-            days_range = [dt_today - datetime.timedelta(days=i) for i in range(6, -1, -1)]
-            placeholders = ",".join(f"'{d.strftime('%Y-%m-%d')}'" for d in days_range)
-            
-            sql_trend = f"""
-                SELECT k.bitis_tarihi,
-                       COUNT(od.id) as total_hw,
-                       SUM(CASE WHEN lower(od.durum) IN ('yapildi','tamam','tamamlandı','tamamlandi') THEN 1 ELSE 0 END) as done_hw
-                FROM odev_kume k
-                JOIN odev od ON od.kume_id = k.id
-                JOIN ogrenci o ON o.id = k.ogrenci_id
-                WHERE o.aktif = 1 AND k.bitis_tarihi IN ({placeholders})
-                GROUP BY k.bitis_tarihi
-            """
-            rows_trend = []
-            try:
-                rows_trend = con.execute(sql_trend).fetchall()
-            except Exception:
-                pass
-            
-            trend_map = {}
-            for r in rows_trend:
-                t_date = r[0]
-                total_h = r[1]
-                done_h = r[2]
-                pct = (done_h / total_h * 100) if total_h > 0 else 0
-                trend_map[t_date] = pct
-                
-            days_tr = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
-            
-            for d in days_range:
-                d_str = d.strftime("%Y-%m-%d")
-                d_label = days_tr[d.weekday()]
-                val = trend_map.get(d_str, 0)
-                last_7_days_stats.append({'day': d_label, 'val': val})
-            
-            self.trend_widget.set_data(last_7_days_stats)
-            
-            # --- 2.5) AKILLI ÖNERİ ALGORİTMASI ---
-            try:
-                from services.trend_analyzer import analyze_performance_trend
-                trend_res = analyze_performance_trend(last_7_days_stats)
-                
-                tip_data = SmartTipGenerator.generate(g_stats, trend_res)
-                
-                self.smart_card.set_insight(
-                    tip_data["text"], 
-                    tip_data["icon"],
-                    tip_data["colors"]
-                )
-                        
-            except Exception as e:
-                print("Insight Error:", e)
-                self.smart_card.set_insight("Verileriniz analiz ediliyor...", "⏳")
-
-        except Exception as e:
-            print("Dashboard refresh error:", e)
+        # Same widgets and dimensions.  Only their metric definitions are
+        # clarified using lightweight native tooltips.
+        self.card_tasks.setToolTip("Teslim tarihi bugün olan, en az bir açık ödev içeren küme sayısı.")
+        self.card_overdue.setToolTip("Teslim tarihi geçmiş, henüz tamamlanmamış ödev SATIRI sayısı.")
+        self.frame_chart.setToolTip("Aktif öğrencilerin ödev tamamlama yüzdesi; akademik kazanım başarısı değildir.")
+        self.trend_widget.setToolTip(
+            "Son 7 günde teslim tarihi gelen ödevlerde mevcut tamamlama durumu. "
+            "Çalışmanın tamamlandığı gün veya öğrenme başarısı değildir.")

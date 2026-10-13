@@ -1,0 +1,53 @@
+========================================================================
+   YKS & LGS ÖDEV TAKİP YÖNETİCİSİ v2 - TAŞINABİLİR PROJE YEDEĞİ
+========================================================================
+
+Bu yedek paketi, projeyi başka bilgisayarlarda (Windows veya macOS / Linux)
+kolayca kurup çalıştırmanız için hazırlanmıştır.
+
+Gereksiz sanal ortam dosyaları (.venv), derleme artıkları (build/dist/node_modules)
+ve geçici loglar temizlenerek hafif, taşınabilir ve temiz bir kaynak paket oluşturulmuştur.
+
+------------------------------------------------------------------------
+1. WINDOWS BİLGİSAYARDA ÇALIŞTIRMA (ÖNERİLEN / EN KOLAY YOL)
+------------------------------------------------------------------------
+A) Bilgisayarınızda Python 3.10 veya üzeri kurulu olduğundan emin olun.
+   (Python kurarken "Add Python to PATH" kutucuğunu MUTLAKA işaretleyin).
+B) Zip dosyasını istediğiniz bir klasöre (örn. Masaüstü) çıkartın.
+C) Klasörün içindeki "Baslat_Windows.bat" dosyasına ÇİFT TIKLAYIN.
+   - İlk çalıştırmada sanal ortamı (.venv) otomatik kurar ve gerekli
+     kütüphaneleri (requirements_win.txt) yükler.
+   - Sonraki çalıştırmalarda doğrudan saniyeler içinde açılır.
+
+Manuel Çalıştırmak İsterseniz (Komut İstemi / PowerShell):
+   cd "Klasor_Yolu"
+   python -m venv .venv
+   .venv\Scripts\activate
+   pip install -r requirements_win.txt
+   python app.py
+
+------------------------------------------------------------------------
+2. macOS / LINUX BİLGİSAYARDA ÇALIŞTIRMA
+------------------------------------------------------------------------
+A) Klasörün içindeki "OdevTakip_Baslat.command" dosyasına çift tıklayın.
+   veya Terminal açıp:
+   cd "Klasor_Yolu"
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   python3 app.py
+
+------------------------------------------------------------------------
+3. ÖNEMLİ BİLGİLER VE DOSYA YAPISI
+------------------------------------------------------------------------
+- app.py: Programın ana başlatıcı dosyasıdır.
+- db.py: SQLite veritabanı bağlantı motorudur. Tüm kullanıcı ve öğrenci
+  verilerini Windows'ta %LOCALAPPDATA%\YKS_LGS_HomeworkManager konumunda
+  güvenli ve yetki hatası almayacak şekilde saklar.
+- ui/: Arayüz bileşenleri (Ödev Takip, Takvim, 360° Öğrenci Paneli, vb.)
+- services/: İş mantığı ve algoritmalar (Akıllı sihirbaz, haftalık planlayıcı,
+  rutin takipçi, adaptif koçluk vb.)
+- assets/ & fonts/: Uygulama simgeleri, görsel kaynaklar ve yazı tipleri.
+- YKS_Kazanimlar.sqlite: MEB ve ÖSYM müfredat konu/kazanım veritabanı.
+
+İyi çalışmalar dileriz!

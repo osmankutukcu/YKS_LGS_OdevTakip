@@ -1,5 +1,6 @@
 """Akıllı Sihirbaz için kimlik ve birebir eşleşme denetimleri (Qt bağımsız)."""
 from __future__ import annotations
+from functools import lru_cache
 
 def normalized_identity(value):
     try:
@@ -14,9 +15,17 @@ def same_student(a, b):
     aa, bb = normalized_identity(a), normalized_identity(b)
     return aa is not None and aa == bb
 
-def normalized_name(value):
+@lru_cache(maxsize=4096)
+def _normalized_string(text: str) -> str:
+    """V31: cache deterministic name normalization; bounded for institutions."""
     # Unicode 'İ' -> 'i' + combining dot; eşleşme bu yüzden bozulmasın.
-    return " ".join(str(value or "").split()).casefold().replace("\u0307", "").replace("ı", "i")
+    return " ".join(text.split()).casefold().replace("\u0307", "").replace("ı", "i")
+
+
+def normalized_name(value):
+    # Convert BEFORE cache access: preserves legacy support for arbitrary,
+    # even unhashable input objects. This never caches student records.
+    return _normalized_string(str(value or ""))
 
 def exact_task_key(ders, kitap, konu):
     return (normalized_name(ders), normalized_name(kitap), normalized_name(konu))

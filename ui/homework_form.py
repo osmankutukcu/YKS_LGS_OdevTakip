@@ -2961,7 +2961,7 @@ class OdevTakipFormu(QWidget):
             for r in range(self.verilen.rowCount())
         ]
 
-    def _wizard_transfer_tasks(self, tasks, *, expected_student_id):
+    def _wizard_transfer_tasks(self, tasks, *, expected_student_id, show_dialog: bool = True):
         """Yalnızca birebir bulunan, henüz kilitlenmemiş hücreleri manuel gibi işaretle.
 
         Veritabanına yazmaz. Başarısız/şüpheli hücreleri sağ tabloya bağımsız eklemez.
@@ -3040,7 +3040,14 @@ class OdevTakipFormu(QWidget):
                     self.verilen.item(rr, 3).setText(str(minutes))
                 note = task.get('aciklama') or task.get('reason') or ''
                 if note:
-                    self.verilen.item(rr, 4).setText(str(note))
+                    it_note = self.verilen.item(rr, 4)
+                    if it_note:
+                        it_note.setText(str(note))
+                        if hasattr(it_note, "setToolTip"):
+                            it_note.setToolTip(str(note))
+                    it_dur = self.verilen.item(rr, 3)
+                    if it_dur and hasattr(it_dur, "setToolTip"):
+                        it_dur.setToolTip(str(note))
                 imported.add(key)
                 existing.add(key)
                 added += 1
@@ -3059,7 +3066,8 @@ class OdevTakipFormu(QWidget):
             notice += f"\n{len(issues)} öneri aktarılmadı:\n" + "\n".join(issues[:8])
             if len(issues) > 8:
                 notice += f"\n... ve {len(issues)-8} diğer öneri."
-        QMessageBox.information(self, "Sihirbaz Aktarım Sonucu", notice)
+        if show_dialog:
+            QMessageBox.information(self, "Sihirbaz Aktarım Sonucu", notice)
         return {'added': added, 'skipped': len(issues), 'issues': issues}
 
     def _haftalik_plan_son_kumeden(self):
@@ -3131,6 +3139,39 @@ class OdevTakipFormu(QWidget):
             dlg.exec()
         except Exception as exc:
             QMessageBox.information(self, "Rehber", f"Rehber açılırken hata oluştu: {exc}")
+
+    def _open_adaptive_v25(self):
+        """Öğrenme Analizi ve Kazanım Teşhisi diyaloğunu açar."""
+        student_id = self._secili_ogrenci_id()
+        if not student_id:
+            QMessageBox.warning(self, "Öğrenci Seçiniz", "Lütfen önce tablodan veya açılır kutudan bir öğrenci seçiniz.")
+            return
+        try:
+            from ui.adaptive_coaching_dialog_v25 import AdaptiveCoachingDialogV25
+            AdaptiveCoachingDialogV25(int(student_id), parent=self, host=self).exec()
+        except Exception as exc:
+            QMessageBox.warning(self, "Öğrenme Analizi",
+                                f"Öğrenme analizi modülü açılamadı: {exc}")
+
+    def _open_adaptive_coaching(self):
+        """Adaptif Koçluk Merkezi karar masasını veya seçili öğrencinin koçluk analizini açar."""
+        try:
+            from ui.adaptive_coaching_center_v26 import AdaptiveCoachingCenterV26
+            dlg = AdaptiveCoachingCenterV26(self)
+            ad = self.cmbAd.currentText().strip()
+            if ad and hasattr(dlg, "search"):
+                dlg.search.setText(ad)
+            dlg.exec()
+        except Exception as exc:
+            sid = self._secili_ogrenci_id()
+            if sid:
+                try:
+                    from ui.adaptive_coaching_dialog_v25 import AdaptiveCoachingDialogV25
+                    AdaptiveCoachingDialogV25(int(sid), parent=self, host=self).exec()
+                    return
+                except Exception:
+                    pass
+            QMessageBox.warning(self, "Adaptif Koçluk", f"Adaptif Koçluk açılamadı: {exc}")
 
     # ---- Yardımcılar ----
     def _secili_ogrenci_id(self) -> int | None:
@@ -3742,9 +3783,9 @@ class OdevTakipFormu(QWidget):
         hh.setSectionResizeMode(1, _QHV.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(2, _QHV.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(3, _QHV.ResizeMode.Interactive)
-        hh.setSectionResizeMode(4, _QHV.ResizeMode.Interactive)
-        self.verilen.setColumnWidth(3, 98)
-        self.verilen.setColumnWidth(4, 125)
+        hh.setSectionResizeMode(4, _QHV.ResizeMode.Stretch)
+        self.verilen.setColumnWidth(3, 85)
+        self.verilen.setColumnWidth(4, 230)
         self.verilen.setWordWrap(False)
         self.verilen.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.verilen.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -3992,10 +4033,13 @@ class OdevTakipFormu(QWidget):
         self.btnOneriTakviye.setToolTip("Yaklaşan ve geciken ödevler için takviye planı oluştur")
         self.btnSihirbaz = QPushButton("✨ Sihirbaz")
         self.btnSihirbaz.setToolTip("Akıllı ödevlendirme ve konu öneri sihirbazı")
+        self.btnOgrenme = QPushButton("🧠 Öğrenme")
+        self.btnOgrenme.setToolTip("Ayrı kazanım teşhisi, aralıklı tekrar ve adaptif ödev taslakları")
+        self.btnAdaptifV25 = self.btnOgrenme
         self.btnVeriDenetimi = QPushButton("🔎 Denetim")
         self.btnVeriDenetimi.setToolTip("Salt okunur öğrenci tik ve ödev bağlantı denetimi")
 
-        for b in (self.btnDetayRapor, self.btnOneriEksik, self.btnOneriTakviye, self.btnSihirbaz, self.btnVeriDenetimi):
+        for b in (self.btnDetayRapor, self.btnOneriEksik, self.btnOneriTakviye, self.btnSihirbaz, self.btnOgrenme, self.btnVeriDenetimi):
             b.setFixedHeight(24)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setStyleSheet("""
@@ -4058,6 +4102,7 @@ class OdevTakipFormu(QWidget):
         self.btnOneriler.clicked.connect(self._open_oneri_dialog)
         self.btnExcel.clicked.connect(self._export_all_lists_to_excel)
         self.btnSihirbaz.clicked.connect(self._open_smart_wizard)
+        self.btnOgrenme.clicked.connect(self._open_adaptive_v25)
         self.btnVeriDenetimi.clicked.connect(self._open_integrity_v135)
 
         # V21: detachable-by-toggle, read-only Student 360 sidebar.
@@ -4065,6 +4110,22 @@ class OdevTakipFormu(QWidget):
         from ui.homework_workspace_bridge_v21 import HomeworkWorkspaceBridgeV21
         self._right_split_v22 = right_split
         self._workspace_v21 = HomeworkWorkspaceBridgeV21(self, mid_split, bottom)
+
+        self.btnAdaptifKocluk = QPushButton("🧠 Adaptif Koçluk")
+        self.btnAdaptifKocluk.setToolTip("Adaptif Koçluk Merkezi: Öğrenci karar destek masası ve analizi")
+        self.btnAdaptifKocluk.setFixedHeight(24)
+        self.btnAdaptifKocluk.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btnAdaptifKocluk.setStyleSheet("""
+            QPushButton {
+                background: #f5f3ff; border: 1px solid #c4b5fd; border-radius: 5px;
+                padding: 2px 9px; font-size: 10.5px; font-weight: 700; color: #6d28d9;
+            }
+            QPushButton:hover {
+                background: #ede9fe; border-color: #8b5cf6; color: #5b21b6;
+            }
+        """)
+        self.btnAdaptifKocluk.clicked.connect(self._open_adaptive_coaching)
+        bottom.addWidget(self.btnAdaptifKocluk)
 
         self.btnRehber = QPushButton("ℹ️ Rehber")
         self.btnRehber.setToolTip("Ödev Takip, Öğrenci 360° ve Veri Denetimi Hızlı Kullanım Rehberi")
@@ -6382,6 +6443,14 @@ class OdevTakipFormu(QWidget):
         container = QWidget()
         lay = QVBoxLayout(container);
         lay.setContentsMargins(0, 0, 0, 0);
+        # Paragraf veya Problemler sekmesinde tek tıkla çalışan hızlı rutin şeridi
+        if ders.strip().lower() in ("paragraf", "problemler"):
+            try:
+                from ui.routine_homework_bar import RoutineHomeworkBar
+                routine_bar = RoutineHomeworkBar(ogr_id, ders, kitaplar, table, self)
+                lay.addWidget(routine_bar)
+            except Exception as _r_exc:
+                print("Rutin barı eklenemedi:", _r_exc)
         lay.addWidget(table)
 
         # mevcut yardımcıların kalsın

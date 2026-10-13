@@ -33,6 +33,31 @@ jobs:
             python tools/validate_release.py
           }
 
+      - name: V35 kaynak butunlugu ve veri gizliligi on denetimi
+        shell: pwsh
+        run: python tools/v35_release_gate.py
+
+      # Tag builds must NOT become public Releases until a real Windows pilot
+      # has been explicitly signed off for this exact commit and version.
+      # Evidence is provided OUT OF BAND via GitHub Actions Secrets. A JSON
+      # file committed to the same commit whose SHA it contains cannot be
+      # self-consistent: committing the file changes the commit SHA.
+      - name: V35 gercek Windows kabul kilidi (yalnizca surum etiketi)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          V35_WINDOWS_ACCEPTANCE_JSON: ${{ secrets.V35_WINDOWS_ACCEPTANCE_JSON }}
+        run: |
+          if (-not $env:V35_WINDOWS_ACCEPTANCE_JSON) { throw 'Windows pilot kabul sekreti yok; yayin engellendi.' }
+          try {
+            python -c "import os,pathlib; pathlib.Path('release/windows_acceptance_v35.json').write_text(os.environ['V35_WINDOWS_ACCEPTANCE_JSON'],encoding='utf-8')"
+            if ($LASTEXITCODE -ne 0) { throw 'Windows kabul kaniti yazilamadi' }
+            python tools/v35_release_gate.py --require-acceptance
+            if ($LASTEXITCODE -ne 0) { throw 'Windows kabul kilidi basarisiz' }
+          } finally {
+            Remove-Item release/windows_acceptance_v35.json -ErrorAction SilentlyContinue
+          }
+
       - name: Windows bagimliliklari
         shell: pwsh
         run: |
@@ -48,8 +73,69 @@ jobs:
         run: |
           python -m pytest -q tests/test_update_core.py tests/test_update_delivery.py tests/test_update_pipeline.py tests/test_backup_manager.py tests/test_backup_extended.py tests/test_unified_core.py tests/test_stabilization_regressions.py tests/test_write_durability_v354.py
 
+      - name: V28 adaptif kocluk ve korunan odev akislari
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q tests/test_adaptive_coaching_v25.py tests/test_adaptive_coaching_v26.py tests/test_adaptive_coaching_v27.py tests/test_adaptive_quick_v28.py tests/test_v28_qt_optional.py tests/test_v134_homework_lifecycle.py tests/test_v135_integrity_audit.py tests/test_v136_safe_reconciliation.py tests/test_checkbox_performance_patch.py tests/test_wizard_student_transfer_v8.py
+
+      - name: V29 salt-okunur sonraki adim ve Windows regresyon
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q tests/test_adaptive_next_steps_v29.py tests/test_adaptive_quick_v28.py tests/test_adaptive_coaching_v27.py tests/test_v28_qt_optional.py tests/test_checkbox_performance_patch.py tests/test_v134_homework_lifecycle.py
+
+      - name: V30 ogretmen onayli taslak ve korunmus checkbox testi
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q tests/test_adaptive_draft_review_v30.py tests/test_v30_qt_optional.py tests/test_adaptive_coaching_v25.py tests/test_adaptive_next_steps_v29.py tests/test_wizard_student_transfer_v8.py tests/test_checkbox_performance_patch.py tests/test_v28_qt_optional.py
+
+      - name: V31 Windows konu ve checkbox kimlik hiz testi
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q tests/test_v31_topic_lookup_performance.py tests/test_v31_name_cache_safety.py tests/test_checkbox_performance_patch.py tests/test_wizard_student_transfer_v8.py tests/test_v134_homework_lifecycle.py tests/test_v30_qt_optional.py
+          python tools/v31_perf_benchmark.py --topics 500 --repeats 40
+
+      - name: V32 Windows tanilama, DB salt-okunur ve regresyon testleri
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q tests/test_windows_perf_v32.py tests/test_v31_topic_lookup_performance.py tests/test_v31_name_cache_safety.py tests/test_adaptive_draft_review_v30.py tests/test_checkbox_performance_patch.py tests/test_v134_homework_lifecycle.py
+
+      - name: V33 Windows pilot guvenlik ve hizlandirma karsilastirma testleri
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q tests/test_windows_perf_v33.py tests/test_windows_perf_v32.py tests/test_checkbox_performance_patch.py tests/test_v134_homework_lifecycle.py
+
+      - name: V34 ogrenme dongusu butunlesik kabul testleri
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q tests/test_adaptive_journey_v34.py tests/test_adaptive_coaching_v25.py tests/test_adaptive_coaching_v26.py tests/test_adaptive_coaching_v27.py tests/test_adaptive_quick_v28.py tests/test_adaptive_next_steps_v29.py tests/test_adaptive_draft_review_v30.py tests/test_v27_sidebar_qt_optional.py
+
+      - name: V35 yayin kilidi ve guvenli Windows pilot testleri
+        shell: pwsh
+        run: python -m pytest -q tests/test_v35_release_gate.py tests/test_v35_pilot_assistant.py tests/test_v35_pilot_boot_guard.py
+
       - name: PyInstaller uygulama EXE
         run: python build_app.py
+
+      - name: V35 Windows sentetik DB EXE acilis testi
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tools/v35_windows_smoke.py --exe dist/OdevTakip_v2/OdevTakip_v2.exe --seconds 12 --report dist/v35_windows_smoke.json
 
       - name: Inno Setup kur
         shell: pwsh
@@ -78,6 +164,7 @@ jobs:
           path: |
             dist/OdevTakip_v2_Kurulum.exe
             dist/OdevTakip_v2_Kurulum.exe.sha256
+            dist/v35_windows_smoke.json
           if-no-files-found: error
 
       - name: v3.5.4 gibi etiketlerde Release yayinla

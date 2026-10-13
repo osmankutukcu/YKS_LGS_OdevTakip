@@ -70,3 +70,7 @@ _admin_tools_private/
 *keygen*
 *Lisans_Uretici*
 admin_keygen.py
+
+# Windows V35 pilot artifacts and manual acceptance (private, never commit)
+pilot_runs/
+release/windows_acceptance_v35.json

@@ -30,6 +30,11 @@ class Student360Panel(QWidget):
         self.btn_topic_evidence = QPushButton('Konu Kanıtları')
         self.btn_topic_evidence.clicked.connect(self.open_topic_evidence)
         bar.addWidget(self.btn_topic_evidence)
+        from services.adaptive_coaching_v26.flags import enabled as adaptive_v26_enabled
+        self.btn_adaptive_v26 = QPushButton('🧠 Adaptif Koçluk')
+        self.btn_adaptive_v26.setVisible(adaptive_v26_enabled())
+        self.btn_adaptive_v26.clicked.connect(self.open_adaptive_v26)
+        bar.addWidget(self.btn_adaptive_v26)
         bar.addStretch()
         lay.addLayout(bar)
         self.output = QTextEdit()
@@ -51,6 +56,17 @@ class Student360Panel(QWidget):
         from ui.topic_evidence_dialog_v18 import TopicEvidenceDialog
         TopicEvidenceDialog(self.student_id, self).exec()
 
+    def open_adaptive_v26(self):
+        if self.student_id is None:
+            self.output.setPlainText('Önce bir öğrenci seçin.')
+            return
+        try:
+            from ui.adaptive_coaching_dialog_v25 import AdaptiveCoachingDialogV25
+            AdaptiveCoachingDialogV25(self.student_id, parent=self, host=None).exec()
+            self.refresh()
+        except Exception as exc:
+            self.output.append(f'\nAdaptif Koçluk açılamadı: {exc}')
+
     def copy_summary(self):
         # Clipboard export only upon explicit teacher action.
         QApplication.clipboard().setText(self.output.toPlainText())
@@ -69,6 +85,16 @@ class Student360Panel(QWidget):
                 con.execute('PRAGMA query_only=ON')
                 data = read_student_overview(con, sid)
                 academic_target = read_saved_target(con, sid)
+                # Read-only optional decision summary. Missing V25 schema is a normal state.
+                adaptive_text = None
+                try:
+                    from services.adaptive_coaching_v26.flags import enabled as adaptive_v26_enabled
+                    if adaptive_v26_enabled():
+                        from services.adaptive_coaching_v26.decision import student_decisions, concise_summary
+                        con.row_factory = sqlite3.Row
+                        adaptive_text = concise_summary(student_decisions(con, sid), n=3)
+                except (sqlite3.Error, ValueError, KeyError, TypeError) as exc:
+                    adaptive_text = f'Adaptif öğrenme özeti şu an okunamadı: {exc}' 
         except (sqlite3.Error, ValueError, OSError) as exc:
             self.output.setPlainText(f'Öğrenci özeti alınamadı: {exc}\nMevcut koçluk kayıtlarınız değiştirilmedi.')
             return
@@ -89,6 +115,8 @@ class Student360Panel(QWidget):
             'ÖĞRETMEN İÇİN KISA KONTROL LİSTESİ',
         ]
         parts += [f'• {x}' for x in suggestions(data)]
+        if adaptive_text:
+            parts += ['', adaptive_text]
         if data.source_warnings:
             parts += ['', 'VERİ UYARILARI', *[f'• {w}' for w in data.source_warnings]]
         self.output.setPlainText('\n'.join(parts))

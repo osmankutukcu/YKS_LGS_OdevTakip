@@ -128,13 +128,13 @@ class GamificationWidget(QFrame):
         # A) KÜRESEL BAŞARI ROZETİ (Sadece aktif öğrenci ve ödev verisi varsa)
         if (total_students is None or total_students > 0) and total_hw > 0:
             if rate >= 90: 
-                badges_data.append({"icon": "🌟", "title": "Efsane", "subtitle": f"%{rate} Başarı", "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #fef9c3, stop:1 #fde047)", "text": "#854d0e"})
+                badges_data.append({"icon": "🌟", "title": "Efsane", "subtitle": f"%{rate} Tamamlama", "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #fef9c3, stop:1 #fde047)", "text": "#854d0e"})
             elif rate >= 75: 
-                badges_data.append({"icon": "⭐", "title": " Yıldız", "subtitle": f"%{rate} Başarı", "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #dbeafe, stop:1 #93c5fd)", "text": "#1e40af"})
+                badges_data.append({"icon": "⭐", "title": " Yıldız", "subtitle": f"%{rate} Tamamlama", "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #dbeafe, stop:1 #93c5fd)", "text": "#1e40af"})
             elif rate >= 50:
-                badges_data.append({"icon": "📈", "title": "Gelişiyor", "subtitle": f"%{rate} Başarı", "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #d1fae5, stop:1 #6ee7b7)", "text": "#065f46"})
+                badges_data.append({"icon": "📈", "title": "Gelişiyor", "subtitle": f"%{rate} Tamamlama", "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #d1fae5, stop:1 #6ee7b7)", "text": "#065f46"})
             else:
-                badges_data.append({"icon": "🌱", "title": "Başlangıç", "subtitle": f"%{rate} Başarı", "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f1f5f9, stop:1 #cbd5e1)", "text": "#475569"})
+                badges_data.append({"icon": "🌱", "title": "Başlangıç", "subtitle": f"%{rate} Tamamlama", "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f1f5f9, stop:1 #cbd5e1)", "text": "#475569"})
         
         # B) Streak (Zincir) Rozeti
         if streak >= 3 and (total_students is None or total_students > 0):

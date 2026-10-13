@@ -127,6 +127,13 @@ class SmartCalendarService:
         if not homework_list:
             return None
 
+        # Protect the direct-service callers too: the UI already validates
+        # homework minutes, but the old scheduler silently clamped bad values
+        # or ignored records without a lesson.  Never publish a plan whose
+        # workload differs from the teacher's original assignments.
+        from services.weekly_input_invariants_v35 import validate_homework_source
+        input_summary = validate_homework_source(homework_list)
+
         structured = parse_details(details)
         session_enabled = bool(structured and structured.get('session_enabled', False))
         max_session = (SmartCalendarService._session_settings(structured)['minutes']
@@ -162,6 +169,8 @@ class SmartCalendarService:
                                                       session_split=split)
         if not tasks:
             return None
+        if sum(task.sure for task in tasks) != input_summary['minutes']:
+            raise ValueError('Haftalık planlama, ödevlerin toplam süresini koruyamadı.')
 
         # Odak dersleri önceliklendir
         focs = profile.get("focus_subjects", [])
@@ -171,6 +180,14 @@ class SmartCalendarService:
                 if any(f in d_lower for f in focs):
                     t.priority = 5
                     t.kind = "odak"
+
+        # Öğretmenin BU PLANA özel onayladığı tam ders/konu önceliği.
+        # Kaydedilmiş genel ders önceliği ayrı kalır; görev, süre, teslim
+        # tarihi ve serbest zaman kuralları asla değiştirilmez.
+        approved_topics = structured.get('adaptive_topic_focus_v35', []) if structured else []
+        if approved_topics:
+            from services.weekly_topic_priority_v35 import promote_topics
+            promote_topics(tasks, approved_topics, SmartCalendarService._deadline_score)
 
         # 3. Günleri Hazırla (Okul, Rutin ve Tatil kısıtlarına göre)
         days = SmartCalendarService._build_days(profile)
@@ -190,12 +207,16 @@ class SmartCalendarService:
 
         # 6. Executive PDF / HTML Çıktısını Üret (A4 Yatay)
         html_content = SmartCalendarService._build_html(student_name, details, days, profile)
+        if structured and structured.get('planner_version') == 2:
+            from services.weekly_planner_presentation_v35 import enhance_html
+            html_content = enhance_html(html_content, days, profile, details)
 
         return {
             "html": html_content,
             "days": days,
             "profile": profile,
-            "tasks": tasks
+            "tasks": tasks,
+            "input_summary": input_summary,
         }
 
     @staticmethod
@@ -478,8 +499,10 @@ class SmartCalendarService:
                     amount = remaining // 2 if remaining <= session_minutes * 2 else amount
                 parts.append(amount)
                 remaining -= amount
-                if len(parts) > 12:
-                    break
+            # Always preserve the full duration, even for a 600-minute task
+            # divided into short 15-minute sessions. The previous 12-part
+            # cutoff silently discarded the remainder of long assignments.
+            assert sum(parts) == total, 'Ödev oturumlarına ayrılırken süre kaybı oluştu.'
 
             result = []
             for idx, amount in enumerate(parts, start=1):
@@ -1023,7 +1046,15 @@ class SmartCalendarService:
                         </div>
                     """
             else:
+                # The headline contains the day's overall interval; show
+                # each homework item's exact appointment as well so separate
+                # tasks cannot be mistaken for one continuous session.
+                appointment_times = {id(task): (start, end)
+                                     for task, start, end in d.appointments}
                 for t in tasks:
+                    appointment = appointment_times.get(id(t))
+                    clock = (f' • {hhmm(appointment[0])}–{hhmm(appointment[1])}'
+                             if appointment is not None else '')
                     key = t.ders.lower().strip()
                     icon = LESSON_ICONS.get(key, "📘")
                     ders = escape((t.ders or "").replace('_', ' ').title())
@@ -1050,7 +1081,7 @@ class SmartCalendarService:
                                     {icon} {ders}
                                 </td>
                                 <td align="right" style="font-size: {f_task_title}; color: #475569; font-weight: bold;">
-                                    ⏳ {t.sure} dk &nbsp; <span style="font-size: 7.5pt; color: #94a3b8;">☐</span>
+                                    ⏳ {t.sure} dk{clock} &nbsp; <span style="font-size: 7.5pt; color: #94a3b8;">☐</span>
                                 </td>
                             </tr>
                         </table>

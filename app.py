@@ -308,7 +308,10 @@ def main() -> None:
     app = QApplication(sys.argv)
     
     # -- SINGLE INSTANCE CHECK --
-    app_id = "yks_lgs_odev_takip_v2_lock"
+    # Normal kilit aynıdır; yalnız izole Windows pilotu ayrı kilit kullanır.
+    # Böylece normal uygulama açıksa pilot sessizce çıkıp yanlış PASS üretmez.
+    from services.pilot_boot_guard_v35 import pilot_instance_key
+    app_id = pilot_instance_key("yks_lgs_odev_takip_v2_lock")
     if check_single_instance(app_id):
         print("Uygulama zaten çalışıyor.")
         sys.exit(0)
@@ -339,7 +342,12 @@ def main() -> None:
     splash.set_progress(30, "Veritabanı başlatılıyor...")
     try:
         import db
+        # Test DB'sinin gerçek öğrenci DB'si olmadığını yazmadan ÖNCE denetle.
+        from services.pilot_boot_guard_v35 import verify_pilot_database, write_pilot_ready
+        verify_pilot_database(db.DB_PATH)
         db.init_db()
+        # Bu belirteç yalnız başarılı DB açılışından sonra yazılır.
+        write_pilot_ready(db.DB_PATH)
         # MÜFREDAT YÖNETİMİ: Özel dersleri yükle
         if hasattr(db, 'load_custom_lessons'):
             db.load_custom_lessons()

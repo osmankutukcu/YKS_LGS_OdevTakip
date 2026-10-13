@@ -24,6 +24,10 @@ def profile_path() -> Path:
 
 
 def legacy_paths() -> list[Path]:
+    # Windows test pilotu gerçek kullanıcının eski çalışma planlarını içe almamalı.
+    # Normal uygulama kullanımında eski profil aktarma davranışı aynen korunur.
+    if os.environ.get('YKS_PILOT_ISOLATED') == '1':
+        return []
     return [
         Path.home() / 'AppData' / 'Roaming' / 'YKS_LGS_OdevTakip' / 'plan_profiles.json',
         Path.home() / '.config' / 'YKS_LGS_OdevTakip' / 'plan_profiles.json',

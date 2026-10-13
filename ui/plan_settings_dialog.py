@@ -262,7 +262,8 @@ class PlanSettingsDialog(QDialog):
     Öğrencinin okul saatleri, özel ders rutinleri ve kapasitesine göre yapay zeka destekli takvim parametreleri üretir.
     """
     def __init__(self, parent=None, lesson_names: Optional[List[str]] = None,
-                 student_name: Optional[str] = None, student_id: Optional[str] = None):
+                 student_name: Optional[str] = None, student_id: Optional[str] = None,
+                 homework_list: Optional[List[Dict[str, Any]]] = None):
         super().__init__(parent)
         self.student_name = student_name
         self.student_id = str(student_id).strip() if student_id is not None and str(student_id).strip() else None
@@ -285,8 +286,19 @@ class PlanSettingsDialog(QDialog):
             except Exception:
                 pass
              
+        # Varsayılan entegrasyon: mevcut Verilen Ödevler tablosundan yalnızca
+        # okuma yap. Ödev Takip ana kaynak dosyasında tek satır değişiklik gerekmez.
+        if homework_list is None and parent is not None and hasattr(parent, 'verilen'):
+            try:
+                from services.calendar_plan_inputs import snapshot_homework_table
+                homework_list = snapshot_homework_table(parent.verilen)
+            except (ValueError, AttributeError, TypeError):
+                homework_list = []
+        self.homework_list = list(homework_list or [])
         self.lesson_names = lesson_names or []
         self.result_details = ""
+        # Approved per-plan priorities are transient, never shared profile data.
+        self._approved_topic_focus = []
         self.profiles = {}
         
         self.setWindowTitle("📅 Akıllı Haftalık Planlama & Takvim Sihirbazı")
@@ -299,11 +311,11 @@ class PlanSettingsDialog(QDialog):
         screen = QApplication.primaryScreen()
         if screen:
             avail = screen.availableGeometry()
-            w = min(780, int(avail.width() * 0.90))
-            h = min(680, int(avail.height() * 0.90))
+            w = min(1040, int(avail.width() * 0.94))
+            h = min(780, int(avail.height() * 0.92))
             self.resize(w, h)
         else:
-            self.resize(740, 640)
+            self.resize(960, 720)
         self.setMinimumSize(480, 360)
         
         self.setStyleSheet("""
@@ -428,6 +440,7 @@ class PlanSettingsDialog(QDialog):
         self._load_profiles()
         self._restore_student_profile()
         self._refresh_session_advice()
+        self.weekly_overview.refresh()
 
     def _build_ui(self):
         main_layout = QVBoxLayout(self)
@@ -453,7 +466,7 @@ class PlanSettingsDialog(QDialog):
         lbl_title = QLabel("Haftalık Çalışma & Akıllı Takvim Planlayıcı")
         lbl_title.setStyleSheet("font-size: 15px; font-weight: 800; color: #ffffff;")
         
-        sub_text = "Öğrencinin okul saatleri, rutin kısıtları ve akademik hedeflerine göre dengeli bir çalışma takvimi oluşturun."
+        sub_text = "Verilen Ödevler listesini öğrencinin okul, kurs, uyku ve rutinlerine göre haftaya dağıtın."
         if self.student_name:
             sub_text = f"Öğrenci: <b>{self.student_name}</b> • " + sub_text
             
@@ -526,6 +539,12 @@ class PlanSettingsDialog(QDialog):
         h_prof.addWidget(btn_save_prof)
         h_prof.addWidget(btn_update_prof)
         h_prof.addWidget(btn_assign)
+        btn_pdf_preview = QPushButton('📄 PDF Önizle')
+        btn_pdf_preview.setToolTip('Aynı kısıt denetimlerini kullanarak haftalık programın PDF önizlemesini açar')
+        btn_pdf_preview.setStyleSheet('QPushButton{background:#e0f2fe;color:#075985;'
+                                      'font-weight:700;padding:5px 9px;border-radius:5px;}')
+        btn_pdf_preview.clicked.connect(self._create_plan)
+        h_prof.addWidget(btn_pdf_preview)
         h_prof.addWidget(btn_del_prof)
         head_lay.addLayout(h_prof)
         
@@ -678,6 +697,20 @@ class PlanSettingsDialog(QDialog):
         self.lst_blocks = QListWidget()
         self.lst_blocks.setMaximumHeight(85)
         lay_blocks.addWidget(self.lst_blocks)
+
+        # Optional per-student buffer after a course/private lesson.
+        # Defaults to zero for backward compatibility with existing plans.
+        h_after_routine = QHBoxLayout()
+        h_after_routine.addWidget(QLabel('Sabit rutin sonrası ulaşım/dinlenme:'))
+        self.spin_after_routine = QSpinBox()
+        self.spin_after_routine.setRange(0, 180)
+        self.spin_after_routine.setValue(0)
+        self.spin_after_routine.setSuffix(' dk')
+        self.spin_after_routine.setToolTip('Örn. kurs 16:00’da biter ve 20 dk seçilirse, ödev en erken 16:20’de başlar.')
+        self.spin_after_routine.valueChanged.connect(self._refresh_timeline)
+        h_after_routine.addWidget(self.spin_after_routine)
+        h_after_routine.addStretch()
+        lay_blocks.addLayout(h_after_routine)
         
         h_rem = QHBoxLayout()
         h_rem.addStretch()
@@ -1173,6 +1206,13 @@ class PlanSettingsDialog(QDialog):
 
         self.tabs.addTab(_wrap_in_scroll(tab_help), "📖 Kullanım Kılavuzu & Rehber")
 
+        # V35: Görsel tasarıma uygun salt-okunur özet. Mevcut sekmeler/ayarlar aynen kalır.
+        from ui.weekly_planner_overview_v35 import WeeklyPlannerOverview
+        self.weekly_overview = WeeklyPlannerOverview(self, self.homework_list)
+        self.tabs.insertTab(0, _wrap_in_scroll(self.weekly_overview), '📊 Genel Bakış')
+        self.tabs.currentChanged.connect(self._on_overview_tab_selected)
+        self.tabs.setCurrentIndex(0)
+
         # --- 3. FOOTER ACTIONS ---
         footer_widget = QWidget()
         footer_widget.setStyleSheet("background-color: #ffffff; border-top: 1px solid #e2e8f0;")
@@ -1278,6 +1318,19 @@ class PlanSettingsDialog(QDialog):
         st = self.school_day_start[day_idx].time()
         et = self.school_day_end[day_idx].time()
         blocks = [self.lst_blocks.item(i).text() for i in range(self.lst_blocks.count())]
+        # Show the newly configurable post-routine buffer on the same timeline
+        # used by the constraint engine, not just in the free-minute summary.
+        if self.spin_after_routine.value() > 0:
+            from services.planning_constraints import parse_block, hhmm
+            for rule in list(blocks):
+                try:
+                    rule_days, _, rule_end, _ = parse_block(rule)
+                except ValueError:
+                    continue
+                if day_idx in rule_days:
+                    end_buffer = min(1439, rule_end + self.spin_after_routine.value())
+                    if end_buffer > rule_end:
+                        blocks.append(f'{preview_day} [{hhmm(rule_end)}-{hhmm(end_buffer)}] Ulaşım/dinlenme')
         if school_active and self.spin_after_school.value() > 0:
             end_min = et.hour() * 60 + et.minute()
             last = min(23 * 60 + 59, end_min + self.spin_after_school.value())
@@ -1426,6 +1479,7 @@ class PlanSettingsDialog(QDialog):
             'focus': self.txt_focus.text(), 'empty': empty,
             'note': self.txt_notes.toPlainText(),
             'after_school_buffer': self.spin_after_school.value() if p_idx == 0 else 0,
+            'after_routine_buffer': self.spin_after_routine.value(),
             'session_enabled': self.chk_sessions.isChecked(),
             'session_minutes': self.spin_session_minutes.value(),
             'session_break': self.spin_session_break.value(),
@@ -1486,6 +1540,7 @@ class PlanSettingsDialog(QDialog):
         self.time_wake.setTime(QTime.fromString(data.get('wake', '07:00'), 'HH:mm'))
         self.time_sleep.setTime(QTime.fromString(data.get('sleep', '23:30'), 'HH:mm'))
         self.spin_after_school.setValue(int(data.get('after_school_buffer', 0)))
+        self.spin_after_routine.setValue(int(data.get('after_routine_buffer', 0)))
         self.spin_session_minutes.setValue(int(data.get('session_minutes', 45)))
         self.spin_session_break.setValue(int(data.get('session_break', 10)))
         self.chk_session_split.setChecked(bool(data.get('session_split', True)))
@@ -1784,6 +1839,7 @@ class PlanSettingsDialog(QDialog):
             self.time_wake.setTime(QTime(7, 0))
             self.time_sleep.setTime(QTime(23, 30))
             self.spin_after_school.setValue(30)
+            self.spin_after_routine.setValue(0)
             self.spin_session_minutes.setValue(45)
             self.spin_session_break.setValue(10)
             self.chk_session_split.setChecked(True)
@@ -1806,8 +1862,25 @@ class PlanSettingsDialog(QDialog):
             self._refresh_timeline()
         self._refresh_session_advice()
 
+    def _on_overview_tab_selected(self, index: int) -> None:
+        # Hesaplamaları yalnızca özet sekmesi açıldığında yap; Windows'ta
+        # checkbox tıklamaları veya profil kaydı sırasında ek yük oluşturma.
+        if index == 0 and hasattr(self, 'weekly_overview'):
+            self.weekly_overview.refresh()
+
     def _create_plan(self):
         data = self._gather_data()
+        approved = getattr(self, '_approved_topic_focus', [])
+        if approved:
+            parent = self.parent()
+            if (parent is not None and hasattr(parent, '_secili_ogrenci_id')
+                    and str(parent._secili_ogrenci_id() or '') != str(self.student_id or '')):
+                QMessageBox.warning(self, 'Öğrenci Değişti',
+                                    'Öğrenci seçimi değişti. Adaptif öncelikler uygulanmadı.')
+                return
+            from services.weekly_topic_priority_v35 import accepted_topic_pairs
+            # Only currently assigned exact pairs; the shared profile is unchanged.
+            data['adaptive_topic_focus_v35'] = accepted_topic_pairs(self.homework_list, approved)
         try:
             availability = availability_for_week(data)
         except ValueError as err:

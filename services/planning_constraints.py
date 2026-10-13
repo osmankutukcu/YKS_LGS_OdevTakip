@@ -121,10 +121,16 @@ def availability_for_week(data: Dict[str, Any]) -> Dict[int, List[Tuple[int, int
         busy[day].append((a, b))
         if school_buffer and b < 1440:
             busy[day].append((b, min(1440, b + school_buffer)))
+    # Optional commute/recovery time after lessons, courses and other fixed
+    # commitments. A missing setting means zero: old saved profiles retain
+    # their original scheduling behavior.
+    routine_buffer = int(data.get('after_routine_buffer', 0))
+    if not 0 <= routine_buffer <= 180:
+        raise ValueError('Sabit rutin sonrası geçiş süresi 0–180 dakika arasında olmalıdır.')
     for block in data.get('blocks', []) or []:
         days, a, b, _ = parse_block(block)
         for day in days:
-            busy[day].append((a, b))
+            busy[day].append((a, min(1440, b + routine_buffer)))
     day_overrides = data.get('day_overrides') or {}
     if not isinstance(day_overrides, dict):
         raise ValueError('Günlük serbest zaman tanımları geçersiz.')

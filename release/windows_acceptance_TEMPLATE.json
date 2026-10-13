@@ -1,0 +1,22 @@
+{
+  "version": "3.5.20",
+  "git_commit": "<exact GitHub commit SHA>",
+  "tested_at": "<YYYY-MM-DD>",
+  "tester": "<Windows testini yapan kişi>",
+  "windows": "<Windows sürümü ve mimari>",
+  "notes": "Yalnızca sahte öğrenci veritabanı kullanın; kişisel bilgi yazmayın.",
+  "checks": {
+    "installer_install_uninstall": "PENDING",
+    "windows_10_or_11_launch": "PENDING",
+    "homework_checkbox_add_remove": "PENDING",
+    "given_homework_rows_and_minutes": "PENDING",
+    "control_checkbox_save_reopen": "PENDING",
+    "control_cluster_move_delete_rollback": "PENDING",
+    "student_identity_isolation": "PENDING",
+    "adaptive_draft_teacher_approval": "PENDING",
+    "pdf_print_whatsapp_workflows": "PENDING",
+    "backup_restore_old_data": "PENDING",
+    "windows_ux_latency_ab_comparison": "PENDING",
+    "no_critical_errors": "PENDING"
+  }
+}

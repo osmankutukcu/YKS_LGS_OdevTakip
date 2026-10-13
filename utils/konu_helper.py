@@ -63,12 +63,20 @@ def get_active_list(
         omap = _rows_to_map(o_rows)
         result.update(omap)  # öğrenci baskın
 
-    # Sıralama: genel listedeki sırayı korumaya çalış (yoksa alfabetik)
-    genel_order = [ (r["konu"] or "").strip().lower() for r in genel ]
+    # V31/Windows: preserve EXACTLY the old sort policy, but avoid a repeated
+    # linear list.index() for every topic. With many curriculum topics that
+    # was quadratic on each duration lookup triggered by a checkbox tick.
+    # setdefault() preserves the first occurrence for duplicate topic names.
+    genel_position = {}
+    for position, row in enumerate(genel):
+        key = (row["konu"] or "").strip().lower()
+        genel_position.setdefault(key, position)
+
     def order_key(k):
-        try:
-            return (0, genel_order.index(k.lower()))
-        except ValueError:
-            return (1, k.lower())
+        folded = k.lower()
+        position = genel_position.get(folded)
+        if position is not None:
+            return (0, position)
+        return (1, folded)
     items = sorted(result.values(), key=lambda x: order_key(x["konu"]))
     return items

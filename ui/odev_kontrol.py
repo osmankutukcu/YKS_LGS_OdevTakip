@@ -740,6 +740,17 @@ class OdevKontrolDialog(QDialog):
         self._only_moved = False
         self.lstKume.itemClicked.connect(lambda _item: self._kume_ac(None, False))
         self._apply_modern_visuals()
+        # V28 OPTIONAL: one-choice coaching note, isolated from legacy checkbox,
+        # cluster save, return/transfer, and parent notification workflows.
+        try:
+            from services.adaptive_coaching_v28.flags import enabled as quick_v28_enabled
+            if quick_v28_enabled():
+                from ui.quick_coaching_bridge_v28 import install
+                self._quick_bridge_v28 = install(self)
+        except Exception as exc:
+            # A broken optional panel must never block homework control.
+            import logging
+            logging.getLogger(__name__).warning('V28 hızlı teşhis pasif: %s', exc)
 
     def _apply_modern_visuals(self):
         self.setStyleSheet("""
@@ -1010,6 +1021,12 @@ class OdevKontrolDialog(QDialog):
         self.btnScopedV234.setToolTip('Grup/öğrenci özel ödevleri; ana tiklerden ayrı takip edilir.')
         self.btnScopedV234.clicked.connect(self._open_scoped_control_v234)
         flow.addWidget(self.btnScopedV234)
+        self.btnAdaptiveV25 = _mk('🧠 Öğrenme Analizi', 'btnInfo')
+        self.btnAdaptiveV25.setToolTip('Kazanım/hata nedenleri kaydı; ödev tiklerinden ayrı tutulur')
+        from services.adaptive_coaching_v25.flags import enabled as adaptive_v25_enabled
+        self.btnAdaptiveV25.setVisible(adaptive_v25_enabled())
+        self.btnAdaptiveV25.clicked.connect(self._open_adaptive_v25)
+        flow.addWidget(self.btnAdaptiveV25)
         btnBarLayout.addWidget(btnBar)
         root.addWidget(btnBarContainer)
 
@@ -1271,6 +1288,25 @@ class OdevKontrolDialog(QDialog):
         QShortcut(QKeySequence("F7"), self, activated=self._yapilmayanlari_geri_tasi)
         QShortcut(QKeySequence("Delete"), self, activated=getattr(self, "_satir_sil", lambda: None))
         QShortcut(QKeySequence("F8"), self, activated=self.aktar_silmeden)  # ✅ yeni
+
+    def _open_adaptive_v25(self):
+        """Optional insight dialog. Checking/completing homework remains unchanged."""
+        from services.adaptive_coaching_v25.flags import enabled
+        if not enabled():
+            return
+        try:
+            homework_id = None
+            selected = self.tab.currentRow()
+            if selected >= 0:
+                item = self.tab.item(selected, 1)
+                if item is not None:
+                    homework_id = item.data(USERROLE)
+            from ui.adaptive_coaching_dialog_v25 import AdaptiveCoachingDialogV25
+            AdaptiveCoachingDialogV25(self.ogr_id, parent=self,
+                                      initial_homework_id=homework_id).exec()
+        except Exception as exc:
+            QMessageBox.warning(self, 'Bilimsel Koçluk',
+                                'Modül açılamadı; mevcut ödev kontrol etkilenmedi.\n' + str(exc))
 
     def _open_scoped_control_v234(self):
         """Scoped tasks are managed modally; the old shortcut/save path stays off-screen."""

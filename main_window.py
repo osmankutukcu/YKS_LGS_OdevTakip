@@ -333,6 +333,11 @@ class AnaPencere(QMainWindow):
         
         self.btnOgr = style_sidebar_btn(QPushButton("Öğrenci Kaydı"), "👤")
         self.btnOdev = style_sidebar_btn(QPushButton("Ödev Takip"), "📚")
+        # V26 modüler kurum koçluk merkezi (mevcut Ödev Takip aynen kalır).
+        from services.adaptive_coaching_v26.flags import enabled as adaptive_v26_enabled
+        self.btnAdaptiveV26 = style_sidebar_btn(QPushButton("Adaptif Koçluk Merkezi"), "🧠")
+        self.btnAdaptiveV26.setVisible(adaptive_v26_enabled())
+        self.btnAdaptiveV26.setToolTip("Öğrenci bazlı öğrenme kanıtları ve öğretmen karar destek merkezi")
         self.btnDeneme = style_sidebar_btn(QPushButton("Deneme Sınavları"), "📝")
         # self.btnSimulasyon burada tanımlıydı, aşağı taşıyoruz
         self.btnKoc = style_sidebar_btn(QPushButton("Koçluk Planı"), "🎯")
@@ -340,6 +345,7 @@ class AnaPencere(QMainWindow):
         
         menu_layout.addWidget(self.btnOgr)
         menu_layout.addWidget(self.btnOdev)
+        menu_layout.addWidget(self.btnAdaptiveV26)
         menu_layout.addWidget(self.btnDeneme)
         # Sınav Modu taşındı
         menu_layout.addWidget(self.btnKoc)
@@ -495,6 +501,7 @@ class AnaPencere(QMainWindow):
         self.dashboard.sig_open_today.connect(lambda: self._open_randevu_filter('today'))
         self.dashboard.sig_open_overdue.connect(lambda: self._open_randevu_filter('overdue'))
         self.dashboard.sig_open_students.connect(self._ogrenci_ac)
+        self.dashboard.sig_open_adaptive.connect(self._open_adaptive_v26)
         
 
         
@@ -504,6 +511,7 @@ class AnaPencere(QMainWindow):
         # Sinyaller
         self.btnOgr.clicked.connect(self._ogrenci_ac)
         self.btnOdev.clicked.connect(self._odev_ac)
+        self.btnAdaptiveV26.clicked.connect(self._open_adaptive_v26)
         self.btnRapor.clicked.connect(self._rapor_ac)
         self.btnOnar.clicked.connect(self._onar_menu)
         self.btnDersKonu.clicked.connect(self._ders_konu)
@@ -827,6 +835,18 @@ class AnaPencere(QMainWindow):
 
     # ------------------ Buton handler'ları ------------------
     # ------------------ Buton handler'ları ------------------
+    def _open_adaptive_v26(self):
+        """Lazy/isolated decision center: failure cannot alter task tracking."""
+        from services.adaptive_coaching_v26.flags import enabled as adaptive_enabled
+        if not adaptive_enabled():
+            return
+        try:
+            from ui.adaptive_coaching_center_v26 import AdaptiveCoachingCenterV26
+            AdaptiveCoachingCenterV26(self).exec()
+        except Exception as exc:
+            QMessageBox.warning(self, 'Adaptif Koçluk',
+                f'Koçluk merkezi açılamadı. Ödev Takip ve Ödev Kontrol etkilenmedi.\n{exc}')
+
     def _ogrenci_ac(self): self._show_dialog(OgrenciFormu)
     def _odev_ac(self):    self._show_dialog(OdevTakipFormu)
 

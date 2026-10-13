@@ -1151,7 +1151,6 @@ class InfoBoardWidget(QFrame):
         self._auto_timer = QTimer(self)
         self._auto_timer.setInterval(int(self.AUTO_REFRESH_MINUTES * 60 * 1000))
         self._auto_timer.timeout.connect(self._auto_refresh_tick)
-        self._auto_timer.timeout.connect(self._auto_refresh_tick)
         self._auto_timer.start()
 
         # ✅ Haber Ticker Timer
