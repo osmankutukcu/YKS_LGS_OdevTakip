@@ -33,6 +33,12 @@ jobs:
             python tools/validate_release.py
           }
 
+      - name: Windows bagimliliklari
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements_win.txt pytest httpx
+
       - name: V35 kaynak butunlugu ve veri gizliligi on denetimi
         shell: pwsh
         run: python tools/v35_release_gate.py
@@ -57,12 +63,6 @@ jobs:
           } finally {
             Remove-Item release/windows_acceptance_v35.json -ErrorAction SilentlyContinue
           }
-
-      - name: Windows bagimliliklari
-        shell: pwsh
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements_win.txt pytest httpx
 
       - name: Otomatik testler
         shell: pwsh

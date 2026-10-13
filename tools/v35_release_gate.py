@@ -56,8 +56,8 @@ def check_source(root=ROOT):
     """Never modifies the protected legacy behavior or any SQLite database."""
     changed = []
     for name, expected in PROTECTED.items():
-        target = root / name
-        digest = hashlib.sha256(target.read_bytes()).hexdigest() if target.is_file() else None
+        raw = target.read_bytes().replace(b'\r\n', b'\n') if target.is_file() else None
+        digest = hashlib.sha256(raw).hexdigest() if raw is not None else None
         if digest != expected:
             changed.append(name)
     if changed:
