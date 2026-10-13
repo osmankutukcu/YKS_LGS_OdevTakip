@@ -50,4 +50,32 @@ A) Klasörün içindeki "OdevTakip_Baslat.command" dosyasına çift tıklayın.
 - assets/ & fonts/: Uygulama simgeleri, görsel kaynaklar ve yazı tipleri.
 - YKS_Kazanimlar.sqlite: MEB ve ÖSYM müfredat konu/kazanım veritabanı.
 
-İyi çalışmalar dileriz!
+------------------------------------------------------------------------
+4. GELİŞTİRİCİLER İÇİN (VS Code / PyCharm Ortamı & Testler)
+------------------------------------------------------------------------
+A) Projeyi VS Code veya PyCharm ile Açma:
+   - Klasörü doğrudan IDE'nizde açın ("Open Folder").
+   - Python Interpreter olarak oluşturulan `.venv` sanal ortamını seçin:
+     * Windows: `.venv\Scripts\python.exe`
+     * macOS / Linux: `.venv/bin/python`
+
+B) Otomatik Testleri Çalıştırma:
+   - Tüm birim ve regresyon testlerini çalıştırmak için:
+     pytest tests/
+   - Güncelleme ve güvenlik testleri için:
+     python -m unittest discover -s tests -p "test_update_*.py"
+
+C) Önemli Mimari Kurallar:
+   - Veritabanı ve yerel kullanıcı ayarları Windows standartlarına uygun olarak
+     `%LOCALAPPDATA%\YKS_LGS_HomeworkManager` dizininde saklanır (C:\Program Files
+     altına dosya yazılmaz, yetki hatası oluşmaz).
+   - `ui/` katmanındaki tablo güncellemelerinde model metinleri bozulmadan
+     Qt delegate / setIcon mekanizmaları kullanılır.
+
+D) GitHub Deposu:
+   - https://github.com/osmankutukcu/YKS_LGS_OdevTakip
+   - Yeni sürüm etiketi (örn: `git tag v3.5.23 && git push origin v3.5.23`)
+     gönderildiğinde GitHub Actions otomatik olarak Windows Installer (.exe) derler.
+
+İyi çalışmalar ve başarılar dileriz!
+
