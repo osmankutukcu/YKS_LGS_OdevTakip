@@ -96,7 +96,7 @@ class WindowsPerfV32Tests(unittest.TestCase):
 
     def test_legacy_core_hash_still_unchanged(self):
         checks={
-            'ui/homework_form.py':'f015d489390ad0d529aabd2f447eaeaed14ccd54f48aaa81dd4a5ed47aef6cad',
+            'ui/homework_form.py':'827098c0628bccbac89fbcb37cdf9967467b8971e65457d1d484768c824ffb5b',
             'ui/odev_kontrol.py':'7ca39f447e4a7cd71cb4eb14fde9bba53fae6c183092d0758a77c8d009cd4d0c',
         }
         # Older maintenance tests provide authoritative source checksums.

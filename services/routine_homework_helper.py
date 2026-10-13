@@ -153,7 +153,9 @@ def generate_routine_tasks(
             if item is None:
                 continue
             # Kilitli mi?
-            if not (item.flags() & Qt.ItemFlag.ItemIsUserCheckable):
+            flags_val = item.flags().value if hasattr(item.flags(), "value") else int(item.flags())
+            checkable_val = Qt.ItemFlag.ItemIsUserCheckable.value if hasattr(Qt.ItemFlag.ItemIsUserCheckable, "value") else int(Qt.ItemFlag.ItemIsUserCheckable)
+            if not (flags_val & checkable_val):
                 continue
             # Zaten işaretli mi?
             if item.checkState() == Qt.CheckState.Checked:

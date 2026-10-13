@@ -193,11 +193,25 @@ class TestExactMatch(unittest.TestCase):
 class TestTransfer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls._orig_pyqt6 = sys.modules.get('PyQt6')
+        cls._orig_pyqt6_core = sys.modules.get('PyQt6.QtCore')
         fakeqt_module = types.ModuleType('PyQt6.QtCore')
         fakeqt_module.Qt = FakeQt
         sys.modules['PyQt6'] = types.ModuleType('PyQt6')
         sys.modules['PyQt6.QtCore'] = fakeqt_module
         FORM._wizard_transfer_tasks.__globals__['QMessageBox'] = FakeMessage
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls._orig_pyqt6 is not None:
+            sys.modules['PyQt6'] = cls._orig_pyqt6
+        else:
+            sys.modules.pop('PyQt6', None)
+        if cls._orig_pyqt6_core is not None:
+            sys.modules['PyQt6.QtCore'] = cls._orig_pyqt6_core
+        else:
+            sys.modules.pop('PyQt6.QtCore', None)
+
     def setUp(self): FakeMessage.shown.clear()
     def test_normal_manual_round_trip(self):
         h=Host()

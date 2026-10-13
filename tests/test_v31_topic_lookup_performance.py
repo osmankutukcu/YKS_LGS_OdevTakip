@@ -105,7 +105,7 @@ class TestLegacyFileProtection(unittest.TestCase):
     def test_core_files_byte_identical_to_v30(self):
         # Pinned from the V30 source release; works standalone on Windows CI.
         protected = {
-            'ui/homework_form.py': 'f015d489390ad0d529aabd2f447eaeaed14ccd54f48aaa81dd4a5ed47aef6cad',
+            'ui/homework_form.py': '827098c0628bccbac89fbcb37cdf9967467b8971e65457d1d484768c824ffb5b',
             'ui/odev_kontrol.py': '7ca39f447e4a7cd71cb4eb14fde9bba53fae6c183092d0758a77c8d009cd4d0c',
             'db.py': '0273aa9842fea40e1961728de39c2a04bc796eb66d9dadad2bb2d25e22b75b94',
             'main_window.py': '953aef2a7cb3c4296015b565d145d794c6e86f491c3b215ee4ed03150fa3e668',

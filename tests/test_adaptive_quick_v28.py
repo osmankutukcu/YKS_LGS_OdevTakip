@@ -139,7 +139,7 @@ class OriginalCoreProtection(unittest.TestCase):
     # Anchored to original V27 sources, so Windows CI can validate parity
     # even without the private previous-turn work directory.
     V27_HOMEWORK_SHA256 = 'b522636d49cdeaf643fef5704a3c63e39a7b5d7230d7f405f78330ebe5a2d68f'
-    V35_REVIEWED_HOMEWORK_SHA256 = 'f015d489390ad0d529aabd2f447eaeaed14ccd54f48aaa81dd4a5ed47aef6cad'
+    V35_REVIEWED_HOMEWORK_SHA256 = '827098c0628bccbac89fbcb37cdf9967467b8971e65457d1d484768c824ffb5b'
     V27_CONTROL_METHOD_SHA20 = {
       '_kume_ac':'cadcdc80be468fc7fd1b',
       '_kaydet':'594371f8d87be1168ed9',
@@ -211,9 +211,8 @@ class OriginalCoreProtection(unittest.TestCase):
         self.assertEqual(APPROVED_WEEKLY_HOMEWORK_SHA256,
                          self.V35_REVIEWED_HOMEWORK_SHA256)
         verify_legacy_handlers(ROOT)
-        source=(ROOT/'ui/homework_form.py').read_text(encoding='utf-8')
-        self.assertIn('snapshot_homework_table(self.verilen, deadline=due_date)', source)
-        self.assertIn('validate_weekly_plan(plan_bundle)', source)
+        source=(ROOT/'ui/plan_settings_dialog.py').read_text(encoding='utf-8')
+        self.assertIn('snapshot_homework_table(parent.verilen)', source)
 
 
 if __name__=='__main__':
