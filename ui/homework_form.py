@@ -3707,7 +3707,18 @@ class OdevTakipFormu(QWidget):
         self._right_header_bar_v22 = install_scrollable_bar(lst_lay, v_top_row, minimum_height=32)
 
         self.verilen = QTableWidget(0, 5)
-        self.verilen.setHorizontalHeaderLabels(["Ders", "Kitap", "Konu", "Süre(dk)", "Açıklama"])
+        self.verilen.setHorizontalHeaderLabels(["📘 Ders", "📖 Kitap", "📌 Konu", "⏱️ Süre(dk)", "📝 Açıklama"])
+        header_tooltips = [
+            "Ödevin ait olduğu ders",
+            "Seçilen kaynak kitap",
+            "Çalışılacak konu başlığı",
+            "Tahmini çalışma süresi (dakika)",
+            "Öğretmen notu veya soru/sayfa açıklaması",
+        ]
+        for idx, tip in enumerate(header_tooltips):
+            h_it = self.verilen.horizontalHeaderItem(idx)
+            if h_it:
+                h_it.setToolTip(tip)
         self.verilen.setSortingEnabled(True)
         self.verilen.verticalHeader().setDefaultSectionSize(28)
         self.verilen.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -3722,28 +3733,18 @@ class OdevTakipFormu(QWidget):
 
         #f
 
-        hh = self.verilen.horizontalHeader()
-        hh.setStretchLastSection(False)
-        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        hh.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        hh.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        hh.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
-        fm = self.verilen.fontMetrics()
-        self.verilen.setColumnWidth(3, fm.horizontalAdvance("Süre(dk)") + 24)
-        self.verilen.setColumnWidth(4, fm.horizontalAdvance("Açıklama") + 24)
-
-        # Konu sütununu tam görünür yap (kesilmeden)
+        # Konu ve başlık sütunlarını tam görünür yap (kesilmeden)
         from PyQt6.QtWidgets import QHeaderView as _QHV
         hh = self.verilen.horizontalHeader()
-        hh.setStretchLastSection(False)
+        hh.setStretchLastSection(True)
+        hh.setMinimumSectionSize(68)
         hh.setSectionResizeMode(0, _QHV.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(1, _QHV.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(2, _QHV.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(3, _QHV.ResizeMode.Interactive)
         hh.setSectionResizeMode(4, _QHV.ResizeMode.Interactive)
-        self.verilen.setColumnWidth(3, 80)
-        self.verilen.setColumnWidth(4, 120)
+        self.verilen.setColumnWidth(3, 98)
+        self.verilen.setColumnWidth(4, 125)
         self.verilen.setWordWrap(False)
         self.verilen.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.verilen.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -4484,28 +4485,34 @@ class OdevTakipFormu(QWidget):
 
         for tv in self.findChildren(QTableView):
             hh: QHeaderView = tv.horizontalHeader()
+            is_verilen = (tv is getattr(self, "verilen", None))
             if hh:
                 hh.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
                 hh.setHighlightSections(False)
                 hh.setSectionsClickable(True)
                 hh.setSortIndicatorShown(True)
-                hh.setFixedHeight(38)
+                hh.setFixedHeight(34 if is_verilen else 38)
                 hh.setMinimumSectionSize(52)
 
                 f = QFont(tv.font());
-                f.setPointSizeF(max(11.0, f.pointSizeF()) + 0.8)
+                f.setPointSizeF(10.5 if is_verilen else (max(11.0, f.pointSizeF()) + 0.8))
                 f.setWeight(QFont.Weight.DemiBold)
                 hh.setFont(f)
 
             if tv.verticalHeader():
                 tv.verticalHeader().setVisible(False)
-                tv.verticalHeader().setDefaultSectionSize(46)
+                tv.verticalHeader().setDefaultSectionSize(32 if is_verilen else 46)
 
             tv.setMouseTracking(True)
             tv.setShowGrid(False)
             tv.setAlternatingRowColors(False)
             tv.setTextElideMode(Qt.TextElideMode.ElideRight)
-            tv.setStyleSheet(header_css)
+            if is_verilen:
+                tv.setStyleSheet(header_css.replace("padding:10px 14px;", "padding:6px 7px;"))
+                hh.setStretchLastSection(True)
+                hh.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+            else:
+                tv.setStyleSheet(header_css)
 
         # ---- SAĞ LİSTE: RENKLENDİR + BOŞLUK/PADDING DELEGATE ----
         t = getattr(self, "verilen", None)
@@ -9089,10 +9096,11 @@ class OdevTakipFormu(QWidget):
     def _yukle_verilen_kolon_genislik(self):
         try:
             arr = appset.ayar_get(self._verilen_kolon_anahtar(), [])
+            min_widths = {0: 68, 1: 72, 2: 85, 3: 98, 4: 115}
             if isinstance(arr, list) and arr:
                 for i, w in enumerate(arr):
                     try:
-                        self.verilen.setColumnWidth(i, int(w))
+                        self.verilen.setColumnWidth(i, max(int(w), min_widths.get(i, 68)))
                     except Exception:
                         pass
         except Exception:

@@ -4,12 +4,14 @@ from __future__ import annotations
 import json
 import sqlite3
 import datetime as dt
+from services.target_analysis_v24.student_history import StudentTrendStore
+from services.target_analysis_v24.logic import extract_known_exam_nets, TargetDataError
 from typing import Optional, Dict, Any, List, Tuple
 
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QFormLayout,
-    QDoubleSpinBox, QPushButton, QComboBox, QDateEdit, QMessageBox, QFrame, QDialog, QScrollArea
+    QDoubleSpinBox, QPushButton, QComboBox, QDateEdit, QMessageBox, QFrame, QDialog, QScrollArea, QApplication
 )
 from PyQt6.QtGui import QDesktopServices
 
@@ -29,7 +31,8 @@ except ImportError:
         def autofmt_xdate(self): pass
 
 # -------------------------------------------------------------
-#  A) Resmi ÖSYM & MEB Verileri ve Yıllık Projeksiyonlar (2024, 2025, 2026)
+#  A) Paket içi karşılaştırma değerleri (2024, 2025, 2026)
+#  Bu sabit değerler kaynak belge bazında resmî olarak doğrulanmadı.
 # -------------------------------------------------------------
 OFFICIAL_2024_YKS_AVG = {
     "TYT_TURKCE": 21.43,
@@ -129,15 +132,14 @@ def get_national_averages(year: int = 2025, is_lgs: bool = False) -> Dict[str, f
 
 
 def _get_default_history_db_path() -> str:
-    try:
-        import db
-        return str(db.get_db_path().parent / "deneme_history.db")
-    except Exception:
-        from pathlib import Path
-        import os
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "YKS_LGS_HomeworkManager"
-        base.mkdir(parents=True, exist_ok=True)
-        return str(base / "deneme_history.db")
+    # V24.5: eski Windows deneme_history.db dosyasını yerinden taşımadan koru.
+    # db.get_db_path() her sürümde bulunmuyor; tek gerçek yol db.DB_PATH.
+    from pathlib import Path
+    import db
+    from services.target_analysis_v24.history_location_v245 import resolve_history_location
+    resolved = resolve_history_location(Path(db.DB_PATH))
+    resolved.selected.parent.mkdir(parents=True, exist_ok=True)
+    return str(resolved.selected)
 
 # -----------------------------
 #  B) Deneme Geçmişi Deposu
@@ -261,12 +263,15 @@ class AdvancedNetAndTrendPanel(QWidget):
     def __init__(self, parent=None, db_path: Optional[str] = None, student_id: Optional[int] = None):
         super().__init__(parent)
         self.student_id = student_id
-        self.store = DenemeStore(db_path)
+        self.store = DenemeStore(db_path)  # Eski kimliksiz kayıtlar AYNEN korunur.
+        self.student_store = StudentTrendStore(self.store.db_path)
         self.current_target = None
         self._build_ui()
 
     def set_student_id(self, student_id: int):
         self.student_id = student_id
+        self.current_target = None
+        self._refresh_trend()  # Önceki öğrencinin grafiği anında temizlenir.
         self._auto_sync_student_denemes()
 
     def _spin(self, maxv: float) -> QDoubleSpinBox:
@@ -299,7 +304,7 @@ class AdvancedNetAndTrendPanel(QWidget):
         title = QLabel("📈 Akıllı Performans Takibi ve Çok Yıllı Trend Analizi (2024 / 2025 / 2026)")
         title.setStyleSheet("font-size:15px; font-weight:bold; color:#1e40af;")
         hint = QLabel(
-            "Deneme sınavı sonuçlarınızı kaydedin, gelişim trendinizi takip edin ve resmi ÖSYM / MEB Türkiye ortalamaları ile anlık kıyaslama yapın."
+            "Deneme sınavı sonuçlarını ve kendi gelişimini takip et. Paket içi ulusal kıyas değerleri resmî kaynakla doğrulanmadı; canlı istatistik değildir."
         )
         hint.setStyleSheet("color:#1e3a8a; font-size: 12px;")
         hint.setWordWrap(True)
@@ -309,8 +314,10 @@ class AdvancedNetAndTrendPanel(QWidget):
         root.addWidget(info_frame)
 
         # İki sütun
-        h_content = QHBoxLayout()
-        h_content.setSpacing(16)
+        # 1366x768 + %150 DPI gibi dar mantıksal ekranlarda grafik alta iner.
+        area = QApplication.primaryScreen().availableGeometry()
+        h_content = QVBoxLayout() if area.width() < 1050 else QHBoxLayout()
+        h_content.setSpacing(12)
         
         # --- SOL SÜTUN (Girişler) ---
         input_col = QVBoxLayout()
@@ -334,7 +341,7 @@ class AdvancedNetAndTrendPanel(QWidget):
         row_year = QHBoxLayout()
         row_year.addWidget(QLabel("<b>Ort. Yılı:</b>"))
         self.cmb_ref_year = QComboBox()
-        self.cmb_ref_year.addItems(["2025 Güncel Yerleştirme", "2026 Akıllı Projeksiyon", "2024 ÖSYM/MEB Resmi"])
+        self.cmb_ref_year.addItems(["2025 Paket İçi Referans (Doğrulanmadı)", "2026 Paket İçi Tahmin (Doğrulanmadı)", "2024 Paket İçi Referans (Doğrulanmadı)"])
         self.cmb_ref_year.setStyleSheet("padding: 4px;")
         row_year.addWidget(self.cmb_ref_year, 1)
         f_top.addLayout(row_year)
@@ -389,7 +396,7 @@ class AdvancedNetAndTrendPanel(QWidget):
         self.btn_sync.clicked.connect(self._auto_sync_student_denemes)
         save_lay.addWidget(self.btn_sync)
 
-        self.btn_analyze = QPushButton("🧠 Türkiye Ortalamaları ile Kıyasla")
+        self.btn_analyze = QPushButton("🧠 Paket İçi Referansla Kıyasla")
         self.btn_analyze.setStyleSheet("background-color: #4f46e5; color: white; font-weight: bold; padding: 8px; border-radius: 6px;")
         self.btn_analyze.clicked.connect(self._analyze)
         save_lay.addWidget(self.btn_analyze)
@@ -414,7 +421,7 @@ class AdvancedNetAndTrendPanel(QWidget):
         self.lbl_trend.setStyleSheet("font-size: 12px; color: #475569; font-weight: 600; padding: 4px 8px; background: white; border-radius: 6px; border: 1px solid #e2e8f0;")
         right_col.addWidget(self.lbl_trend)
 
-        self.lbl_out = QLabel("📊 Deneme sonuçlarınızı girip 'Türkiye Ortalamaları ile Kıyasla' butonuna tıklayarak kapsamlı rapor alabilirsiniz.")
+        self.lbl_out = QLabel("📊 Deneme sonuçlarını girip paket içi örnek referanslarla karşılaştırabilirsin; bunlar resmî istatistik değildir.")
         self.lbl_out.setWordWrap(True)
         self.lbl_out.setStyleSheet("""
             QLabel {
@@ -512,69 +519,62 @@ class AdvancedNetAndTrendPanel(QWidget):
         self._refresh_trend()
 
     def _auto_sync_student_denemes(self):
-        """Ana veritabanından öğrencinin deneme sınavı sonuçlarını trende aktarır."""
+        """Kaynağı belli denemeleri seçili öğrenci için tekrar eklemeden senkronize eder."""
+        if not self.student_id:
+            QMessageBox.warning(self, 'Öğrenci seçimi', 'Önce öğrenci seçin.')
+            return
         try:
             import db
             con = db.get_conn()
-            
-            # Öğrenci id kontrol
-            s_id = self.student_id
-            if not s_id:
-                row = con.execute("SELECT id FROM ogrenci LIMIT 1").fetchone()
-                if row: s_id = row[0]
-                
-            if not s_id:
-                QMessageBox.information(self, "Bilgi", "Sistemde kayıtlı öğrenci bulunamadı.")
-                return
-
             rows = con.execute("""
-                SELECT d.tarih, d.deneme_adi, d.tur, ds.ders_adi, ds.net
+                SELECT d.id, d.tarih, d.deneme_adi, d.tur, ds.ders_adi, ds.net
                 FROM deneme_sonuclari ds
                 JOIN denemeler d ON d.id = ds.deneme_id
                 WHERE ds.ogrenci_id = ?
-                ORDER BY d.tarih ASC
-            """, (s_id,)).fetchall()
-
-            if not rows:
-                QMessageBox.information(self, "Bilgi", "Bu öğrenciye ait kayıtlı deneme sonucu bulunamadı.")
-                return
-
-            # Denemelere göre grupla
+                ORDER BY d.tarih ASC, d.id ASC
+            """, (self.student_id,)).fetchall()
             by_exam = {}
             for r in rows:
-                tarih = r[0]
-                d_adi = r[1]
-                key = (tarih, d_adi)
-                if key not in by_exam:
-                    by_exam[key] = {"tarih": tarih, "tur": r[2] or "YKS", "netler": {}}
-                by_exam[key]["netler"][r[3]] = float(r[4] or 0)
-
+                key = int(r[0])
+                info = by_exam.setdefault(key, {'tarih':r[1], 'adi':r[2],
+                                                'tur':r[3] or '', 'dersler':[]})
+                info['dersler'].append((r[4],r[5]))
             alan = self.cmb_alan.currentText()
-            exam_type = "LGS" if alan == "LGS" else "YKS"
-            added_count = 0
-
-            for (tarih, d_adi), info in by_exam.items():
+            exam_type = 'LGS' if alan == 'LGS' else 'YKS'
+            parser_exam = 'LGS' if alan == 'LGS' else ('YKS-DIL' if alan == 'DİL' else 'YKS-SAY')
+            added = 0
+            updated = 0
+            skipped = 0
+            for exam_id, info in by_exam.items():
                 try:
-                    d_obj = dt.datetime.strptime(tarih, "%Y-%m-%d").date()
-                except Exception:
-                    d_obj = dt.date.today()
-                    
-                netler = info["netler"]
-                total_net = sum(netler.values())
-                
-                payload = {
-                    "tyt_total": total_net if exam_type == "LGS" else sum(v for k, v in netler.items() if "TYT" in k.upper()),
-                    "ayt_total": 0 if exam_type == "LGS" else sum(v for k, v in netler.items() if "AYT" in k.upper() or "YDT" in k.upper()),
-                    "deneme_adi": d_adi
-                }
-                self.store.add(d_obj, exam_type, alan, payload)
-                added_count += 1
-
-            QMessageBox.information(self, "Başarılı", f"Sistemden {added_count} deneme sonucu trend grafiğine başarıyla aktarıldı!")
+                    parsed = extract_known_exam_nets(info['dersler'],info['tur'],parser_exam)
+                    date_ = dt.date.fromisoformat(info['tarih'])
+                except (TargetDataError, ValueError,TypeError):
+                    skipped += 1
+                    continue
+                if alan == 'LGS':
+                    total = parsed.get('LGS',0.0)
+                    payload = {'tyt_total':total,'ayt_total':0.0,'deneme_adi':info['adi']}
+                else:
+                    second = 'YDT' if alan == 'DİL' else 'AYT'
+                    if 'TYT' not in parsed or second not in parsed:
+                        # Tek TYT denemesini birleşik TYT+AYT trendinde 0 AYT gibi gösterme.
+                        skipped += 1
+                        continue
+                    payload = {'tyt_total':parsed['TYT'], 'ayt_total':parsed[second],
+                               'deneme_adi':info['adi']}
+                outcome = self.student_store.sync_source(
+                    self.student_id,date_,exam_type,alan,payload,
+                    source_key=f'deneme:{exam_id}:{alan}')
+                added += int(outcome == 'inserted')
+                updated += int(outcome == 'updated')
             self._refresh_trend()
-
-        except Exception as e:
-            QMessageBox.warning(self, "Hata", f"Denemeler çekilirken sorun oluştu: {e}")
+            if skipped or added or updated:
+                QMessageBox.information(self,'Senkronizasyon',
+                    f'{added} yeni, {updated} güncellenmiş deneme. {skipped} kısmi, '
+                    f'belirsiz veya tarih hatalı deneme atlandı; eksik net tahmini yapılmadı.')
+        except Exception as exc:
+            QMessageBox.warning(self,'Senkronizasyon başarısız',str(exc))
 
     def _save_deneme(self):
         try:
@@ -600,8 +600,11 @@ class AdvancedNetAndTrendPanel(QWidget):
                 ayt_tot = self.sp_a1.value() + self.sp_a2.value() + self.sp_a3.value() + self.sp_a4.value()
                 payload = {"tyt_total": tyt_tot, "ayt_total": ayt_tot}
                 
-            self.store.add(date_, exam_type, alan, payload)
-            QMessageBox.information(self, "Başarılı", "Deneme sonucu kaydedildi ve trend güncellendi.")
+            if not self.student_id:
+                QMessageBox.warning(self, 'Öğrenci seçimi', 'Kayıt için önce öğrenci seçin.')
+                return
+            self.student_store.add(self.student_id, date_, exam_type, alan, payload)
+            QMessageBox.information(self, "Başarılı", "Deneme sonucu seçili öğrenciye kaydedildi ve trend güncellendi.")
             self._refresh_trend()
         except Exception as e:
             QMessageBox.warning(self, "Hata", str(e))
@@ -609,11 +612,11 @@ class AdvancedNetAndTrendPanel(QWidget):
     def _refresh_trend(self):
         alan = self.cmb_alan.currentText()
         exam_type = "LGS" if alan == "LGS" else "YKS"
-        rows = self.store.list_last(exam_type, alan, n=20)
+        rows = self.student_store.list_last(self.student_id, exam_type, alan, n=20) if self.student_id else []
         
         if not rows:
             self.plot.set_series([], [], f"Henüz Veri Yok ({alan})")
-            self.lbl_trend.setText("Henüz kayıtlı deneme sonucu bulunmuyor.")
+            self.lbl_trend.setText('Bu öğrenciye ait doğrulanmış trend kaydı yok. Eski kimliksiz kayıtlar öğrenciye otomatik atanmadı.')
             return
             
         dates = [d for d, _ in rows]
@@ -666,9 +669,9 @@ class AdvancedNetAndTrendPanel(QWidget):
                 f"</tr>"
             )
 
-        html = f"<b>📊 {year} Türkiye Sınav Ortalamaları ile Karşılaştırma ({alan})</b><br>"
+        html = f"<b>📊 {year} Paket İçi Doğrulanmamış Referansla Kıyas ({alan})</b><br><small>Bu değerler canlı ÖSYM/MEB istatistikleri değildir.</small><br>"
         html += "<table border='0' cellspacing='0' cellpadding='4' style='width:100%; border-collapse:collapse; margin-top:8px; font-size:12px;'>"
-        html += "<tr style='background:#f1f5f9; color:#475569; font-weight:bold;'><td style='padding:6px 8px;'>Test Adı</td><td style='text-align:center;'>Senin Netin</td><td style='text-align:center;'>Türkiye Ort.</td><td style='text-align:right;'>Fark (Performans)</td></tr>"
+        html += "<tr style='background:#f1f5f9; color:#475569; font-weight:bold;'><td style='padding:6px 8px;'>Test Adı</td><td style='text-align:center;'>Senin Netin</td><td style='text-align:center;'>Referans (tahmin)</td><td style='text-align:right;'>Fark (Performans)</td></tr>"
 
         if is_lgs:
             tot_my = (self.sp_tr.value() + self.sp_sos.value() + self.sp_mat.value() + self.sp_fen.value() + self.sp_a1.value() + self.sp_a2.value())
@@ -707,14 +710,18 @@ class AdvancedNetAndTrendPanel(QWidget):
                 html += check_row("AYT Edebiyat (24)", self.sp_a1.value(), ref["AYT_EDEB"])
                 html += check_row("AYT Tarih-1 (10)", self.sp_a2.value(), ref["AYT_TAR1"])
                 html += check_row("AYT Coğrafya-1 (6)", self.sp_a3.value(), ref["AYT_COG1"])
-                html += check_row("AYT Tarih-2 (11)", self.sp_a4.value(), ref["AYT_TAR2"])
+                # Sosyal-2 (40) dört alt testin toplamıdır; yalnız Tarih-2 ile eşleştirmeyin.
+                social2_ref = sum(ref[k] for k in
+                    ('AYT_TAR2','AYT_COG2','AYT_FELSEFE','AYT_DKAB_EK'))
+                html += check_row("AYT Sosyal-2 (40)", self.sp_a4.value(), social2_ref)
 
         html += "</table>"
         
         # Hedef Kıyaslama
         if hasattr(self, "current_target") and self.current_target:
             t = self.current_target
-            name = t.get("name", "Hedef")
+            from html import escape
+            name = escape(str(t.get("name", "Hedef")))
             html += f"<div style='margin-top:12px; padding:10px; background:#f0fdf4; border-radius:6px; border:1px solid #bbf7d0;'>"
             html += f"<b>🎯 Seçili Hedef Kıyası: {name}</b><br>"
             if "req_net" in t:
@@ -773,13 +780,17 @@ class AdvancedNetAndTrendPanel(QWidget):
         else: # SÖZ
             checks = [
                 ("AYT Edebiyat", self.sp_a1, "AYT_EDEB"),
-                ("AYT Sosyal-2", self.sp_a4, "AYT_TAR2"),
+                ("AYT Sosyal-2", self.sp_a4, "SOCIAL2_SUM"),
                 ("TYT Türkçe", self.sp_tr, "TYT_TURKCE"),
             ]
 
         deficits = []
         for name, spin, key in checks:
-            ref_val = ref.get(key, 0)
+            if key == 'SOCIAL2_SUM':
+                ref_val = sum(ref[k] for k in
+                    ('AYT_TAR2','AYT_COG2','AYT_FELSEFE','AYT_DKAB_EK'))
+            else:
+                ref_val = ref.get(key, 0)
             val = spin.value()
             diff = ref_val - val
             deficits.append((name, diff, val, ref_val))
@@ -801,7 +812,7 @@ class AdvancedNetAndTrendPanel(QWidget):
         t_lbl.setStyleSheet("font-size:15px; font-weight:bold; color:#1e40af;")
         d_lay.addWidget(t_lbl)
         
-        d_lay.addWidget(QLabel("Mevcut netlerinize ve Türkiye ortalamalarına göre en çok puan kazandıracak dersler:"))
+        d_lay.addWidget(QLabel("Paket içi doğrulanmamış kıyas değerlerine göre çalışma için gözden geçirilebilecek alanlar:"))
         
         for name, diff, my_val, ref_val in top3:
             card = QFrame()

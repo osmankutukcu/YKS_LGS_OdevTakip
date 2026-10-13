@@ -200,11 +200,18 @@ class DersKonuEditor(QWidget):
         
         # Toolbar
         hb_tools = QHBoxLayout()
-        self.btnEkle = QPushButton("Satır Ekle"); self.btnEkle.setObjectName("btnStandard")
+        self.btnEkle = QPushButton("➕ Satır Ekle"); self.btnEkle.setObjectName("btnStandard")
         self.btnEkle.setIcon(QIcon(":/icons/add")) if hasattr(self, "QIcon") else None
         
-        self.btnSil = QPushButton("Satır Sil"); self.btnSil.setObjectName("btnDanger") # Kırmızı
+        self.btnSil = QPushButton("🗑️ Satır Sil"); self.btnSil.setObjectName("btnDanger") # Kırmızı
         self.btnSil.setIcon(QIcon(":/icons/delete")) if hasattr(self, "QIcon") else None
+
+        self.btnGeneldenAktar = QPushButton("📋 Genel Konulardan Aktar")
+        self.btnGeneldenAktar.setObjectName("btnStandard")
+        self.btnGeneldenAktar.setToolTip("Seçili dersin Genel müfredat konularını bu Grup/Öğrenci listesine kopyalar (ardından 💾 Değişiklikleri Kaydet'e basın)")
+        self.btnGeneldenAktar.setStyleSheet("background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-weight: 600;")
+        self.btnGeneldenAktar.setVisible(False)
+        self.btnGeneldenAktar.clicked.connect(self._copy_from_general)
         
         self.btnIceri = QPushButton("📂 Excel/CSV Al"); self.btnIceri.setObjectName("btnStandard")
         self.btnIceri.setToolTip("CSV veya Excel'den (CSV formatında) veri yükle")
@@ -214,6 +221,7 @@ class DersKonuEditor(QWidget):
         
         hb_tools.addWidget(self.btnEkle)
         hb_tools.addWidget(self.btnSil)
+        hb_tools.addWidget(self.btnGeneldenAktar)
         hb_tools.addStretch(1)
         hb_tools.addWidget(self.btnIceri)
         hb_tools.addWidget(self.btnDisari)
@@ -485,7 +493,81 @@ class DersKonuEditor(QWidget):
         self.cmbAnaGrup.setEnabled(scope == "Grup")
         self.cmbAltGrup.setEnabled(scope == "Grup")
         self.cmbOgrenci.setEnabled(scope == "Öğrenci")
-        self._yukle()
+        if hasattr(self, "btnGeneldenAktar"):
+            self.btnGeneldenAktar.setVisible(scope in ("Grup", "Öğrenci"))
+
+        if scope == "Öğrenci":
+            if self.cmbOgrenci.currentIndex() <= 0 and self.cmbOgrenci.count() > 1:
+                self.cmbOgrenci.blockSignals(True)
+                self.cmbOgrenci.setCurrentIndex(1)
+                self.cmbOgrenci.blockSignals(False)
+            self._populate_lessons()
+            return
+        elif scope == "Grup":
+            if self.cmbAltGrup.currentIndex() <= 0 and self.cmbAltGrup.count() > 1:
+                self.cmbAltGrup.blockSignals(True)
+                self.cmbAltGrup.setCurrentIndex(1)
+                self.cmbAltGrup.blockSignals(False)
+            self._populate_lessons()
+            return
+
+        self._populate_lessons()
+
+    def _copy_from_general(self):
+        """Genel müfredattaki konuları mevcut Grup/Öğrenci tablosuna (eksik olanları) ekler."""
+        scope, p = self._current_scope()
+        if scope == "Genel":
+            return
+        ders = p.get("ders")
+        if not ders:
+            QMessageBox.warning(self, "Uyarı", "Lütfen önce bir ders seçin.")
+            return
+        if scope == "Öğrenci" and not p.get("ogrenci_id"):
+            QMessageBox.warning(self, "Uyarı", "Lütfen üstten bir öğrenci seçin.")
+            return
+        if scope == "Grup" and not p.get("alt_grup"):
+            QMessageBox.warning(self, "Uyarı", "Lütfen üstten bir alt grup seçin.")
+            return
+
+        con = db.get_conn()
+        gen_rows = db.ders_konularini_cek(con, ders)
+        if not gen_rows:
+            QMessageBox.information(self, "Bilgi", "Bu dersin Genel müfredatında henüz konu bulunmuyor.")
+            return
+
+        existing = set()
+        for r in range(self.tab.rowCount()):
+            it = self.tab.item(r, 1)
+            if it and it.text().strip():
+                existing.add(it.text().strip().casefold())
+
+        added = 0
+        self._loading = True
+        for gr in gen_rows:
+            k_name = str(gr["konu"] or "").strip()
+            if not k_name or k_name.casefold() in existing:
+                continue
+            row_idx = self.tab.rowCount()
+            self.tab.insertRow(row_idx)
+            self.tab.setItem(row_idx, 0, QTableWidgetItem(""))
+            self.tab.setItem(row_idx, 1, QTableWidgetItem(k_name))
+            self.tab.setItem(row_idx, 2, QTableWidgetItem(str(gr["ort_soru"] or "")))
+            self.tab.setItem(row_idx, 3, QTableWidgetItem(str(gr["ort_sure"] or "")))
+            existing.add(k_name.casefold())
+            added += 1
+        self._loading = False
+        self.tab.resizeColumnsToContents()
+        self._validate_rows()
+        if added > 0:
+            QMessageBox.information(
+                self,
+                "Genel Konular Aktarıldı",
+                f"{added} konu listeye eklendi.\n\n"
+                "İstemediğiniz konuları '🗑️ Satır Sil' ile çıkarabilir veya yeni konu ekleyip "
+                "sağ üstteki '💾 Değişiklikleri Kaydet' butonuna basarak kaydedebilirsiniz."
+            )
+        else:
+            QMessageBox.information(self, "Bilgi", "Genel müfredattaki tüm konular zaten bu listede mevcut.")
 
     # ---------------------------------------------------------------------
     # UI state
@@ -581,7 +663,12 @@ class DersKonuEditor(QWidget):
             valid_t = [int(r["ort_sure"]) for r in rows if r["ort_sure"] and str(r["ort_sure"]).isdigit()]
             avg_t = round(sum(valid_t) / len(valid_t)) if valid_t else 0
             scope_name = self.cmbKapsam.currentText()
-            self.lbl_topic_stats.setText(f"📊 {scope_name}: {total_topics} Konu  •  Ort. Hedef: {avg_q} Soru ({avg_t} dk)")
+            if scope_name in ("Grup", "Öğrenci") and total_topics == 0:
+                self.lbl_topic_stats.setText(
+                    f"📊 {scope_name}: 0 Özel Konu  •  ('➕ Satır Ekle' veya '📋 Genel Konulardan Aktar' ile ekleyip kaydedin)"
+                )
+            else:
+                self.lbl_topic_stats.setText(f"📊 {scope_name}: {total_topics} Konu  •  Ort. Hedef: {avg_q} Soru ({avg_t} dk)")
 
 
     def _highlight_osym_topics(self):

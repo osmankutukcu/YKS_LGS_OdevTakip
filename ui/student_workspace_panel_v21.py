@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 from services.student_workspace_v21 import read_workspace_report
 from services.student360_v16.advisor import suggestions
 from services.student360_v16.profile import student_routine_status
+from services.target_analysis_v24.student_target import read_saved_target
 
 
 class StudentWorkspacePanelV21(QWidget):
@@ -109,6 +110,7 @@ class StudentWorkspacePanelV21(QWidget):
             with closing(sqlite3.connect(uri, uri=True, timeout=6)) as con:
                 con.execute('PRAGMA query_only=ON')
                 report = read_workspace_report(con, sid)
+                academic_target = read_saved_target(con, sid)
                 # V23.3: optional scoped-topic ledger, NEVER count in legacy control totals.
                 from services.curriculum_v233 import list_assignments
                 scoped_tasks = list_assignments(con, student_id=sid)
@@ -135,6 +137,7 @@ class StudentWorkspacePanelV21(QWidget):
             'Ödev bitirmek, konunun öğrenildiğini kanıtlamaz.', '',
             '📈 DENEME', s.exam_summary,
             f'Karşılaştırma: {s.exam_evidence}',s.exam_explanation, '',
+            '🎓 YKS/LGS HEDEFİ (ÖĞRETMEN KAYDI)', academic_target, '',
             '🎯 KOÇLUK', s.coaching_plan,
             f'Hedef: {s.coaching_goals} | Program: {s.coaching_program_entries}',
             student_routine_status(sid), '',

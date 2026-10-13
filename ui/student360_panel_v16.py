@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushBut
 from services.student360_v16 import read_student_overview
 from services.student360_v16.advisor import suggestions
 from services.student360_v16.profile import student_routine_status
+from services.target_analysis_v24.student_target import read_saved_target
 
 
 class Student360Panel(QWidget):
@@ -67,6 +68,7 @@ class Student360Panel(QWidget):
             with closing(sqlite3.connect(uri, uri=True, timeout=8)) as con:
                 con.execute('PRAGMA query_only=ON')
                 data = read_student_overview(con, sid)
+                academic_target = read_saved_target(con, sid)
         except (sqlite3.Error, ValueError, OSError) as exc:
             self.output.setPlainText(f'Öğrenci özeti alınamadı: {exc}\nMevcut koçluk kayıtlarınız değiştirilmedi.')
             return
@@ -77,6 +79,7 @@ class Student360Panel(QWidget):
             'Not: Tamamlama akademik başarı değildir.', '',
             'DENEME SINAVLARI', data.exam_summary,
             f'Kanıt düzeyi: {data.exam_evidence}',data.exam_explanation, '',
+            'YKS/LGS HEDEFİ (ÖĞRETMEN KAYDI)', academic_target, '',
             'KOÇLUK',data.coaching_plan,
             f'Kayıtlı hedef: {data.coaching_goals} | Program satırı: {data.coaching_program_entries}',
             student_routine_status(sid), '',

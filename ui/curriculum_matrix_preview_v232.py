@@ -11,8 +11,11 @@ from services.curriculum_v232 import inspect_matrix_topics
 
 
 class CurriculumMatrixPreview(QDialog):
-    def __init__(self, parent, *, lesson, student_id, review):
+    def __init__(self, parent, *, lesson, student_id, review, general_rows=None):
         super().__init__(parent)
+        self.lesson = lesson
+        self.student_id = student_id
+        self.general_rows = general_rows
         self.setWindowTitle('Müfredat Kapsamı — Salt Okunur (V23.2)')
         self.setModal(True)
         available = QGuiApplication.primaryScreen()
@@ -21,35 +24,30 @@ class CurriculumMatrixPreview(QDialog):
                     min(510, max(310, area.height()-100)) if area else 450)
         self.setMinimumSize(320, 260)
         layout = QVBoxLayout(self)
-        summary = QLabel(f'Öğrenci: {student_id}  |  Ders: {lesson}  |  '
-                         f'Eski matris: {review.legacy_row_count} konu  |  '
-                         f'Ek kapsam konusu: {review.scoped_only_count}')
-        summary.setWordWrap(True)
-        layout.addWidget(summary)
+        self.summary = QLabel('')
+        self.summary.setWordWrap(True)
+        layout.addWidget(self.summary)
         hint = QLabel('Bu pencere yalnızca konu kapsamlarını gösterir. '
                       'Sarı/yeşil tikler, ödevler ve konu kimlikleri değiştirilmez.')
         hint.setWordWrap(True)
         layout.addWidget(hint)
-        table = QTableWidget(len(review.rows), 3, self)
-        table.setHorizontalHeaderLabels(['Konu', 'Kaynak', 'Matris uyumu'])
-        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        table.setWordWrap(True)
-        for i, item in enumerate(review.rows):
-            for j, value in enumerate((item.title, item.source, item.status)):
-                cell = QTableWidgetItem(value)
-                cell.setToolTip(item.details + '\nKaynak referansı: ' + item.reference)
-                table.setItem(i,j,cell)
-        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        layout.addWidget(table, 1)
+        self.table = QTableWidget(0, 3, self)
+        self.table.setHorizontalHeaderLabels(['📌 Konu', '🎯 Kaynak', '📊 Matris uyumu'])
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setWordWrap(True)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.table, 1)
+        self._populate(review)
+
         # V23.3: isolated scoped assignment ledger; legacy matrix cells remain unchanged.
         from ui.scoped_homework_v233 import ScopedHomeworkDialog
-        scoped_button = QPushButton("Kapsama Özel Ödevler", self)
+        scoped_button = QPushButton("🎯 Kapsama Özel Ödevler (Ekle / Yönet)", self)
+        scoped_button.setStyleSheet("font-weight: 600; padding: 7px 12px;")
         scoped_button.setToolTip("Grup/öğrenci konularını eski tikleri değiştirmeden ödevlendir.")
-        scoped_button.clicked.connect(lambda: ScopedHomeworkDialog(
-            self, student_id=student_id, lesson=lesson).exec())
+        scoped_button.clicked.connect(self._open_scoped_homework)
         layout.addWidget(scoped_button)
         if review.warnings:
             warnings = QLabel('Dikkat: ' + ' | '.join(review.warnings))
@@ -62,6 +60,29 @@ class CurriculumMatrixPreview(QDialog):
         close.clicked.connect(self.close)
         buttons.addWidget(close)
         layout.addLayout(buttons)
+
+    def _populate(self, review):
+        self.summary.setText(f'Öğrenci: {self.student_id}  |  Ders: {self.lesson}  |  '
+                             f'Eski matris: {review.legacy_row_count} konu  |  '
+                             f'Ek kapsam konusu: {review.scoped_only_count}')
+        self.table.setRowCount(len(review.rows))
+        for i, item in enumerate(review.rows):
+            for j, value in enumerate((item.title, item.source, item.status)):
+                cell = QTableWidgetItem(value)
+                cell.setToolTip(item.details + '\nKaynak referansı: ' + item.reference)
+                self.table.setItem(i, j, cell)
+
+    def _open_scoped_homework(self):
+        from ui.scoped_homework_v233 import ScopedHomeworkDialog
+        ScopedHomeworkDialog(self, student_id=self.student_id, lesson=self.lesson).exec()
+        if self.general_rows is not None:
+            try:
+                import db
+                updated = inspect_matrix_topics(db.get_conn(), lesson=self.lesson,
+                                                student_id=self.student_id, general_rows=self.general_rows)
+                self._populate(updated)
+            except Exception:
+                pass
 
 
 def install_curriculum_preview_navigation(layout, owner) -> None:
@@ -117,7 +138,8 @@ def install_curriculum_preview_navigation(layout, owner) -> None:
                                 f'Konu kapsamı güvenli biçimde okunamadı: {exc}')
             return
         dialog = CurriculumMatrixPreview(owner, lesson=lesson,
-                                         student_id=student_id, review=review)
+                                         student_id=student_id, review=review,
+                                         general_rows=general_rows)
         owner._curriculum_preview_v232 = dialog
         dialog.exec()
 

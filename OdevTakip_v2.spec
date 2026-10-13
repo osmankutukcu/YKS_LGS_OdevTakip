@@ -26,6 +26,7 @@ hiddenimports = [
     'PyQt6.QtWidgets',
     'PyQt6.QtPrintSupport',
     'PyQt6.QtSvg',
+    'PyQt6.QtNetwork',
     'openpyxl',
     'pandas',
     'pyautogui',

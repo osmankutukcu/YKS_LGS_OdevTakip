@@ -3,20 +3,33 @@ from __future__ import annotations
 
 import sqlite3
 from typing import Optional, Dict, Any, List
+from html import escape as escape_html
+from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, 
     QLineEdit, QProgressBar, QFrame, QScrollArea, QWidget, QCompleter, 
     QCheckBox, QTabWidget, QMessageBox, QApplication, QGridLayout
 )
-from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtCore import Qt, QUrl, QStandardPaths
 from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
 from services.exam_data import (
     get_exam_data, get_available_years, get_available_cities, 
     get_available_categories, ALL_EXAM_DATA
 )
 from ui.advanced_analytics import AdvancedNetAndTrendPanel
+from services.target_analysis_v24.logic import (
+    TargetDataError, validated_net, extract_known_exam_nets, target_data_source_label
+)
+from services.target_analysis_v24.official_sources import (
+    official_source, safe_official_url, connectivity_description
+)
+from services.target_analysis_v24.source_freshness_v241 import (
+    SourceFreshnessError, cache_path, read_cache, save_cache,
+    create_snapshot, snapshot_description
+)
 import db
 
 
@@ -30,6 +43,9 @@ class TargetAnalysisDialog(QDialog):
     def __init__(self, parent=None, student_id=None):
         super().__init__(parent)
         self.student_id = student_id
+        self._last_analysis = None
+        self._official_manager = QNetworkAccessManager(self)
+        self._official_reply = None
         
         # Eğer student_id verilmediyse DB'den ilk öğrenciyi al
         if not self.student_id:
@@ -49,7 +65,9 @@ class TargetAnalysisDialog(QDialog):
         w = min(1150, int(screen.width() * 0.88))
         h = min(880, int(screen.height() * 0.88))
         self.resize(w, h)
-        self.setMinimumSize(750, 560)
+        # Windows %125/%150 DPI: Qt'nin mantıksal kullanılabilir ekran sınırlarına saygı duy.
+        self.setMinimumSize(min(700, max(360, screen.width() - 48)),
+                            min(520, max(320, screen.height() - 48)))
         
         self.setStyleSheet("""
             QDialog { background-color: #f8fafc; font-family: 'Segoe UI', system-ui, sans-serif; }
@@ -119,13 +137,14 @@ class TargetAnalysisDialog(QDialog):
         # --- ÜST ÖĞRENCİ SEÇİM ÇUBUĞU ---
         top_bar = QFrame()
         top_bar.setObjectName("Card")
-        top_lay = QHBoxLayout(top_bar)
-        top_lay.setContentsMargins(14, 8, 14, 8)
+        # Dar Windows ekranında öğrenci/düğme satırı yan yana sıkışmasın.
+        top_lay = QVBoxLayout(top_bar) if screen.width() < 950 else QHBoxLayout(top_bar)
+        top_lay.setContentsMargins(10, 8, 10, 8)
         top_lay.setSpacing(12)
         
         top_lay.addWidget(QLabel("<b>👤 Aktif Öğrenci:</b>"))
         self.cmb_student = QComboBox()
-        self.cmb_student.setMinimumWidth(260)
+        self.cmb_student.setMinimumWidth(0 if screen.width() < 950 else 260)
         self._load_students_list()
         self.cmb_student.currentIndexChanged.connect(self._on_student_combo_changed)
         top_lay.addWidget(self.cmb_student)
@@ -133,9 +152,14 @@ class TargetAnalysisDialog(QDialog):
         self.btn_fetch_deneme = QPushButton("📥 Son Deneme Netlerini Doldur")
         self.btn_fetch_deneme.setObjectName("SearchBtn")
         self.btn_fetch_deneme.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_fetch_deneme.setToolTip("Öğrencinin sistemdeki en son deneme sınavı netlerini otomatik forma doldurur.")
+        self.btn_fetch_deneme.setToolTip('Yalnızca sınav türü açıkça belirli deneme netlerini getirir; bilinmeyen TYT/AYT dağılımı yapılmaz.')
         self.btn_fetch_deneme.clicked.connect(self._fetch_latest_student_deneme)
         top_lay.addWidget(self.btn_fetch_deneme)
+        self.btn_coaching_v243 = QPushButton('Öğrenci 360° | Koçluk Özeti')
+        self.btn_coaching_v243.setObjectName('SearchBtn')
+        self.btn_coaching_v243.setToolTip('Salt okunur ödev/deneme/koçluk özeti; hiçbir hedef veya ödev kaydı değiştirilmez.')
+        self.btn_coaching_v243.clicked.connect(self._open_coaching_brief_v243)
+        top_lay.addWidget(self.btn_coaching_v243)
         
         top_lay.addStretch(1)
         lay_main.addWidget(top_bar)
@@ -184,12 +208,37 @@ class TargetAnalysisDialog(QDialog):
         new_id = self.cmb_student.currentData()
         if new_id:
             self.student_id = int(new_id)
+            self._last_analysis = None
+            self.inp_net1.clear()
+            self.inp_net2.clear()
+            self.res_frame.setVisible(False)
+            self.btn_save_goal.setEnabled(False)
             if hasattr(self, "tab_advanced") and self.tab_advanced:
                 self.tab_advanced.set_student_id(self.student_id)
             self._load_student_target()
 
+    def _open_coaching_brief_v243(self):
+        """Öğrenci kimliği ve isteğe bağlı kaydedilmemiş hedef taslağıyla aç."""
+        selected_id = self.cmb_student.currentData()
+        if not isinstance(selected_id, int) or selected_id <= 0 or selected_id != self.student_id:
+            QMessageBox.warning(self, 'Öğrenci seçimi', 'Özet için geçerli ve eşleşen öğrenci seçin.')
+            return
+        draft = None
+        if (self._last_analysis and self._last_analysis.get('student_id') == selected_id
+                and self._last_analysis.get('signature') == self._analysis_signature()):
+            draft = self._last_analysis.get('name')
+        try:
+            from ui.target_coaching_brief_v243 import TargetCoachingBriefDialog
+            TargetCoachingBriefDialog(selected_id, draft_target_name=draft, parent=self).exec()
+        except (OSError, ValueError, ImportError) as exc:
+            QMessageBox.warning(self, 'Koçluk özeti', str(exc))
+
     def _fetch_latest_student_deneme(self):
         """Öğrencinin kayıtlı son deneme netlerini çeker ve giriş alanlarına doldurur."""
+        self._last_analysis = None
+        self.btn_save_goal.setEnabled(False)
+        self.inp_net1.clear()
+        self.inp_net2.clear()
         if not self.student_id:
             QMessageBox.warning(self, "Uyarı", "Lütfen önce bir öğrenci seçin.")
             return
@@ -218,31 +267,27 @@ class TargetAnalysisDialog(QDialog):
             """, (d_id, self.student_id)).fetchall()
             
             exam = self.cb_exam.currentText()
-            
-            if "YKS" in exam:
-                tyt_total = sum(float(r[1] or 0) for r in results if "TYT" in (r[0] or "").upper())
-                ayt_total = sum(float(r[1] or 0) for r in results if "AYT" in (r[0] or "").upper() or "YDT" in (r[0] or "").upper())
-                
-                # Eğer ders isimlerinde TYT/AYT ayrımı yoksa akıllı dağıt
-                if tyt_total == 0 and ayt_total == 0:
-                    tot = sum(float(r[1] or 0) for r in results)
-                    tyt_total = round(tot * 0.6, 1)
-                    ayt_total = round(tot * 0.4, 1)
-                    
-                self.inp_net1.setText(str(round(tyt_total, 1)))
-                self.inp_net2.setText(str(round(ayt_total, 1)))
-                QMessageBox.information(
-                    self, "Netler Aktarıldı", 
-                    f"Son Deneme ({d_adi} - {d_tarih}) netleri aktarıldı:\n• TYT: {tyt_total:.1f}\n• AYT: {ayt_total:.1f}"
-                )
-            else: # LGS
-                lgs_total = sum(float(r[1] or 0) for r in results)
-                self.inp_net1.setText(str(round(lgs_total, 1)))
-                QMessageBox.information(
-                    self, "Netler Aktarıldı", 
-                    f"Son LGS Denemesi ({d_adi} - {d_tarih}) neti aktarıldı:\n• Toplam Net: {lgs_total:.1f} / 90"
-                )
-                
+            parsed = extract_known_exam_nets(results, str(d_tur or ''), exam)
+            if exam == 'LGS':
+                self.inp_net1.setText(str(parsed['LGS']))
+                QMessageBox.information(self, 'Netler Aktarıldı',
+                    f'Son LGS denemesi ({d_adi} – {d_tarih}): {parsed["LGS"]:.1f} net.')
+            else:
+                second = 'YDT' if 'DİL' in exam else 'AYT'
+                if 'TYT' in parsed:
+                    self.inp_net1.setText(str(parsed['TYT']))
+                else:
+                    self.inp_net1.clear()
+                if second in parsed:
+                    self.inp_net2.setText(str(parsed[second]))
+                else:
+                    self.inp_net2.clear()
+                QMessageBox.information(self, 'Deneme Netleri',
+                    f'Son deneme ({d_adi} – {d_tarih}) için yalnızca doğrulanabilen ' 
+                    f'netler aktarıldı: {parsed}. Eksik bölümler tahmin edilmedi.')
+
+        except TargetDataError as e:
+            QMessageBox.warning(self, 'Net Türü Belirsiz', str(e))
         except Exception as e:
             QMessageBox.warning(self, "Hata", f"Deneme netleri çekilirken hata oluştu: {e}")
 
@@ -255,19 +300,21 @@ class TargetAnalysisDialog(QDialog):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll_content = QWidget()
         slayout = QVBoxLayout(scroll_content)
-        slayout.setSpacing(18)
-        slayout.setContentsMargins(24, 20, 24, 24)
+        slayout.setSpacing(12)
+        slayout.setContentsMargins(20, 14, 20, 16)
 
         # Başlık Alanı
         h_lay = QHBoxLayout()
         icon = QLabel("🚀")
-        icon.setStyleSheet("font-size: 40px;")
+        icon.setStyleSheet("font-size: 32px;")
         
         v_head = QVBoxLayout()
+        v_head.setSpacing(2)
         lbl_title = QLabel("Hedef vs. Gerçekleşen (Gap Analysis)")
-        lbl_title.setStyleSheet("font-size: 20px; font-weight: 800; color: #0f172a;")
-        lbl_desc = QLabel("2024, 2025 ve 2026 Projeksiyon verilerini kullanarak hedeflediğin bölüm veya liseye ne kadar yakın olduğunu gör.")
-        lbl_desc.setStyleSheet("font-size: 13px; color: #64748b;")
+        lbl_title.setStyleSheet("font-size: 18px; font-weight: 800; color: #0f172a;")
+        lbl_desc = QLabel("Deneme netlerini hedefle karşılaştır. Paket içi listeler resmî yerleştirme verisi olarak doğrulanmadı.")
+        lbl_desc.setWordWrap(True)
+        lbl_desc.setStyleSheet("font-size: 12px; color: #64748b;")
         v_head.addWidget(lbl_title)
         v_head.addWidget(lbl_desc)
         
@@ -280,8 +327,8 @@ class TargetAnalysisDialog(QDialog):
         self.form_frame = QFrame()
         self.form_frame.setObjectName("Card")
         form_lay = QVBoxLayout(self.form_frame)
-        form_lay.setContentsMargins(22, 20, 22, 20)
-        form_lay.setSpacing(16)
+        form_lay.setContentsMargins(18, 14, 18, 14)
+        form_lay.setSpacing(10)
 
         # Grid: 1. Sınav Türü, 2. Yıl Seçimi, 3. Şehir Filtresi
         grid_selectors = QGridLayout()
@@ -297,9 +344,9 @@ class TargetAnalysisDialog(QDialog):
         grid_selectors.addWidget(QLabel("<b>2. Analiz / Projeksiyon Yılı:</b>"), 0, 1)
         self.cb_year = QComboBox()
         self.cb_year.addItems([
-            "2025 (Son Yerleştirme Verisi - Güncel)", 
-            "2026 (Akıllı Projeksiyon & Güvenli Hedef)", 
-            "2024 (ÖSYM Taban Referans)"
+            "2025 (Paket İçi Referans — Doğrulanmadı)",
+            "2026 (Paket İçi Tahmin — Doğrulanmadı)",
+            "2024 (Paket İçi Referans — Doğrulanmadı)"
         ])
         self.cb_year.currentIndexChanged.connect(self._on_year_change)
         grid_selectors.addWidget(self.cb_year, 1, 1)
@@ -311,12 +358,51 @@ class TargetAnalysisDialog(QDialog):
 
         form_lay.addLayout(grid_selectors)
 
+        # Kaynak bilgi ve araç satırı (Yan yana kompakt)
+        tools_row = QHBoxLayout()
+        tools_row.setSpacing(10)
+        self.btn_check_official = QPushButton('🔍 Resmî Site Bağlantısını Kontrol Et')
+        self.btn_check_official.setObjectName('SearchBtn')
+        self.btn_check_official.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_check_official.setToolTip('Sadece resmi web adresinin açılıp açılmadığını kontrol eder; okul/bölüm verisi indirmez.')
+        self.btn_check_official.clicked.connect(self._check_official_connection)
+        tools_row.addWidget(self.btn_check_official)
+
+        # V24.2: Program bazlı kaynağı ayrıca tut; resmî site erişimini kanıt sayma.
+        self.btn_program_catalog = QPushButton('📚 Program Kataloğu – CSV Önizle / İçe Aktar')
+        self.btn_program_catalog.setObjectName('SearchBtn')
+        self.btn_program_catalog.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_program_catalog.setToolTip(
+            'Resmî kaynakla karşılaştırılmış program kodlarını ayrı kataloğa ekler. '
+            'Öğrenci hedefleri veya ödevler otomatik değiştirilmez.')
+        self.btn_program_catalog.clicked.connect(self._open_program_catalog_v242)
+        tools_row.addWidget(self.btn_program_catalog)
+        form_lay.addLayout(tools_row)
+
+        self.lbl_source = QLabel('')
+        self.lbl_source.setWordWrap(True)
+        self.lbl_source.setStyleSheet('color: #92400e; font-size: 11.5px;')
+        form_lay.addWidget(self.lbl_source)
+
+        status_row = QHBoxLayout()
+        status_row.setSpacing(12)
+        self.lbl_online_status = QLabel('Çevrim içi kaynak henüz kontrol edilmedi. Paket içi sayılar doğrulanmış değildir.')
+        self.lbl_online_status.setWordWrap(True)
+        self.lbl_online_status.setStyleSheet('color:#64748b; font-size:11px;')
+        status_row.addWidget(self.lbl_online_status, 1)
+
+        self.lbl_source_year = QLabel('Kaynak yılı henüz denetlenmedi. Paket içi hedefler resmî değildir.')
+        self.lbl_source_year.setWordWrap(True)
+        self.lbl_source_year.setStyleSheet('color:#92400e; font-size:11px;')
+        status_row.addWidget(self.lbl_source_year, 1)
+        form_lay.addLayout(status_row)
+
         # 4. Hedef Okul/Bölüm Seçimi
         row_target_label = QHBoxLayout()
         row_target_label.addWidget(QLabel("<b>4. Hedef Okul / Bölüm Seç:</b>"))
         row_target_label.addStretch()
         
-        self.btn_search = QPushButton("🌍 Bu Bölümü İnternette Ara (YÖK Atlas / Google)")
+        self.btn_search = QPushButton('🌐 Resmî kaynağı aç (YÖK Atlas / ÖSYM)')
         self.btn_search.setObjectName("SearchBtn")
         self.btn_search.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_search.clicked.connect(self._search_online)
@@ -328,7 +414,8 @@ class TargetAnalysisDialog(QDialog):
         self.cb_target.setEditable(True) 
         self.cb_target.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
         self.cb_target.currentIndexChanged.connect(self._on_target_change)
-        self.cb_target.setMinimumHeight(44)
+        self.cb_target.editTextChanged.connect(self._on_target_change)
+        self.cb_target.setMinimumHeight(40)
         form_lay.addWidget(self.cb_target)
 
         # Manuel Giriş Alanı
@@ -337,8 +424,8 @@ class TargetAnalysisDialog(QDialog):
         self.manual_frame.setStyleSheet("background: #f8fafc; border: 1px dashed #94a3b8; border-radius: 8px;")
         self.manual_frame.setVisible(False)
         manual_lay = QVBoxLayout(self.manual_frame)
-        manual_lay.setContentsMargins(14, 12, 14, 12)
-        manual_lay.setSpacing(10)
+        manual_lay.setContentsMargins(12, 10, 12, 10)
+        manual_lay.setSpacing(8)
         
         lbl_info = QLabel("<b>✏️ Manuel Veri Girişi:</b> Listede bulamadığınız okul/bölümün net hedeflerini buraya manuel yazın.")
         lbl_info.setStyleSheet("color: #334155; font-size: 12px;")
@@ -352,15 +439,15 @@ class TargetAnalysisDialog(QDialog):
         manual_lay.addLayout(self.goal_input_lay)
         form_lay.addWidget(self.manual_frame)
 
-        # Güvenli Hedef Checkbox
-        self.chk_trend = QCheckBox("🛡️ 2026 Güvenli Hedef Katsayısı Uygula (%2.5 Yığılma & Rekabet Güvencesi)")
-        self.chk_trend.setStyleSheet("font-size: 13px; color: #0f172a; font-weight: 600;")
-        self.chk_trend.setToolTip("Sınavdaki yığılma ve rekabet artışını kompanse etmek için gereken net hedeflerini %2.5 artırarak güvenli bir çalışma çıtası belirler.")
+        # İsteğe bağlı ve resmî olmayan ÇALIŞMA marjı
+        self.chk_trend = QCheckBox('İsteğe bağlı kişisel çalışma marjı (%2,5 YKS / %1,5 LGS)')
+        self.chk_trend.setStyleSheet("font-size: 12.5px; color: #0f172a; font-weight: 600;")
+        self.chk_trend.setToolTip('Öğretmen tarafından seçilen çalışma tamponudur. Resmî yerleşme güvencesi veya tahmin değildir.')
         form_lay.addWidget(self.chk_trend)
 
         # 5. Güncel Netlerin
         self.lbl_input = QLabel("<b>5. Güncel Netlerin (Deneme Sınavı Sonuçların):</b>") 
-        self.lbl_input.setStyleSheet("margin-top: 6px;")
+        self.lbl_input.setStyleSheet("margin-top: 2px;")
         form_lay.addWidget(self.lbl_input)
         
         input_row = QHBoxLayout()
@@ -375,12 +462,23 @@ class TargetAnalysisDialog(QDialog):
 
         slayout.addWidget(self.form_frame)
 
-        # Aksiyon Butonu
-        self.btn_analyze = QPushButton("🚀 Analiz Et & Hedefi Öğrenciye Kaydet")
+        # Aksiyon Butonları (Yan Yana: Analiz Et & Öğrenciye Kaydet)
+        action_row = QHBoxLayout()
+        action_row.setSpacing(12)
+        self.btn_analyze = QPushButton('🚀 Analiz Et (Kaydetmeden)')
         self.btn_analyze.setObjectName("ActionBtn")
         self.btn_analyze.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_analyze.clicked.connect(self._analyze)
-        slayout.addWidget(self.btn_analyze)
+        action_row.addWidget(self.btn_analyze, 2)
+
+        self.btn_save_goal = QPushButton('💾 Öğrenciye Hedefi Kaydet')
+        self.btn_save_goal.setObjectName('SearchBtn')
+        self.btn_save_goal.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_save_goal.setMinimumHeight(42)
+        self.btn_save_goal.setEnabled(False)
+        self.btn_save_goal.clicked.connect(self._save_analyzed_target)
+        action_row.addWidget(self.btn_save_goal, 1)
+        slayout.addLayout(action_row)
 
         # Sonuç Kartı
         self.res_frame = QFrame()
@@ -441,13 +539,19 @@ class TargetAnalysisDialog(QDialog):
         return 2025
 
     def _on_year_change(self):
+        self._last_analysis = None
+        self.btn_save_goal.setEnabled(False)
         self._populate_target_schools()
+        self._show_official_cached_metadata()
 
     def _on_filter_changed(self):
         self._populate_target_schools()
 
     def _on_exam_change(self):
         exam = self.cb_exam.currentText()
+        if hasattr(self, 'lbl_online_status'):
+            self.lbl_online_status.setText('Bu sınav için resmî kaynak bağlantısı henüz kontrol edilmedi.')
+            self._show_official_cached_metadata()
         
         # Şehirleri güncelle
         cities = get_available_cities(exam)
@@ -473,17 +577,19 @@ class TargetAnalysisDialog(QDialog):
             self.inp_net2.setVisible(True)
             self.inp_goal_1.setPlaceholderText("Hedef TYT Neti")
             self.inp_goal_2.setVisible(True)
-            self.chk_trend.setText("🛡️ 2026 Güvenli Hedef Katsayısı Uygula (+%2.5 Katsayı Güvencesi)")
+            self.chk_trend.setText('İsteğe bağlı kişisel çalışma marjı (+%2,5, resmî değil)')
         else: # LGS
             self.lbl_input.setText("<b>5. Güncel Toplam Net (LGS - 90 Soru Üzerinden):</b>")
             self.inp_net1.setPlaceholderText("Toplam LGS Netin (Max 90)")
             self.inp_net2.setVisible(False)
             self.inp_goal_1.setPlaceholderText("Hedef Toplam Net (Max 90)")
             self.inp_goal_2.setVisible(False)
-            self.chk_trend.setText("🛡️ 2026 Güvenli Hedef Katsayısı Uygula (+%1.5 LGS Puan Marjı)")
+            self.chk_trend.setText('İsteğe bağlı kişisel çalışma marjı (+%1,5, resmî değil)')
 
         self._populate_target_schools()
         self.res_frame.setVisible(False)
+        self._last_analysis = None
+        self.btn_save_goal.setEnabled(False)
 
     def _populate_target_schools(self):
         exam = self.cb_exam.currentText()
@@ -491,6 +597,10 @@ class TargetAnalysisDialog(QDialog):
         city = self.cb_city.currentText()
         
         targets = get_exam_data(exam, year=year, city=city)
+        self.lbl_source.setText(
+            'Veri niteliği: ' + target_data_source_label(year) +
+            '. Gerçek program sıralaması ve netleri için resmî sayfayı kontrol edin.'
+        )
         
         self.cb_target.blockSignals(True)
         self.cb_target.clear()
@@ -530,27 +640,215 @@ class TargetAnalysisDialog(QDialog):
 
     def _on_target_change(self):
         txt = self.cb_target.currentText()
-        if "Manuel" in txt:
+        custom = self.cb_target.currentIndex() < 0 or txt != self.cb_target.itemText(self.cb_target.currentIndex())
+        if "Manuel" in txt or custom:
             self.manual_frame.setVisible(True)
-            self.btn_search.setText("🌍 Bölüm Ara (Google)")
+            self.btn_search.setText('🌐 Resmî kaynağı aç')
         else:
             self.manual_frame.setVisible(False)
             clean = txt.split("[")[0].strip()
-            self.btn_search.setText(f"🌍 {clean[:24]}... Ara")
+            self.btn_search.setText('🌐 YÖK Atlas' if 'YKS' in self.cb_exam.currentText() else '🌐 MEB')
 
     def _search_online(self):
-        target = self.cb_target.currentText().split("[")[0].strip()
-        year = self._get_selected_year()
-        if "Manuel" in target:
-            query = f"YKS {year} taban puanları ve başarı sıralamaları YÖK Atlas"
-        else:
-            query = f"{target} {year} taban puanları başarı sırası netleri YÖK Atlas"
-        
-        url_str = f"https://www.google.com/search?q={query}"
+        # Bu düğme veri ÇEKMEZ, yalnızca resmî sayfayı açar. URL'lere öğrenci adı/ID eklenmez.
+        exam = self.cb_exam.currentText()
+        url_str = safe_official_url(exam)
         QDesktopServices.openUrl(QUrl(url_str))
+
+    def _open_program_catalog_v242(self):
+        """Yalnız kamuya açık program referansı – öğrenci hedefi değiştirmez."""
+        if not self.cb_exam.currentText().startswith('YKS'):
+            QMessageBox.information(self, 'YKS', 'Program kataloğu yalnızca YKS içindir.')
+            return
+        try:
+            from ui.official_program_catalog_v242 import OfficialProgramCatalogDialog
+            from services.target_analysis_v24.program_catalog_v242 import catalog_db_path
+            appdir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
+            if not appdir:
+                raise ValueError('Kullanıcı veri dizini belirlenemedi.')
+            dialog = OfficialProgramCatalogDialog(catalog_db_path(Path(appdir)),
+                            year=self._get_selected_year(),
+                            on_select=self._select_catalog_program_v242, parent=self)
+            dialog.exec()
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Program kataloğu', str(exc))
+
+    def _select_catalog_program_v242(self, row):
+        """Sadece hedef ADINI taslağa koy; resmî sıralamadan net hesaplama."""
+        if row.year != self._get_selected_year():
+            QMessageBox.warning(self, 'Yıl uyuşmazlığı', 'Seçilen program yılı artık geçerli değil.')
+            return False
+        current_type = self.cb_exam.currentText()
+        expected = {'YKS-SAY': 'SAY', 'YKS-EA': 'EA', 'YKS-SÖZ': 'SOZ',
+                    'YKS-DİL': 'DIL'}.get(current_type)
+        if row.score_type != expected:
+            QMessageBox.warning(self, 'Puan türü farklı', 'Seçilen programın puan türü aktif hedef türünden farklı.')
+            return False
+        self.cb_target.setEditText(f'{row.university} - {row.program} ({row.program_code})')
+        self.inp_goal_1.clear()
+        self.inp_goal_2.clear()
+        self.manual_frame.setVisible(True)
+        self._last_analysis = None
+        self.btn_save_goal.setEnabled(False)
+        QMessageBox.information(self, 'Hedef adı taslağa taşındı',
+            'Program adı ve kodu getirildi. Kaynak tablosundaki sıralamadan '
+            'TYT/AYT neti türetilmedi. Hedef netleri ayrıca girip analiz edin.')
+        return True
+
+    def _official_cache_file(self):
+        """Windows/macOS kullanıcı veri dizininde yalnızca kamuya açık metadata."""
+        path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
+        return cache_path(Path(path)) if path else None
+
+    def _show_official_cached_metadata(self, offline=False):
+        if not hasattr(self, 'lbl_source_year'):
+            return
+        source = 'YKS' if 'YKS' in self.cb_exam.currentText() else 'LGS'
+        try:
+            path = self._official_cache_file()
+            snapshot = read_cache(path, source) if path else None
+            msg = snapshot_description(snapshot, self._get_selected_year(), offline=offline, from_cache=True)
+        except (OSError, ValueError, SourceFreshnessError):
+            msg = 'Çevrim dışı kaynak bilgisi okunamadı; hedefler resmî sayılmaz.'
+        self.lbl_source_year.setText(msg)
+
+    def _check_official_connection(self):
+        """Önce izinli HTTPS adrese HEAD, başarılıysa kaynak yılı için GET."""
+        if self._official_reply is not None:
+            return
+        source_name, url = official_source(self.cb_exam.currentText())
+        self.lbl_online_status.setText(f'{source_name}: erişim kontrol ediliyor…')
+        self.btn_check_official.setEnabled(False)
+        request = QNetworkRequest(QUrl(url))
+        # Qt 6.5+: ana ekranın ağ yanıtını bekleyip kilitlenmesini önle.
+        request.setTransferTimeout(6000)
+        request.setAttribute(QNetworkRequest.Attribute.RedirectPolicyAttribute,
+                             QNetworkRequest.RedirectPolicy.ManualRedirectPolicy)
+        reply = self._official_manager.head(request)
+        self._official_reply = reply
+        reply.finished.connect(lambda: self._complete_official_connection(reply, source_name, url))
+
+    def _complete_official_connection(self, reply, source_name, url):
+        valid = False
+        try:
+            code = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
+            error = '' if reply.error() == QNetworkReply.NetworkError.NoError else reply.errorString()
+            self.lbl_online_status.setText(source_name + ': ' + connectivity_description(code, error))
+            same_endpoint = reply.url().toString() == url
+            valid = (not error and code is not None and 200 <= int(code) < 300
+                     and same_endpoint)
+        finally:
+            self._official_reply = None
+            self.btn_check_official.setEnabled(True)
+            reply.deleteLater()
+        if valid or (code == 405 and same_endpoint):
+            # Bazı resmî sunucular HEAD desteklemese de GET çalışır.
+            self._download_public_source_metadata(url)
+        else:
+            self._show_official_cached_metadata(offline=True)
+
+    def _download_public_source_metadata(self, url):
+        """Sayfada sadece veri yılı aranır; program netleri çıkarılmaz."""
+        if self._official_reply is not None:
+            return
+        source = 'YKS' if url == official_source('YKS')[1] else 'LGS'
+        request = QNetworkRequest(QUrl(url))
+        request.setTransferTimeout(8000)
+        request.setAttribute(QNetworkRequest.Attribute.RedirectPolicyAttribute,
+                             QNetworkRequest.RedirectPolicy.ManualRedirectPolicy)
+        reply = self._official_manager.get(request)
+        self._official_reply = reply
+        self.btn_check_official.setEnabled(False)
+        reply.finished.connect(lambda: self._complete_public_source_metadata(reply, source, url))
+
+    def _complete_public_source_metadata(self, reply, source, url):
+        try:
+            code = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
+            if (reply.error() != QNetworkReply.NetworkError.NoError or code is None
+                    or not 200 <= int(code) < 300 or reply.url().toString() != url):
+                raise SourceFreshnessError('Kaynak sayfa okunamadı veya adres değiştirdi.')
+            body = bytes(reply.readAll())
+            snapshot = create_snapshot(source, url, body)
+            # Eski isteğin sonucu yeni seçilmiş öğrencinin/hedefin durumuna taşınmasın.
+            current_source = 'YKS' if 'YKS' in self.cb_exam.currentText() else 'LGS'
+            if current_source == source:
+                self.lbl_source_year.setText(snapshot_description(snapshot, self._get_selected_year()))
+            try:
+                path = self._official_cache_file()
+                if path:
+                    save_cache(path, snapshot)
+            except (OSError, ValueError, SourceFreshnessError):
+                self.lbl_source_year.setText(self.lbl_source_year.text() + ' Önbelleğe yazılamadı.')
+        except (OSError, ValueError, SourceFreshnessError) as exc:
+            self._show_official_cached_metadata(offline=True)
+            self.lbl_online_status.setText('Kaynak içeriği doğrulanamadı: ' + str(exc)[:150])
+        finally:
+            self._official_reply = None
+            self.btn_check_official.setEnabled(True)
+            reply.deleteLater()
+
+    def _analysis_signature(self):
+        """Analizden sonra seçim/değer değişmişse yanlış hedefi kaydetmeyi engeller."""
+        return (self.student_id, self.cb_exam.currentText(), self.cb_year.currentText(),
+                self.cb_target.currentText(), self.cb_target.currentIndex(),
+                self.inp_goal_1.text(), self.inp_goal_2.text(),
+                self.inp_net1.text(), self.inp_net2.text(),
+                self.chk_trend.isChecked())
+
+    def _save_analyzed_target(self):
+        payload = self._last_analysis
+        if not payload or payload['signature'] != self._analysis_signature():
+            self.btn_save_goal.setEnabled(False)
+            QMessageBox.warning(self, 'Önce yeniden analiz edin',
+                'Öğrenci veya giriş değerleri değişti. Yanlış hedefi kaydetmemek için yeniden analiz edin.')
+            return
+        student_id = payload['student_id']
+        if not student_id:
+            QMessageBox.warning(self, 'Öğrenci gerekli', 'Kaydetmek için öğrenci seçiniz.')
+            return
+        response = QMessageBox.question(
+            self, 'Hedefi Kaydet',
+            'Bu hedef için kullanılan paket içi referanslar resmî olarak doğrulanmadı. '
+            'Öğrencinin mevcut hedefini değiştirmek istiyor musunuz?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if response != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            con = db.get_conn()
+            try:
+                cur = con.execute('''UPDATE ogrenci SET hedef_bolum=?, hedef_tyt=?, hedef_ayt=?, hedef_lgs=?
+                                     WHERE id=? AND aktif=1''',
+                                  (payload['name'], payload['tyt'], payload['ayt'], payload['lgs'], student_id))
+                if cur.rowcount != 1:
+                    con.rollback()
+                    raise ValueError('Seçili aktif öğrenci bulunamadı; kayıt yapılmadı.')
+                con.commit()
+            except Exception:
+                con.rollback()
+                raise
+            self.btn_save_goal.setEnabled(False)
+            self._last_analysis = None
+            if hasattr(self.tab_advanced, 'set_target'):
+                self.tab_advanced.set_target({
+                    'name': payload['name'], 'req_tyt': payload['tyt'],
+                    'req_ayt': payload['ayt'], 'req_net': payload['lgs']
+                })
+            QMessageBox.information(self, 'Kaydedildi', 'Hedef seçili öğrenciye kaydedildi.')
+        except Exception as exc:
+            QMessageBox.warning(self, 'Kayıt başarısız', f'Hedef kaydedilemedi: {exc}')
 
     def _load_student_target(self):
         """Öğrencinin kaydedilmiş hedefini yükler."""
+        self._last_analysis = None
+        if hasattr(self, 'btn_save_goal'):
+            self.btn_save_goal.setEnabled(False)
+        if hasattr(self, 'inp_goal_1'):
+            self.inp_goal_1.clear()
+            self.inp_goal_2.clear()
+        if hasattr(self, 'cb_target') and self.cb_target.count():
+            self.cb_target.setCurrentIndex(0)
         if not self.student_id: return
 
         try:
@@ -601,13 +899,17 @@ class TargetAnalysisDialog(QDialog):
             print("Hedef yükleme hatası:", e)
 
     def _analyze(self):
+        self._last_analysis = None
+        self.btn_save_goal.setEnabled(False)
         exam = self.cb_exam.currentText()
         selected_data = self.cb_target.currentData()
         target_text = self.cb_target.currentText()
         year = self._get_selected_year()
         
         is_manual = False
-        if not selected_data or selected_data.get("manual") or "Manuel" in target_text:
+        if (not selected_data or selected_data.get('manual') or 'Manuel' in target_text
+                or self.cb_target.currentIndex() < 0
+                or target_text != self.cb_target.itemText(self.cb_target.currentIndex())):
             is_manual = True
             
         req_tyt = 0.0
@@ -633,55 +935,56 @@ class TargetAnalysisDialog(QDialog):
             puan_taban = float(selected_data.get("puan", 0))
             rank_taban = int(selected_data.get("rank", 0) or selected_data.get("perc", 0))
 
+        try:
+            if 'YKS' in exam:
+                req_tyt = validated_net(req_tyt, 120, 'Hedef TYT')
+                req_ayt = validated_net(req_ayt, 80, 'Hedef AYT/YDT')
+                if req_tyt < 0 or req_ayt < 0 or (req_tyt == 0 and req_ayt == 0):
+                    raise TargetDataError('Hedef netler negatif veya ikisi birden sıfır olamaz.')
+            else:
+                req_net = validated_net(req_net, 90, 'Hedef LGS')
+                if req_net <= 0:
+                    raise TargetDataError('Hedef LGS neti pozitif olmalıdır.')
+        except TargetDataError as exc:
+            QMessageBox.warning(self, 'Hedef değeri geçersiz', str(exc))
+            return
+
         # Güvenli Hedef Katsayısı
         trend_applied = False
         if self.chk_trend.isChecked():
             trend_applied = True
             if "YKS" in exam:
-                req_tyt = round(req_tyt * 1.025, 1)
-                req_ayt = round(req_ayt * 1.025, 1)
+                req_tyt = round(min(120.0, req_tyt * 1.025), 1)
+                req_ayt = round(min(80.0, req_ayt * 1.025), 1)
             else:
                 req_net = round(min(90.0, req_net * 1.015), 1)
 
         # Kullanıcı Netleri
         try:
-            curr_n1 = float(self.inp_net1.text().replace(",", ".") or "0")
-            curr_n2 = float(self.inp_net2.text().replace(",", ".") or "0") if "YKS" in exam else 0.0
-        except ValueError:
-            QMessageBox.warning(self, "Hata", "Lütfen mevcut netlerinizi geçerli sayısal değerler olarak girin.")
+            curr_n1 = validated_net(self.inp_net1.text(), 120 if 'YKS' in exam else 90, 'Mevcut TYT/LGS')
+            curr_n2 = validated_net(self.inp_net2.text(), 80, 'Mevcut AYT/YDT') if 'YKS' in exam else 0.0
+        except TargetDataError as exc:
+            QMessageBox.warning(self, 'Geçersiz net', str(exc))
             return
 
-        # Öğrenci Profiline Kaydet
-        disp_name = target_text.split("[")[0].strip()
-        if is_manual: disp_name = "Özel Hedef"
-        
-        if self.student_id:
-            try:
-                con = db.get_conn()
-                con.execute("""
-                    UPDATE ogrenci 
-                    SET hedef_bolum=?, hedef_tyt=?, hedef_ayt=?, hedef_lgs=?
-                    WHERE id=?
-                """, (disp_name, req_tyt, req_ayt, req_net, self.student_id))
-                con.commit()
-            except Exception as e:
-                print("DB Kayıt Hatası:", e)
+        # Önizleme kendi başına veritabanına YAZMAZ.
+        disp_name = target_text.split('[')[0].strip()
+        if is_manual:
+            disp_name = ('Özel Hedef' if 'Manuel' in disp_name else disp_name) or 'Özel Hedef'
+        safe_name = escape_html(disp_name)
+        self._last_analysis = {
+            'signature': self._analysis_signature(), 'student_id': self.student_id,
+            'name': disp_name, 'tyt': req_tyt, 'ayt': req_ayt, 'lgs': req_net,
+        }
+        self.btn_save_goal.setEnabled(bool(self.student_id))
 
-        # Tab 2 Senkronizasyonu
-        if hasattr(self.tab_advanced, "set_target"):
-            self.tab_advanced.set_target({
-                "name": disp_name,
-                "req_tyt": req_tyt,
-                "req_ayt": req_ayt,
-                "req_net": req_net
-            })
-
-        # Gap Hesaplamaları
+        # Gap Hesaplamaları; çalışma göstergesidir, YKS sıralama hesaplayıcısı değil.
         if "YKS" in exam:
+            second_paper_label = 'YDT' if 'DİL' in exam else 'AYT'
             diff_tyt = curr_n1 - req_tyt
             diff_ayt = curr_n2 - req_ayt
             
-            # Katsayılar (TYT %40, AYT %60)
+            # Resmî puan katsayısı değil; yalnızca çalışma göstergesi ağırlığı.
             w_tyt, w_ayt = 0.40, 0.60
             tot_req = (req_tyt * w_tyt) + (req_ayt * w_ayt)
             tot_curr = (curr_n1 * w_tyt) + (curr_n2 * w_ayt)
@@ -696,48 +999,41 @@ class TargetAnalysisDialog(QDialog):
             sign_tyt = "+" if diff_tyt >= 0 else ""
             sign_ayt = "+" if diff_ayt >= 0 else ""
             
-            # Sıralama tahmini
-            est_rank = ""
-            if rank_taban > 0:
-                if pct >= 100:
-                    est_rank = f"<span style='color:#16a34a; font-weight:bold;'>~{int(rank_taban * 0.9):,} veya daha iyi</span>"
-                elif pct >= 85:
-                    est_rank = f"<span style='color:#2563eb; font-weight:bold;'>~{int(rank_taban * 1.3):,} bandında</span>"
-                else:
-                    est_rank = f"<span style='color:#d97706; font-weight:bold;'>~{int(rank_taban * 2.2):,} bandında</span>"
+            # Net hedef oranından gerçek başarı sıralaması çıkarılamaz.
+            # Eski 0.9/1.3/2.2 katsayıları yanlış kesinlik ürettiği için kaldırıldı.
 
-            # Koçluk Tavsiyesi
+            # Öğretmene yönelik kural tabanlı çalışma notu; otomatik tanı değildir.
             if diff_ayt < -5 and diff_tyt < -5:
-                advice = "💡 <b>Stratejik Koçluk Notu:</b> Hem TYT hem de AYT'de açık bulunuyor. AYT'nin puan etkisi %60 olduğundan çalışma sürenizin en az %60'ını AYT eksik konularına ve branş denemelerine ayırmalısınız."
+                advice = "💡 <b>Stratejik Koçluk Notu:</b> Hem TYT hem de AYT'de açık bulunuyor. AYT eksiklerini önceliklendirip TYT çalışmasını da sürdürmelisiniz."
             elif diff_ayt < -3:
-                advice = "💡 <b>Stratejik Koçluk Notu:</b> TYT temelin sağlam görünüyor; hedefine ulaşmak için tüm odağını AYT derslerine vermelisin. AYT'deki her 1 net, TYT'deki 2.5 nete eşdeğerdir."
+                advice = "💡 <b>Stratejik Koçluk Notu:</b> AYT hedefi için belirgin net açığı var. TYT tekrarını da sürdürerek alan derslerinde eksik konuları belirle."
             elif diff_tyt < -5:
                 advice = "💡 <b>Stratejik Koçluk Notu:</b> AYT seviyen oldukça iyi, ancak TYT süresini ve paragraf/problem hızını artırarak TYT netlerini yukarı çekmelisin."
             else:
-                advice = "🌟 <b>Stratejik Koçluk Notu:</b> Harika bir seviyedesin! Hedeflenen puan çıtasını yakaladın. Kalan sürede deneme sınavı sıklığını artırıp dereceye oynayabilirsin."
+                advice = "🌟 <b>Stratejik Koçluk Notu:</b> Seçtiğin net hedeflerine ulaştın. Bu durum gerçek puan/sıralama garantisi değildir; farklı denemelerde sürekliliği kontrol et."
 
-            trend_badge = " <span style='background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px; font-size:11px;'>+Güvenli Hedef Uygulandı</span>" if trend_applied else ""
+            trend_badge = " <span style='background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px; font-size:11px;'>Kişisel çalışma marjı (resmî değil)</span>" if trend_applied else ""
 
             html = f"""
             <div style='line-height:1.6;'>
                 <div style='font-size:14px; margin-bottom:8px;'>
-                    Hedeflenen Program: <b>{disp_name}</b> ({year} Referansı){trend_badge}
+                    Hedeflenen Program: <b>{safe_name}</b> ({year} Referansı){trend_badge}
                 </div>
                 
                 <table border='0' cellspacing='6' cellpadding='4' style='width:100%;'>
                     <tr>
                         <td style='background:#f1f5f9; border-radius:6px; padding:8px;'>
                             <b>🎯 Hedef Netler:</b><br>
-                            TYT: <b>{req_tyt:.1f}</b> &nbsp;•&nbsp; AYT: <b>{req_ayt:.1f}</b>
+                            TYT: <b>{req_tyt:.1f}</b> &nbsp;•&nbsp; {second_paper_label}: <b>{req_ayt:.1f}</b>
                         </td>
                         <td style='background:#f8fafc; border-radius:6px; padding:8px;'>
                             <b>👤 Senin Netlerin:</b><br>
-                            TYT: <b>{curr_n1:.1f}</b> &nbsp;•&nbsp; AYT: <b>{curr_n2:.1f}</b>
+                            TYT: <b>{curr_n1:.1f}</b> &nbsp;•&nbsp; {second_paper_label}: <b>{curr_n2:.1f}</b>
                         </td>
                         <td style='background:#eff6ff; border-radius:6px; padding:8px;'>
                             <b>⚖️ Kalan Açık (Gap):</b><br>
                             TYT: <b style='color:{c_tyt};'>{sign_tyt}{diff_tyt:.1f}</b> &nbsp;•&nbsp; 
-                            AYT: <b style='color:{c_ayt};'>{sign_ayt}{diff_ayt:.1f}</b>
+                            {second_paper_label}: <b style='color:{c_ayt};'>{sign_ayt}{diff_ayt:.1f}</b>
                         </td>
                     </tr>
                 </table>
@@ -746,8 +1042,8 @@ class TargetAnalysisDialog(QDialog):
             if rank_taban > 0:
                 html += f"""
                 <div style='margin-top:8px; padding:8px; background:#f8fafc; border-radius:6px; border:1px solid #e2e8f0;'>
-                    🎯 <b>Hedef Taban Sıralaması:</b> ~{rank_taban:,} &nbsp;|&nbsp; 
-                    📍 <b>Mevcut Seviye Sıralama Tahmini:</b> {est_rank}
+                    🎯 <b>Paket içi örnek sıralama (doğrulanmadı):</b> ~{rank_taban:,} &nbsp;|&nbsp; 
+                    📍 <b>Not:</b> Net oranı ile başarı sıralaması tahmini yapılamaz.
                 </div>
                 """
                 
@@ -757,6 +1053,7 @@ class TargetAnalysisDialog(QDialog):
                 </div>
             </div>
             """
+            html += '<p style="font-size:12px;color:#92400e;">Bu yüzde sadece hedef net karşılaştırmasıdır; ÖSYM puanı, gerçek başarı sırası veya yerleşme olasılığı değildir.</p>'
             self.lbl_res_desc.setText(html)
             self._style_result_box(pct)
             
@@ -772,16 +1069,16 @@ class TargetAnalysisDialog(QDialog):
             if diff >= 0:
                 advice = "🌟 <b>Koçluk Notu:</b> Tebrikler! Hedeflediğin lisenin net çıtasını yakaladın. Sınava kadar kondisyonunu korumalı ve süre stresini minimuma indirmelisin."
             elif diff >= -5:
-                advice = "💡 <b>Koçluk Notu:</b> Hedefe çok yakınsın! Matematik ve Fen'deki birkaç netlik boş veya dikkatsizlik kaynaklı yanlışı kapatarak hedefine rahatlıkla yerleşebilirsin."
+                advice = "💡 <b>Koçluk Notu:</b> Net hedefe yakınsın. Hangi dersin eksik olduğunu görmek için ders bazlı denemeleri incele; bu sonuç yerleşme garantisi değildir."
             else:
                 advice = "⚠️ <b>Koçluk Notu:</b> Kapatılması gereken bir net açığı bulunuyor. Özellikle katsayısı 4 olan Matematik, Türkçe ve Fen Bilimleri testlerine odaklanmalısın."
 
-            trend_badge = " <span style='background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px; font-size:11px;'>+Güvenli Hedef Uygulandı</span>" if trend_applied else ""
+            trend_badge = " <span style='background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px; font-size:11px;'>Kişisel çalışma marjı (resmî değil)</span>" if trend_applied else ""
 
             html = f"""
             <div style='line-height:1.6;'>
                 <div style='font-size:14px; margin-bottom:8px;'>
-                    Hedeflenen Okul: <b>{disp_name}</b> ({year} Referansı){trend_badge}
+                    Hedeflenen Okul: <b>{safe_name}</b> ({year} Referansı){trend_badge}
                 </div>
                 
                 <table border='0' cellspacing='6' cellpadding='4' style='width:100%;'>
@@ -811,19 +1108,19 @@ class TargetAnalysisDialog(QDialog):
 
     def _style_result_box(self, pct: int):
         if pct >= 100:
-            title = f"🎉 Hedefe Ulaşma Seviyesi: %{pct} (Hedef Tamamlandı & Derece Bandı)"
+            title = f"Net Hedefine Göre Çalışma Göstergesi: %{pct} (Sıralama garantisi değildir)"
             color = "#10b981"
             bg = "#f0fdf4"
         elif pct >= 85:
-            title = f"🚀 Hedefe Ulaşma Seviyesi: %{pct} (Çok İyi Durumdasın)"
+            title = f"Net Hedefine Göre Çalışma Göstergesi: %{pct}"
             color = "#2563eb"
             bg = "#eff6ff"
         elif pct >= 70:
-            title = f"📈 Hedefe Ulaşma Seviyesi: %{pct} (İyi Yoldasın - Hızlanabilirsin)"
+            title = f"Net Hedefine Göre Çalışma Göstergesi: %{pct}"
             color = "#d97706"
             bg = "#fffbeb"
         else:
-            title = f"⚠️ Hedefe Ulaşma Seviyesi: %{pct} (Açık Kapatma Programı Gerekiyor)"
+            title = f"Net Hedefine Göre Çalışma Göstergesi: %{pct}"
             color = "#dc2626"
             bg = "#fef2f2"
             
