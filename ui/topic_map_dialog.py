@@ -1371,6 +1371,26 @@ class TopicMapDialog(QDialog):
         # V18: Optional read-only integrated evidence view (no writes to homework).
         self.btn_topic_evidence_v18 = QPushButton('🔗 Birleşik Konu Kanıtları')
         self.btn_topic_evidence_v18.setToolTip('Ana ödevler, harita kayıtları, koçluk ve ders düzeyi denemeler')
+        self.btn_topic_evidence_v18.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_topic_evidence_v18.setStyleSheet("""
+            QPushButton {
+                background: #ffffff;
+                color: #1d4ed8;
+                font-weight: 600;
+                font-size: 12.5px;
+                border-radius: 8px;
+                padding: 10px 16px;
+                border: 1.5px solid #60a5fa;
+            }
+            QPushButton:hover {
+                background: #eff6ff;
+                border-color: #2563eb;
+                color: #1e40af;
+            }
+            QPushButton:pressed {
+                background: #dbeafe;
+            }
+        """)
         self.btn_topic_evidence_v18.clicked.connect(self._open_topic_evidence_v18)
         h_top_lay.addWidget(self.btn_topic_evidence_v18)
 
