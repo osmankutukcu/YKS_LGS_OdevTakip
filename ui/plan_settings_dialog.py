@@ -1467,6 +1467,19 @@ class PlanSettingsDialog(QDialog):
                 school_str = '-'.join(school_str)
         weekend_mode = 'Hafif' if self.rb_w_relax.isChecked() else 'Yoğun' if self.rb_w_hard.isChecked() else 'Dengeli'
         empty = self.cmb_empty_day.currentText() if self.chk_empty_day.isChecked() else 'Yok'
+        r_settings = {}
+        if hasattr(self, 'weekly_overview') and hasattr(self.weekly_overview, 'get_routine_settings'):
+            r_settings = self.weekly_overview.get_routine_settings()
+        routine_spread_enabled = r_settings.get('routine_spread_enabled', True)
+        routine_spread_days = r_settings.get('routine_spread_days', 7)
+        routine_time_pref = r_settings.get('routine_time_preference', 'after_school')
+
+        p_prefs = {}
+        if hasattr(self, 'weekly_overview') and hasattr(self.weekly_overview, 'get_print_preferences'):
+            p_prefs = self.weekly_overview.get_print_preferences()
+        include_task_details = p_prefs.get('include_task_details', False)
+        include_constraints = p_prefs.get('include_constraints', False)
+
         return {
             'planner_version': 2, 'profile_idx': p_idx, 'school': school_str,
             'school_by_day': school_by_day,
@@ -1480,6 +1493,11 @@ class PlanSettingsDialog(QDialog):
             'note': self.txt_notes.toPlainText(),
             'after_school_buffer': self.spin_after_school.value() if p_idx == 0 else 0,
             'after_routine_buffer': self.spin_after_routine.value(),
+            'routine_spread_enabled': routine_spread_enabled,
+            'routine_spread_days': routine_spread_days,
+            'routine_time_preference': routine_time_pref,
+            'include_task_details': include_task_details,
+            'include_constraints': include_constraints,
             'session_enabled': self.chk_sessions.isChecked(),
             'session_minutes': self.spin_session_minutes.value(),
             'session_break': self.spin_session_break.value(),
@@ -1605,6 +1623,17 @@ class PlanSettingsDialog(QDialog):
             self.cmb_empty_day.setCurrentText(emp)
             
         self.txt_notes.setText(data.get("note", ""))
+        if hasattr(self, 'weekly_overview') and hasattr(self.weekly_overview, 'set_routine_settings'):
+            self.weekly_overview.set_routine_settings({
+                'routine_spread_enabled': data.get('routine_spread_enabled', True),
+                'routine_spread_days': data.get('routine_spread_days', 7),
+                'routine_time_preference': data.get('routine_time_preference', 'after_school'),
+            })
+        if hasattr(self, 'weekly_overview') and hasattr(self.weekly_overview, 'set_print_preferences'):
+            self.weekly_overview.set_print_preferences({
+                'include_task_details': data.get('include_task_details', False),
+                'include_constraints': data.get('include_constraints', False),
+            })
         self._refresh_timeline()
 
     def _load_profiles(self):

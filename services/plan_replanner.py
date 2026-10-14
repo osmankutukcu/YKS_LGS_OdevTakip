@@ -141,16 +141,35 @@ def compare_snapshots(previous: dict | None, proposed: dict) -> dict:
 
 def summary_text(diff: dict) -> str:
     if diff.get('first'):
-        return ('Bu öğrenci için önceki onaylanmış plan bulunamadı.\n'
-                f'Yeni taslak: {diff["new_units"]} çalışma parçası, '
-                f'{diff["pending_minutes"]} dk yerleşmeyen ödev.')
+        return ('Bu öğrenci için daha önce kayıtlı bir haftalık plan bulunamadı.\n\n'
+                f'Yeni plan taslağı hazırlandı:\n'
+                f'• Toplam Ders Oturumu: {diff["new_units"]} adet\n'
+                f'• Yerleşmeyen Ödev: {diff["pending_minutes"]} dk\n\n'
+                '💡 Bilgi: Bu sadece yeni planın önizlemesidir. Mevcut ödevleriniz değişmez.')
     if not diff['changed']:
-        return 'Önceki onaylanmış planla fark yok. Mevcut plan korunuyor.'
-    return ('Önceki onaylı plana göre yeni taslak:\n'
-            f'• Ödev listesi değişti: {"Evet" if diff["homework_changed"] else "Hayır"}\n'
-            f'• Öğrenci rutinleri değişti: {"Evet" if diff["settings_changed"] else "Hayır"}\n'
-            f'• Yeni parçalar: {diff["new_units"]}, kaldırılan: {diff["removed_units"]}\n'
-            f'• Günü/saati değişen parça (yaklaşık): {diff["moved_units"]}\n'
-            f'• Yerleşmeyen: {diff["old_pending_minutes"]} → {diff["pending_minutes"]} dk\n\n'
-            'Önceki plan ve elle düzenlenen haftalık tablo değiştirilmez. '
-            'Bu sadece yeni planın önizleme taslağıdır.')
+        return 'Önceki onaylanmış planla birebir aynı. Mevcut plan korunuyor.'
+
+    lines = ['📋 Önceki Onaylı Plana Göre Fark Bildirimi:\n']
+    if diff['homework_changed']:
+        lines.append('• Verilen ödev listesinde değişiklik tespit edildi.')
+    else:
+        lines.append('• Verilen ödev listesi aynı (ödev eklenmedi veya çıkarılmadı).')
+
+    if diff['settings_changed']:
+        lines.append('• Günlük çalışma saatleri, okul veya rutin tercihleri güncellendi.')
+
+    if diff['new_units'] > 0 or diff['removed_units'] > 0:
+        lines.append(f'• Ders oturumları: {diff["new_units"]} eklendi, {diff["removed_units"]} kaldırıldı (Yeni parçalar: {diff["new_units"]}).')
+    else:
+        lines.append('• Ders oturum sayısı aynı kaldı (Yeni parçalar: 0).')
+
+    if diff['moved_units'] > 0:
+        lines.append(f'• Günü veya saati güncellenen ders sayısı: ~{diff["moved_units"]}')
+
+    if diff['pending_minutes'] > 0:
+        lines.append(f'⚠️ Dikkat: {diff["pending_minutes"]} dakikalık ödev uygun boş saat bulunamadığı için yerleşemedi.')
+    else:
+        lines.append('• Tüm ödevler haftalık takvime eksiksiz yerleştirildi.')
+
+    lines.append('\n💡 Not: Bu işlem mevcut ödevlerinizi ve tablonuzu değiştirmez; yalnızca yeni takvimin önizleme taslağını gösterir.')
+    return '\n'.join(lines)

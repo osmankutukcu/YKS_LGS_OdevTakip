@@ -29,6 +29,8 @@ class _Task:
     deadline: Optional[date] = None
     kind: str = ""
     splitable: bool = True
+    target_day: Optional[int] = None
+    is_routine: bool = False
 
 
 @dataclass
@@ -163,8 +165,27 @@ class SmartCalendarService:
             session_rules = {'enabled': True, 'minutes': max_session, 'break_minutes': int(structured.get('session_break', 10)), 'split': split}
             profile['session_rules'] = session_rules
 
-        # 2. Görevleri Normalize Et (Etüt kuralları dikkate alınarak)
-        tasks = SmartCalendarService._normalize_tasks(homework_list,
+        # 2. Günleri Hazırla (Okul, Rutin ve Tatil kısıtlarına göre)
+        days = SmartCalendarService._build_days(profile)
+
+        # 3. Günlük Alışkanlık Rutinlerini (Paragraf & Problem) Dağıt
+        routine_spread_enabled = (bool(structured.get('routine_spread_enabled', False)) if structured else False) or any(
+            bool(isinstance(x, dict) and (x.get('is_routine') or x.get('routine'))) for x in homework_list
+        )
+        routine_days_count = int(structured.get('routine_spread_days', 7)) if structured else 7
+
+        effective_hw = homework_list
+        if routine_spread_enabled:
+            if routine_days_count == 5:
+                target_indices = [i for i, d in enumerate(days) if d.date_.weekday() < 5 and d.day_cap >= 15]
+            else:
+                target_indices = [i for i, d in enumerate(days) if d.day_cap >= 15]
+            if not target_indices:
+                target_indices = list(range(len(days)))
+            effective_hw = SmartCalendarService._spread_routine_tasks(homework_list, target_indices)
+
+        # 4. Görevleri Normalize Et (Etüt kuralları dikkate alınarak)
+        tasks = SmartCalendarService._normalize_tasks(effective_hw,
                                                       session_minutes=max_session,
                                                       session_split=split)
         if not tasks:
@@ -189,10 +210,7 @@ class SmartCalendarService:
             from services.weekly_topic_priority_v35 import promote_topics
             promote_topics(tasks, approved_topics, SmartCalendarService._deadline_score)
 
-        # 3. Günleri Hazırla (Okul, Rutin ve Tatil kısıtlarına göre)
-        days = SmartCalendarService._build_days(profile)
-
-        # 4. Akıllı Pedagojik Dağıtım Yap
+        # 5. Akıllı Pedagojik Dağıtım Yap
         SmartCalendarService._smart_distribute(tasks, days, profile)
 
         # 5. Her gün için replanner randevuları (appointments) oluştur
@@ -427,7 +445,119 @@ class SmartCalendarService:
             "unassigned": []
         }
 
-    # ---------------- TASK NORMALIZATION ----------------
+    # ---------------- ROUTINE HABITS & NORMALIZATION ----------------
+
+    @staticmethod
+    def _is_routine_task(task: Any) -> bool:
+        if isinstance(task, _Task):
+            if task.is_routine:
+                return True
+            ders = (task.ders or '').replace('İ', 'i').replace('I', 'ı').lower()
+            konu = (task.konu or '').replace('İ', 'i').replace('I', 'ı').lower()
+            kind = (task.kind or '').lower()
+            raw = getattr(task, 'raw', {}) or {}
+        elif isinstance(task, dict):
+            if task.get('is_routine') or task.get('routine'):
+                return True
+            ders = str(task.get('ders') or '').replace('İ', 'i').replace('I', 'ı').lower()
+            konu = str(task.get('konu') or '').replace('İ', 'i').replace('I', 'ı').lower()
+            kind = str(task.get('type') or task.get('kind') or '').lower()
+            raw = task
+        else:
+            return False
+
+        aciklama = str(raw.get('aciklama') or '').replace('İ', 'i').replace('I', 'ı').lower()
+        if 'rutin' in kind or 'routine' in kind:
+            return True
+        if any(k in ders for k in ('paragraf', 'problem')):
+            return True
+        if any(k in konu for k in ('paragraf', 'problem')):
+            return True
+        if 'rutin' in aciklama and any(k in aciklama for k in ('paragraf', 'problem', 'günde')):
+            return True
+        return False
+
+    @staticmethod
+    def _spread_routine_tasks(homework_list: List[Dict[str, Any]], target_indices: List[int]) -> List[Dict[str, Any]]:
+        if not target_indices:
+            return list(homework_list)
+
+        result: List[Dict[str, Any]] = []
+        for x in homework_list:
+            if not isinstance(x, dict):
+                continue
+            if not SmartCalendarService._is_routine_task(x):
+                result.append(dict(x))
+                continue
+
+            total_minutes = SmartCalendarService._safe_int(x.get("sure", 30), default=30)
+            total_minutes = max(5, min(total_minutes, 600))
+
+            num_targets = len(target_indices)
+            actual_days = min(num_targets, max(1, total_minutes // 5))
+            chosen_indices = target_indices[:actual_days]
+
+            base = total_minutes // actual_days
+            rem = total_minutes % actual_days
+
+            for i, target_day_idx in enumerate(chosen_indices):
+                day_sure = base + (1 if i < rem else 0)
+                sub = dict(x)
+                sub["sure"] = day_sure
+                sub["is_routine"] = True
+                sub["target_day"] = target_day_idx
+                sub["splitable"] = False
+                sub["priority"] = 5
+                sub["kind"] = "rutin"
+                result.append(sub)
+
+        return result
+
+    @staticmethod
+    def _find_routine_slot(
+        windows: List[Tuple[int, int]],
+        booked: List[Tuple[int, int]],
+        duration: int,
+        pref: str = 'after_school',
+        is_school_day: bool = False,
+        school_end_with_buffer: Optional[int] = None,
+        biorhythm: str = '',
+        gap: int = 5
+    ) -> Optional[Tuple[int, int]]:
+        if duration <= 0:
+            return None
+
+        pref_key = str(pref or 'after_school').lower()
+
+        # 1. Okul / Rutin Sonrası Tercihi
+        if pref_key in ('after_school', 'okul_sonrasi'):
+            if is_school_day and school_end_with_buffer is not None:
+                filtered = [(max(a, school_end_with_buffer), b) for a, b in windows if b > school_end_with_buffer]
+                slot = find_slot(filtered, booked, duration, biorhythm=biorhythm, gap=gap)
+                if slot is not None:
+                    return slot
+            else:
+                # Okul olmayan günde veya hafta sonu: 10:00 ve sonrası pencereler
+                midday = [(max(a, 10 * 60), b) for a, b in windows if b > 10 * 60]
+                slot = find_slot(midday, booked, duration, biorhythm=biorhythm, gap=gap)
+                if slot is not None:
+                    return slot
+
+        # 2. Sabah Erken Tercihi
+        elif pref_key in ('morning', 'sabah'):
+            slot = find_slot(windows, booked, duration, biorhythm='Sabah', gap=gap)
+            if slot is not None:
+                return slot
+
+        # 3. Akşam Tercihi
+        elif pref_key in ('evening', 'aksam'):
+            evening = [(max(a, 18 * 60 + 30), b) for a, b in windows if b > 18 * 60 + 30]
+            slot = find_slot(evening, booked, duration, biorhythm='Akşam', gap=gap)
+            if slot is not None:
+                return slot
+
+        # 4. Standart / Genel Uygun Aralık (Fallback)
+        return find_slot(windows, booked, duration, biorhythm=biorhythm, gap=gap)
 
     @staticmethod
     def _normalize_tasks(homework_list: List[Dict[str, Any]], session_minutes=None, session_split=True) -> List[_Task]:
@@ -466,11 +596,14 @@ class SmartCalendarService:
 
             kind = str(x.get("type") or x.get("kind") or "").strip()
             splitable = bool(x.get("splitable", True))
+            target_day = x.get("target_day")
+            is_routine = bool(x.get("is_routine", False))
 
             t = _Task(
                 raw=x, ders=ders, konu=konu, kitap=kitap, sure=sure,
                 zorluk=zorluk, priority=priority, deadline=deadline,
-                kind=kind, splitable=splitable
+                kind=kind, splitable=splitable if not is_routine else False,
+                target_day=target_day, is_routine=is_routine
             )
 
             out.extend(SmartCalendarService._split_task_if_needed(t, session_minutes=session_minutes, session_split=session_split))
@@ -485,9 +618,13 @@ class SmartCalendarService:
 
     @staticmethod
     def _split_task_if_needed(t: _Task, session_minutes=None, session_split=True) -> List[_Task]:
+        # Rutin görevler asla seanslara bölünmez
+        if t.is_routine or not t.splitable:
+            return [t]
+
         # Eğer etüt oturum modu açıksa ve oturuma göre bölme işaretliyse:
         if session_minutes is not None:
-            if t.sure <= session_minutes or not t.splitable or not session_split:
+            if t.sure <= session_minutes or not session_split:
                 return [t]
 
             total = t.sure
@@ -510,12 +647,13 @@ class SmartCalendarService:
                     raw=t.raw, ders=t.ders,
                     konu=f"{t.konu} ({idx}/{len(parts)})" if len(parts) > 1 else t.konu,
                     kitap=t.kitap, sure=amount, zorluk=t.zorluk, priority=t.priority,
-                    deadline=t.deadline, kind=t.kind, splitable=False
+                    deadline=t.deadline, kind=t.kind, splitable=False,
+                    target_day=t.target_day, is_routine=t.is_routine
                 ))
             return result
 
         # Standart Pedagojik Bütünlük Kuralı: 120 dakika ve altındaki görevler asla bölünmez.
-        if (not t.splitable) or t.sure <= 120:
+        if t.sure <= 120:
             return [t]
 
         # Sadece 120 dakikadan uzun büyük deneme veya bloklar 2 eşit parçaya ayrılır.
@@ -525,12 +663,14 @@ class SmartCalendarService:
         t1 = _Task(
             raw=t.raw, ders=t.ders, konu=f"{t.konu} (1/2)", kitap=t.kitap,
             sure=half1, zorluk=t.zorluk, priority=t.priority,
-            deadline=t.deadline, kind=t.kind, splitable=False
+            deadline=t.deadline, kind=t.kind, splitable=False,
+            target_day=t.target_day, is_routine=t.is_routine
         )
         t2 = _Task(
             raw=t.raw, ders=t.ders, konu=f"{t.konu} (2/2)", kitap=t.kitap,
             sure=half2, zorluk=t.zorluk, priority=t.priority,
-            deadline=t.deadline, kind=t.kind, splitable=False
+            deadline=t.deadline, kind=t.kind, splitable=False,
+            target_day=t.target_day, is_routine=t.is_routine
         )
         return [t1, t2]
 
@@ -658,6 +798,9 @@ class SmartCalendarService:
         profile['unassigned'] = []
         if total_time <= 0: return
 
+        routine_tasks = [t for t in tasks if t.is_routine and t.target_day is not None]
+        normal_tasks = [t for t in tasks if not (t.is_routine and t.target_day is not None)]
+
         if profile.get('availability_by_day') is not None:
             session = profile.get('session_rules') or {'enabled': False, 'minutes': 0, 'break_minutes': 10}
             max_session = int(session.get('minutes', 0)) if session.get('enabled') else None
@@ -675,7 +818,43 @@ class SmartCalendarService:
                     day = days[light_day_idx]
                     day.day_target = min(day.day_cap, max(0, int(day.day_target * p['LIGHT_DAY_TARGET_FACTOR'])))
 
-            for task in tasks:
+            detail = profile.get('details_v2') or {}
+            routine_pref = detail.get('routine_time_preference', 'after_school')
+
+            # 1. Günlük Alışkanlık Rutinlerini (Paragraf & Problem) Hedef Günlerine Yerleştir
+            for r_task in routine_tasks:
+                target_idx = r_task.target_day
+                placed = False
+                if 0 <= target_idx < len(days):
+                    r_day = days[target_idx]
+                    if r_day.day_cap >= r_day.total_minutes + r_task.sure:
+                        booked = [(start, end) for _, start, end in r_day.appointments]
+                        wd = r_day.date_.weekday()
+                        school = (detail.get('school_by_day') or {}).get(str(wd))
+                        school_end_with_buffer = None
+                        if school and len(school) == 2:
+                            school_end_with_buffer = to_minutes(school[1]) + max(0, min(180, int(detail.get('after_school_buffer', 0))))
+
+                        r_slot = SmartCalendarService._find_routine_slot(
+                            windows=r_day.windows,
+                            booked=booked,
+                            duration=r_task.sure,
+                            pref=routine_pref,
+                            is_school_day=r_day.is_school_day,
+                            school_end_with_buffer=school_end_with_buffer,
+                            biorhythm=profile.get('biorhythm', ''),
+                            gap=gap
+                        )
+                        if r_slot is not None:
+                            r_day.tasks.append(r_task)
+                            r_day.appointments.append((r_task, r_slot[0], r_slot[1]))
+                            placed = True
+
+                if not placed:
+                    normal_tasks.insert(0, r_task)
+
+            # 2. Kalan Normal Ödevleri Dağıt
+            for task in normal_tasks:
                 if max_session is not None and task.sure > max_session:
                     profile['unassigned'].append(task)
                     continue
@@ -696,7 +875,7 @@ class SmartCalendarService:
                     school = (detail.get('school_by_day') or {}).get(str(wd))
                     explicitly_custom = ((detail.get('advanced_enabled') and
                                           str(wd) in (detail.get('advanced_days') or {})) or
-                                         (detail.get('advanced_enabled') is not False and
+                                          (detail.get('advanced_enabled') is not False and
                                           str(wd) in (detail.get('day_overrides') or {})))
                     if (school and len(school) == 2 and not explicitly_custom
                             and 'Sabah' not in str(profile.get('biorhythm', ''))):
@@ -736,6 +915,14 @@ class SmartCalendarService:
                 day.tasks = [t for t, _, _ in day.appointments]
             return
 
+        # Legacy Rutin Dağıtımı
+        for r_task in routine_tasks:
+            target_idx = r_task.target_day
+            if 0 <= target_idx < len(days) and not days[target_idx].is_holiday:
+                days[target_idx].tasks.append(r_task)
+            else:
+                normal_tasks.insert(0, r_task)
+
         valid_indices = [i for i, d in enumerate(days) if not d.is_holiday and d.day_cap >= 30]
         if not valid_indices:
             valid_indices = [i for i, d in enumerate(days) if not d.is_holiday]
@@ -746,7 +933,7 @@ class SmartCalendarService:
         is_light_load = len(tasks) <= 4
 
         last_ders = None
-        for t in tasks:
+        for t in normal_tasks:
             best_idx = valid_indices[0]
             best_cost = float("inf")
 
@@ -1063,7 +1250,12 @@ class SmartCalendarService:
 
                     border_color = "#2563eb"
                     bg_color = "#f8fafc"
-                    if t.zorluk >= 4:
+                    badge_html = ""
+                    if t.is_routine:
+                        border_color = "#059669"
+                        bg_color = "#ecfdf5"
+                        badge_html = ' <span style="font-size: 6.5pt; color: #065f46; background: #a7f3d0; padding: 1px 4px; border-radius: 3px; font-weight: bold;">🎯 RUTİN</span>'
+                    elif t.zorluk >= 4:
                         border_color = "#ef4444"
                         bg_color = "#fef2f2"
                     elif t.zorluk == 3:
@@ -1078,7 +1270,7 @@ class SmartCalendarService:
                         <table width="100%" cellpadding="0" cellspacing="0">
                             <tr>
                                 <td style="font-size: {f_task_title}; font-weight: bold; color: #1e293b;">
-                                    {icon} {ders}
+                                    {icon} {ders}{badge_html}
                                 </td>
                                 <td align="right" style="font-size: {f_task_title}; color: #475569; font-weight: bold;">
                                     ⏳ {t.sure} dk{clock} &nbsp; <span style="font-size: 7.5pt; color: #94a3b8;">☐</span>

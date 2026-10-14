@@ -357,6 +357,10 @@ class HaftalikPlanDialog(QDialog):
             at_row = self.tbl.rowCount() - 1  # footer’ın üstüne ekle
 
         ins_index = min(len(self.items), at_row)
+        if hasattr(self, "_manual_fixed_rows_v35"):
+            self._manual_fixed_rows_v35 = {r + (count if r >= ins_index else 0)
+                                            for r in self._manual_fixed_rows_v35}
+        self._last_auto_snapshot_v35 = None
 
         # Veri listesine ekle
         for i in range(count):
@@ -393,6 +397,10 @@ class HaftalikPlanDialog(QDialog):
         if row < len(self.items):
             del self.items[row]
         self.tbl.removeRow(row)
+        if hasattr(self, "_manual_fixed_rows_v35"):
+            self._manual_fixed_rows_v35 = {r - (1 if r > row else 0)
+                                            for r in self._manual_fixed_rows_v35 if r != row}
+        self._last_auto_snapshot_v35 = None
         self._update_day_header_totals()
 
     # ---------- Init ----------
@@ -427,6 +435,12 @@ class HaftalikPlanDialog(QDialog):
 
         # Senaryo profilleri
         self._scenarios: dict[str, dict] = self._scenario_load()
+
+        # Yalnızca bu pencere oturumunda tutulan manuel sabitlemeler.
+        # Öğrenci kaydı, görevler ve veritabanına otomatik yazılmaz.
+        self._manual_fixed_rows_v35: set[int] = set()
+        self._last_auto_snapshot_v35 = None
+        self._day_overrides_v35: dict[str, dict] = {}
 
         # Arayüz
         self._build_ui()
@@ -750,12 +764,16 @@ class HaftalikPlanDialog(QDialog):
         # Karıştır Checkbox
         self.chkShuffle = QCheckBox("🔀 Karıştır")
         self.chkShuffle.setToolTip("Ödevleri rastgele sırayla dağıtır (her seferinde farklı alternatif dağıtımlar üretir).")
+        self.btnDayTargets = QPushButton("📅 Günlük Hedefler")
+        self.btnDayTargets.setToolTip("Haftanın her günü için ayrı çalışma hedefi ve ödev sınırı belirleyin (0 = izin günü).")
+        self.btnDayTargets.clicked.connect(self._edit_day_targets)
 
         lay_settings.addWidget(lblDensityIcon)
         lay_settings.addWidget(self.sliderDensity)
         lay_settings.addWidget(self.lblDensity)
         lay_settings.addSpacing(8)
         lay_settings.addWidget(self.chkShuffle)
+        lay_settings.addWidget(self.btnDayTargets)
         
         row_settings.addWidget(grp_settings)
 
@@ -802,12 +820,22 @@ class HaftalikPlanDialog(QDialog):
         self.cboAutoStrategy.setFixedHeight(34)
         self.cboAutoStrategy.setMinimumWidth(180)
         self.cboAutoStrategy.addItem("⚖️ Dengeli Dağıt (Önerilen)", "balanced")
+        self.cboAutoStrategy.addItem("📅 Günlere Eşit Dağıt (Yeni)", "uniform")
         self.cboAutoStrategy.addItem("🔥 Yoğun / Derece Modu", "intense")
         self.cboAutoStrategy.addItem("🌱 Hafif / Rahat Mod", "light")
         self.cboAutoStrategy.addItem("📅 Hafta Sonu Ağırlıklı", "weekend")
         self.cboAutoStrategy.addItem("🧱 Ders Blokları Modu", "block_course")
         self.cboAutoStrategy.addItem("📦 Yoğun Blok Günler", "block_dense")
         self.cboAutoStrategy.addItem("🧹 Dağıtımı Temizle", "clear")
+
+        self.btnOneClick = QPushButton("✨ Tek Tık Planla")
+        self.btnOneClick.setObjectName("btnAction")
+        self.btnOneClick.setFixedHeight(34)
+        self.btnOneClick.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btnOneClick.setToolTip(
+            "Günlük hedefleri gözeterek dengeli dağıtır; elle değiştirdiğiniz satırları korur. "
+            "Önizlemedir, hiçbir ödevi kaydetmez."
+        )
 
         self.btnAuto = QPushButton("⚡ Otomatik Dağıt")
         self.btnAuto.setObjectName("btnAutoDistribute")
@@ -826,6 +854,7 @@ class HaftalikPlanDialog(QDialog):
         row_actions.addStretch(1)
         row_actions.addWidget(lbl_strat)
         row_actions.addWidget(self.cboAutoStrategy)
+        row_actions.addWidget(self.btnOneClick)
         row_actions.addWidget(self.btnAuto)
         row_actions.addWidget(self.btnUygula)
 
@@ -841,6 +870,7 @@ class HaftalikPlanDialog(QDialog):
 
         self.btnYazdir.clicked.connect(self._print_preview)
         self.btnUygula.clicked.connect(self._accept_with_result)
+        self.btnOneClick.clicked.connect(self._on_one_click_plan_v35)
         self.btnAuto.clicked.connect(self._on_btn_auto_clicked)
         self.cboAutoStrategy.currentIndexChanged.connect(self._on_strategy_combo_changed)
 
@@ -871,6 +901,7 @@ class HaftalikPlanDialog(QDialog):
     def _update_strategy_desc(self, key: str):
         descs = {
             "balanced": "⚖️ <b>Dengeli Dağıt:</b> Ödevleri 7 güne homojen paylaştırır. Hiçbir günü boş bırakmaz, günleri dengeli tutar.",
+            "uniform": "🎯 <b>Günlere Eşit Dağıt:</b> Ödevleri 7 güne adil yayar, günlük tolerans sınırlarına uyar ve elle kilitlenen ödevleri bozmaz.",
             "intense": "🔥 <b>Yoğun / Derece Modu:</b> 7 günün tamamına etüt koyar. Sıfır gün bırakmadan yüksek tempoda planlar.",
             "weekend": "📅 <b>Hafta Sonu Ağırlıklı:</b> Hafta içi hafif tutulur, ana etüt blokları Cumartesi ve Pazar'a verilir.",
             "light": "🌱 <b>Hafif / Rahat Mod:</b> Günlük ödev sayısını az tutarak (en fazla 1-2 ödev) hafif tempoda dağıtır.",
@@ -904,13 +935,38 @@ class HaftalikPlanDialog(QDialog):
 
     def _on_btn_auto_clicked(self):
         strategy = self.cboAutoStrategy.currentData() or "balanced"
-        self._update_strategy_desc(strategy)
+        if strategy == "clear":
+            self._clear_user_plan_v35()
+            if hasattr(self, "lblLastStrategy"):
+                self.lblLastStrategy.setText("Dağıtım temizlendi; ödevler Verilen listesinden silinmedi.")
+            return
+        if getattr(self, "_manual_fixed_rows_v35", None):
+            choice = QMessageBox.question(
+                self, "Elle Düzenlenen Plan",
+                "Eski dağıtım stratejileri elle yaptığınız gün seçimlerini değiştirebilir. "
+                "Bu işlemi yapmak istiyor musunuz?\n\n"
+                "Manuel seçimleri korumak için 'Tek Tık Planla' düğmesini kullanın.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if choice != QMessageBox.StandardButton.Yes:
+                return
+        self._last_auto_snapshot_v35 = self._snapshot_plan_v35()
         self._auto_distribute(strategy)
+        self._manual_fixed_rows_v35.clear()
 
     def _on_strategy_combo_changed(self, idx: int):
         strategy = self.cboAutoStrategy.currentData() or "balanced"
         self._update_strategy_desc(strategy)
-        self._auto_distribute(strategy)
+        labels = {
+            "balanced": "Dengeli", "uniform": "Günlere Eşit", "intense": "Yoğun",
+            "light": "Hafif", "weekend": "Hafta Sonu", "block_course": "Ders Blokları",
+            "block_dense": "Yoğun Blok Günler", "clear": "Temizle"
+        }
+        if hasattr(self, "lblLastStrategy"):
+            self.lblLastStrategy.setText(
+                f"{labels.get(strategy, strategy)} seçildi; dağıtmak için 'Otomatik Dağıt'a basın."
+            )
 
     def _build_auto_menu(self):
         pass
@@ -1065,12 +1121,7 @@ class HaftalikPlanDialog(QDialog):
 
     def _density_changed(self, val: int):
         self.lblDensity.setText(f"Yoğunluk: %{val}")
-        # Canlı önizleme: Eğer otomatik moddaysa ve manuel işaretli DEĞİLSE dağıtımı güncelle
-        if hasattr(self, "optAuto") and self.optAuto.isChecked():
-            # Performans için belki timer konabilir ama şimdilik doğrudan çağırıyoruz (küçük veri)
-            self._auto_distribute()
-        else:
-             self._update_load_visuals()
+        self._update_load_visuals()
 
     def _mark_cell(self, row: int, col: int, dk: int = 0):
         it = self.tbl.item(row, col)
@@ -1381,9 +1432,14 @@ class HaftalikPlanDialog(QDialog):
             if row < len(self.items):
                 dk = int(self.items[row].get("dk", 0) or getattr(self, "_varsayilan_sure", 45))
             self._mark_cell(row, col, dk)
+        self._manual_fixed_rows_v35.add(row)
+        self._last_auto_snapshot_v35 = None
         self._update_load_visuals()
 
     def keyPressEvent(self, e: QKeyEvent):
+        if e.key() == Qt.Key.Key_Z and e.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self._undo_auto_v35()
+            return
         if e.key() == Qt.Key.Key_Space:
             idx = self.tbl.currentIndex()
             if idx.isValid():
@@ -1447,6 +1503,9 @@ class HaftalikPlanDialog(QDialog):
         menu.addAction(a_row)
         menu.addAction(a_week)
         menu.addSeparator()
+        a_undo_v35 = QAction("↩ Son otomatik dağıtımı geri al (Ctrl+Z)", self)
+        a_undo_v35.setEnabled(self._last_auto_snapshot_v35 is not None)
+        menu.addAction(a_undo_v35)
         menu.addAction(a_all)
 
         # Bağlantılar
@@ -1454,7 +1513,8 @@ class HaftalikPlanDialog(QDialog):
         a_add_below.triggered.connect(lambda: self._insert_blank_rows(1, at_row=row + 1))
         a_del.triggered.connect(lambda: self._delete_row(row))
         a_row.triggered.connect(lambda: self._clear_row(row))
-        a_all.triggered.connect(self._clear_all_marks)
+        a_all.triggered.connect(self._clear_user_plan_v35)
+        a_undo_v35.triggered.connect(self._undo_auto_v35)
         a_week.triggered.connect(lambda: self._spread_row(row))
 
         # Footer’da bazılarını pasifleştir
@@ -1542,8 +1602,10 @@ class HaftalikPlanDialog(QDialog):
     # ---------------- mod ----------------
 
     def _mode_changed(self, manual_on: bool):
-        # Manuel mod açıldığında otomatik dağıt butonunu devre dışı bırak
+        # Manuel mod açıldığında otomatik dağıt butonlarını devre dışı bırak
         self.btnAuto.setEnabled(not manual_on)
+        if hasattr(self, "btnOneClick"):
+            self.btnOneClick.setEnabled(not manual_on)
         if not manual_on and getattr(self, "items", None):
             self._auto_distribute()
 
@@ -1792,6 +1854,11 @@ class HaftalikPlanDialog(QDialog):
         allow_back_to_back = not self.chkArdArda.isChecked() if hasattr(self, "chkArdArda") else prof.get("allow_back_to_back", True)
         weekend_prefer = prof.get("weekend_prefer", False)
 
+        # V35 opt-in homojen dağıtım motoru
+        if strategy == "uniform":
+            self._distribute_uniform()
+            return
+
         # Temizleme modu
         if strategy == "clear":
             self._clear_all_marks()
@@ -1984,6 +2051,171 @@ class HaftalikPlanDialog(QDialog):
         if hasattr(self, "_update_strategy_desc"):
             self._update_strategy_desc(strategy)
 
+    # ---------------- opt-in gün bazlı dağıtım ve tek tık motoru ----------------
+
+    def _snapshot_plan_v35(self):
+        """Yalnızca pencere içi işaretleri kaydet; gerçek ödevlere dokunma."""
+        return (
+            tuple(tuple(c - 1 for c in range(1, 8)
+                        if self.tbl.item(r, c) and (self.tbl.item(r, c).text() or "").strip())
+                  for r in range(max(0, self.tbl.rowCount() - 1))),
+            frozenset(self._manual_fixed_rows_v35),
+            getattr(self, "_auto_strategy", "balanced"),
+        )
+
+    def _undo_auto_v35(self):
+        saved = self._last_auto_snapshot_v35
+        if saved is None:
+            return
+        marks, manual, mode = saved
+        if len(marks) != max(0, self.tbl.rowCount() - 1):
+            QMessageBox.warning(self, "Geri Alma", "Ödev satırları değiştiği için eski plan geri yüklenemedi.")
+            return
+        self._clear_all_marks()
+        for row, selected in enumerate(marks):
+            for day in selected:
+                self._mark_cell(row, day + 1, int(self.items[row].get("dk", 45)))
+        self._manual_fixed_rows_v35 = set(manual)
+        self._auto_strategy = mode
+        self._last_auto_snapshot_v35 = None
+        self._update_load_visuals()
+        if hasattr(self, "lblLastStrategy"):
+            self.lblLastStrategy.setText("Önceki plan geri yüklendi.")
+
+    def _clear_user_plan_v35(self):
+        self._manual_fixed_rows_v35.clear()
+        self._last_auto_snapshot_v35 = None
+        self._clear_all_marks()
+        self._update_load_visuals()
+
+    def _on_one_click_plan_v35(self):
+        """Tek tıkla, mevcut manuel tercihleri koruyan isteğe bağlı dağıtım."""
+        if self.optMan.isChecked():
+            QMessageBox.information(self, "Tek Tık Planla", "Manuel mod açık; önce Otomatik seçeneğini açın.")
+            return
+        if not self.items:
+            QMessageBox.information(self, "Tek Tık Planla", "Dağıtılacak ödev bulunamadı.")
+            return
+        from services.weekly_equal_distribution_v35 import DayLimit
+        from services.weekly_one_click_v35 import plan_one_click
+        day_labels = gun_adlari(self.dtBasla.date())
+        overrides = getattr(self, "_day_overrides_v35", {})
+        density = self.sliderDensity.value() / 100.0
+        limits = []
+        for name in day_labels:
+            custom = overrides.get(name, {})
+            target = int(custom.get("minutes", self.spGunluk.value()))
+            cap = int(custom.get("max_tasks", self.spMaxOdev.value()))
+            limits.append(DayLimit(name, round(target * density), cap))
+        current = self._snapshot_plan_v35()
+        locked = {row: days for row, days in enumerate(current[0])
+                  if row in self._manual_fixed_rows_v35}
+        try:
+            result = plan_one_click(
+                self.items, limits, manual_assignments=locked,
+                tolerance=self.spTol.value(),
+                avoid_same_subject=self.chkArdArda.isChecked(),
+            )
+        except (ValueError, AssertionError) as e:
+            QMessageBox.warning(self, "Planlama Uyarısı", str(e))
+            return
+        self._last_auto_snapshot_v35 = current
+        self._clear_all_marks()
+        for p in result.placements:
+            self._mark_cell(p.task_index, p.day_index + 1, p.minutes)
+        self._auto_strategy = "one_click"
+        self._update_load_visuals()
+        day_summary = ", ".join(f"{day_labels[g]} {result.totals[g]} dk" for g in range(7))
+        if hasattr(self, "lblLastStrategy"):
+            self.lblLastStrategy.setText(
+                f"Tek Tık: {len(self.items)-len(result.unplaced)-len(result.excluded)} ödev, "
+                f"{result.scheduled_minutes} dk · sabit {len(locked)} · "
+                f"yerleşmeyen {len(result.unplaced)}"
+            )
+            self.lblLastStrategy.setToolTip(day_summary + ("\n" + "\n".join(result.warnings) if result.warnings else ""))
+        if result.warnings and (result.unplaced or any("aşıyor" in w for w in result.warnings)):
+            QMessageBox.warning(self, "Planın Eksik veya Çakışan Kısımları", "\n\n".join(result.warnings))
+
+    def _edit_day_targets(self):
+        """Only changes this plan's limits, never the student's saved profile."""
+        from PyQt6.QtWidgets import QDialogButtonBox, QGridLayout
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Gün Bazlı Çalışma Hedefleri")
+        dlg.resize(520, 380)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel("Her gün için hedef ve ödev sayısını seçin. 0 dk = o gün ödev yok."))
+        grid = QGridLayout()
+        grid.addWidget(QLabel("Gün"), 0, 0)
+        grid.addWidget(QLabel("Hedef (dk)"), 0, 1)
+        grid.addWidget(QLabel("Maks. ödev"), 0, 2)
+        fields = []
+        overrides = getattr(self, "_day_overrides_v35", {})
+        for row, name in enumerate(TR_GUNLER, start=1):
+            prev = overrides.get(name, {})
+            target = QSpinBox(dlg)
+            target.setRange(0, 1000)
+            target.setValue(int(prev.get("minutes", self.spGunluk.value())))
+            target.setSuffix(" dk")
+            cap = QSpinBox(dlg)
+            cap.setRange(0, 20)
+            cap.setValue(int(prev.get("max_tasks", self.spMaxOdev.value())))
+            grid.addWidget(QLabel(name), row, 0)
+            grid.addWidget(target, row, 1)
+            grid.addWidget(cap, row, 2)
+            fields.append((name, target, cap))
+        layout.addLayout(grid)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=dlg
+        )
+        ok_btn = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        if ok_btn:
+            ok_btn.setText("Tamam")
+        cancel_btn = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        if cancel_btn:
+            cancel_btn.setText("İptal")
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        layout.addWidget(buttons)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._day_overrides_v35 = {
+                name: {"minutes": t.value(), "max_tasks": c.value()}
+                for name, t, c in fields
+            }
+            if hasattr(self, "lblLastStrategy"):
+                self.lblLastStrategy.setText("Günlük hedefler güncellendi; uygulamak için Otomatik Dağıt'a veya Tek Tık Planla'ya basın.")
+
+    def _distribute_uniform(self):
+        """Always explicit, deterministic, one task -> one day or unplaced."""
+        from services.weekly_equal_distribution_v35 import DayLimit, distribute_week
+        day_labels = gun_adlari(self.dtBasla.date())
+        overrides = getattr(self, "_day_overrides_v35", {})
+        density = self.sliderDensity.value() / 100.0
+        limits = []
+        for name in day_labels:
+            custom = overrides.get(name, {})
+            target = int(custom.get("minutes", self.spGunluk.value()))
+            cap = int(custom.get("max_tasks", self.spMaxOdev.value()))
+            limits.append(DayLimit(name, round(target * density), cap))
+        n = self.tbl.rowCount() - 1
+        result = distribute_week(
+            self.items[:max(0, n)], limits,
+            tolerance=self.spTol.value(),
+            avoid_same_subject=self.chkArdArda.isChecked(),
+        )
+        self._clear_all_marks()
+        for task in result.placements:
+            self._mark_cell(task.task_index, task.day_index + 1, task.minutes)
+        self._uniform_unplaced_v35 = result.unplaced
+        self._update_load_visuals()
+        label = f"Günlere eşit: {len(result.placements)}/{len(self.items)} görev, {sum(result.totals)} dk"
+        if result.unplaced:
+            label += f" · {len(result.unplaced)} yerleştirilemedi"
+        if hasattr(self, "lblLastStrategy"):
+            self.lblLastStrategy.setText(label)
+        if result.warnings:
+            QMessageBox.warning(self, "Planın Kapasite ve Dağılım Uyarıları", "\n\n".join(result.warnings))
+
     # ---------------- sonuç toplama ----------------
 
     def _collect_plan(self):
@@ -2012,6 +2244,21 @@ class HaftalikPlanDialog(QDialog):
         return out
 
     def _accept_with_result(self):
+        # Confirm any missing task instead of silently hiding it on Apply.
+        if getattr(self, "_auto_strategy", "") in ("uniform", "one_click"):
+            missing = []
+            for row in range(max(0, self.tbl.rowCount() - 1)):
+                if not any((self.tbl.item(row, c) and (self.tbl.item(row, c).text() or "").strip()) for c in range(1, 8)):
+                    missing.append(row)
+            if missing:
+                choice = QMessageBox.question(
+                    self, "Eksik Yerleştirme",
+                    f"{len(missing)} görev hiçbir güne yerleşmedi. Bu eksik planla devam edilsin mi?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if choice != QMessageBox.StandardButton.Yes:
+                    return
         self.verilen = self._collect_plan()
         if not self.verilen:
             QMessageBox.information(self, "Plan", "Herhangi bir gün işaretlenmedi.")

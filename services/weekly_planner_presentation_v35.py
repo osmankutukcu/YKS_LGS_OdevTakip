@@ -43,92 +43,121 @@ def detailed_section(days: list[Any], profile: dict, details: Any) -> str:
     Qt QTextDocument lays out the table across additional pages if needed;
     nothing is silently omitted when homework is large.
     """
-    data = parse_details(details) or {}
+    data = details if isinstance(details, dict) else (parse_details(details) or {})
+    include_tasks = bool(data['include_task_details']) if 'include_task_details' in data else True
+    include_rules = bool(data['include_constraints']) if 'include_constraints' in data else True
+
+    unassigned = list(profile.get('unassigned') or [])
+    note = escape(str(data.get('note') or '').strip())
+
+    if not include_tasks and not include_rules and not unassigned:
+        return ''
+
     placed = [((d.date_), t, s, e) for d in days for t, s, e in d.appointments]
     placed.sort(key=lambda row: (row[0], row[2], row[3]))
-    unassigned = list(profile.get('unassigned') or [])
     planned_minutes = sum(t.sure for _, t, _, _ in placed)
     pending_minutes = sum(t.sure for t in unassigned)
-    week_text = (f'{days[0].date_.strftime("%d.%m.%Y")} - '
-                 f'{days[-1].date_.strftime("%d.%m.%Y")}') if days else 'Belirsiz'
-    first_school = data.get('school_by_day') or {}
-    school_descriptions = []
-    names = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
-    for i, val in sorted(first_school.items(), key=lambda kv: int(kv[0])):
-        try:
-            if len(val) == 2:
-                school_descriptions.append(f'{names[int(i)]} {val[0]}-{val[1]}')
-        except (ValueError, TypeError, IndexError):
-            pass
-    rules = [
-        ('Hafta', week_text),
-        ('Okul', ', '.join(school_descriptions) if school_descriptions else 'Kayıt yok'),
-        ('Uyku', f'{data.get("sleep", "-")} - {data.get("wake", "-")}'),
-        ('Günlük üst sınır', f'{data.get("max", profile.get("daily_max", "-"))} dk'),
-        ('Okul sonrası geçiş', f'{data.get("after_school_buffer", 0)} dk'),
-        ('Rutin sonrası geçiş', f'{data.get("after_routine_buffer", 0)} dk'),
-        ('Öncelikli ders', data.get('focus') or 'Belirtilmedi'),
-    ]
-    # A per-plan, teacher-confirmed topic focus is a proposal, not a diagnosed
-    # deficit and not a modification to historical homework completion state.
-    if data.get('adaptive_topic_focus_v35'):
-        from services.weekly_topic_priority_v35 import accepted_topic_pairs
-        focus = accepted_topic_pairs(
-            [getattr(task, 'raw', {}) for day in days for task in day.tasks] +
-            [getattr(task, 'raw', {}) for task in profile.get('unassigned', [])],
-            data['adaptive_topic_focus_v35'])
-        if focus:
-            rules.append(('Öğretmen onaylı konu önceliği', ', '.join(
-                f'{entry["lesson"]} / {entry["topic"]}' for entry in focus)))
-    if data.get('session_enabled'):
-        rules.append(('Oturum', f'{data.get("session_minutes", 45)} dk + '
-                         f'{data.get("session_break", 10)} dk mola'))
-    for block in (data.get('blocks') or []):
-        rules.append(('Sabit rutin', block))
-    rows = []
-    tr_days = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
-    for date_, task, start, end in placed:
-        deadline = task.deadline.strftime('%d.%m.%Y') if task.deadline else 'Belirtilmedi'
-        rows.append('<tr><td>{}</td><td><b>{}</b><br/><span style="color:#64748b">{}</span></td>'
-                    '<td>{}</td><td>{}</td><td>{} dk</td><td>{}</td></tr>'.format(
-                        escape(tr_days[date_.weekday()] + ' ' + date_.strftime('%d.%m')),
-                        escape(task.ders), escape(task.konu), escape(task.kitap or 'Kaynak belirtilmedi'),
-                        escape(hhmm(start) + ' - ' + hhmm(end)), task.sure, escape(deadline)))
-    if not rows:
-        rows.append('<tr><td colspan="6">Uygun zaman aralığına görev yerleştirilemedi.</td></tr>')
-    rule_rows = ['<tr><td style="color:#475569;width:19%"><b>{}</b></td><td>{}</td></tr>'.format(
-        escape(str(label)), escape(str(value))) for label, value in rules]
-    note = escape(str(data.get('note') or '').strip())
+
+    task_table_html = ''
+    if include_tasks:
+        rows = []
+        tr_days = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
+        for date_, task, start, end in placed:
+            deadline = task.deadline.strftime('%d.%m.%Y') if task.deadline else 'Belirtilmedi'
+            rows.append('<tr><td>{}</td><td><b>{}</b><br/><span style="color:#64748b">{}</span></td>'
+                        '<td>{}</td><td>{}</td><td>{} dk</td><td>{}</td></tr>'.format(
+                            escape(tr_days[date_.weekday()] + ' ' + date_.strftime('%d.%m')),
+                            escape(task.ders), escape(task.konu), escape(task.kitap or 'Kaynak belirtilmedi'),
+                            escape(hhmm(start) + ' - ' + hhmm(end)), task.sure, escape(deadline)))
+        if not rows:
+            rows.append('<tr><td colspan="6">Uygun zaman aralığına görev yerleştirilemedi.</td></tr>')
+
+        task_table_html = f'''
+        <p style="font-size:8pt;font-weight:bold;color:#1e3a8a;margin:5px 0 2px">GÜN VE SAAT BAZINDA GÖREVLER</p>
+        <table width="100%" cellspacing="0" cellpadding="4" style="width:100%;border-collapse:collapse;font-size:8pt;border:1px solid #e2e8f0;">
+          <tr style="background:#e2e8f0;color:#334155;font-weight:bold">
+            <td>Gün / Tarih</td><td>Ders / Konu</td><td>Kitap</td><td>Başlangıç - Bitiş</td><td>Süre</td><td>Son teslim</td>
+          </tr>
+          {''.join(rows)}
+        </table>'''
+
+    constraints_table_html = ''
+    if include_rules:
+        week_text = (f'{days[0].date_.strftime("%d.%m.%Y")} - '
+                     f'{days[-1].date_.strftime("%d.%m.%Y")}') if days else 'Belirsiz'
+        first_school = data.get('school_by_day') or {}
+        school_descriptions = []
+        names = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
+        for i, val in sorted(first_school.items(), key=lambda kv: int(kv[0])):
+            try:
+                if len(val) == 2:
+                    school_descriptions.append(f'{names[int(i)]} {val[0]}-{val[1]}')
+            except (ValueError, TypeError, IndexError):
+                pass
+        rules = [
+            ('Hafta', week_text),
+            ('Okul', ', '.join(school_descriptions) if school_descriptions else 'Kayıt yok'),
+            ('Uyku', f'{data.get("sleep", "-")} - {data.get("wake", "-")}'),
+            ('Günlük üst sınır', f'{data.get("max", profile.get("daily_max", "-"))} dk'),
+            ('Okul sonrası geçiş', f'{data.get("after_school_buffer", 0)} dk'),
+            ('Rutin sonrası geçiş', f'{data.get("after_routine_buffer", 0)} dk'),
+            ('Öncelikli ders', data.get('focus') or 'Belirtilmedi'),
+        ]
+        if data.get('adaptive_topic_focus_v35'):
+            from services.weekly_topic_priority_v35 import accepted_topic_pairs
+            focus = accepted_topic_pairs(
+                [getattr(task, 'raw', {}) for day in days for task in day.tasks] +
+                [getattr(task, 'raw', {}) for task in profile.get('unassigned', [])],
+                data['adaptive_topic_focus_v35'])
+            if focus:
+                rules.append(('Öğretmen onaylı konu önceliği', ', '.join(
+                    f'{entry["lesson"]} / {entry["topic"]}' for entry in focus)))
+        if data.get('session_enabled'):
+            rules.append(('Oturum', f'{data.get("session_minutes", 45)} dk + '
+                             f'{data.get("session_break", 10)} dk mola'))
+        if data.get('routine_spread_enabled', True):
+            r_days = data.get('routine_spread_days', 7)
+            r_pref = {'after_school': 'Okul/Rutin Sonrası', 'morning': 'Sabah Erken', 'evening': 'Akşam Etüdü', 'auto': 'Otomatik'}.get(data.get('routine_time_preference', 'after_school'), 'Okul Sonrası')
+            rules.append(('Günlük Alışkanlık Rutini', f'{r_days} Gün • {r_pref}'))
+        for block in (data.get('blocks') or []):
+            rules.append(('Sabit rutin', block))
+
+        rule_rows = ['<tr><td style="color:#475569;width:19%"><b>{}</b></td><td>{}</td></tr>'.format(
+            escape(str(label)), escape(str(value))) for label, value in rules]
+
+        constraints_table_html = f'''
+        <p style="font-size:8pt;font-weight:bold;color:#1e3a8a;margin:6px 0 2px">PLANLAMADA DİKKATE ALINAN KISITLAR</p>
+        <table width="100%" cellspacing="0" cellpadding="3" style="width:100%;background:#f8fafc;font-size:7.5pt;border:1px solid #e2e8f0;">
+          {''.join(rule_rows)}
+        </table>'''
+
     pending = ''.join('<li>{} / {} / {} - {} dk{}</li>'.format(
         escape(t.ders), escape(t.konu), escape(t.kitap or '-'), t.sure,
         (' (son teslim: ' + t.deadline.strftime('%d.%m.%Y') + ')' if t.deadline else ''))
         for t in unassigned)
-    pending_block = ('<div style="background:#fffbeb; border:1px solid #f59e0b; padding:5px;">'
+    pending_block = ('<div style="background:#fffbeb; border:1px solid #f59e0b; padding:5px; margin-top:5px;">'
                      '<b>Yerleştirilemeyen görevler:</b><ul>' + pending + '</ul></div>') if unassigned else ''
-    note_block = ('<p style="font-size:8pt; color:#1e293b"><b>Öğretmen / Koç Notu:</b> '
+    note_block = ('<p style="font-size:8pt; color:#1e293b; margin-top:4px;"><b>Öğretmen / Koç Notu:</b> '
                   + note + '</p>') if note else ''
+
+    plan_summary_html = ''
+    if include_tasks or include_rules:
+        plan_summary_html = f'''
+        <table width="100%" cellspacing="0" cellpadding="5" style="width:100%;background:#eff6ff;border:1px solid #bfdbfe;font-size:8pt;">
+          <tr>
+            <td><b>PLAN ÖZETİ</b></td>
+            <td>Planlanan: <b>{len(placed)} oturum</b></td>
+            <td>Süre: <b>{planned_minutes} dk</b></td>
+            <td>Yerleştirilemeyen: <b>{len(unassigned)} oturum / {pending_minutes} dk</b></td>
+            <td>Kontrol: <b>Öğretmen onayı bekleniyor</b></td>
+          </tr>
+        </table>'''
+
     return f'''
     <div class="v35-report" style="margin-top:7px; border-top:2px solid #2563eb; padding-top:6px;">
-      <table width="100%" cellspacing="0" cellpadding="5" style="width:100%;background:#eff6ff;border:1px solid #bfdbfe;font-size:8pt;">
-        <tr>
-          <td><b>PLAN ÖZETİ</b></td>
-          <td>Planlanan: <b>{len(placed)} oturum</b></td>
-          <td>Süre: <b>{planned_minutes} dk</b></td>
-          <td>Yerleştirilemeyen: <b>{len(unassigned)} oturum / {pending_minutes} dk</b></td>
-          <td>Kontrol: <b>Öğretmen onayı bekleniyor</b></td>
-        </tr>
-      </table>
-      <p style="font-size:8pt;font-weight:bold;color:#1e3a8a;margin:5px 0 2px">GÜN VE SAAT BAZINDA GÖREVLER</p>
-      <table width="100%" cellspacing="0" cellpadding="4" style="width:100%;border-collapse:collapse;font-size:8pt;border:1px solid #e2e8f0;">
-        <tr style="background:#e2e8f0;color:#334155;font-weight:bold">
-          <td>Gün / Tarih</td><td>Ders / Konu</td><td>Kitap</td><td>Başlangıç - Bitiş</td><td>Süre</td><td>Son teslim</td>
-        </tr>
-        {''.join(rows)}
-      </table>
-      <p style="font-size:8pt;font-weight:bold;color:#1e3a8a;margin:6px 0 2px">PLANLAMADA DİKKATE ALINAN KISITLAR</p>
-      <table width="100%" cellspacing="0" cellpadding="3" style="width:100%;background:#f8fafc;font-size:7.5pt;border:1px solid #e2e8f0;">
-        {''.join(rule_rows)}
-      </table>
+      {plan_summary_html}
+      {task_table_html}
+      {constraints_table_html}
       {pending_block}
       {note_block}
       <p style="font-size:7pt;color:#64748b;margin-top:4px">Bu belge önerilen çalışma takvimidir. Kutuların boş olması,
@@ -139,6 +168,8 @@ def detailed_section(days: list[Any], profile: dict, details: Any) -> str:
 def enhance_html(base_html: str, days: list[Any], profile: dict, details: Any) -> str:
     """Retain existing executive calendar while adding the detailed information."""
     section = detailed_section(days, profile, details)
+    if not section.strip():
+        return base_html
     marker = '<div class="footer">'
     if marker not in base_html:
         raise ValueError('Haftalık takvim HTML şablonunda altbilgi bulunamadı.')

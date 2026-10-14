@@ -8838,26 +8838,82 @@ class OdevTakipFormu(QWidget):
             preview = QPrintPreviewDialog(printer, self)
             preview.setMinimumSize(1150, 780)
             preview.setWindowTitle("📅 Haftalık Çalışma Programı (A4 Yatay Takvim)")
-            
+
+            from services.planning_constraints import parse_details
+            from services.weekly_planner_presentation_v35 import detailed_section
+            from PyQt6.QtWidgets import QToolBar, QCheckBox, QLabel
+            from PyQt6.QtPrintSupport import QPrintPreviewWidget
+
+            parsed_d = parse_details(details) if details else {}
+            if not isinstance(parsed_d, dict):
+                parsed_d = {}
+            init_inc_tasks = bool(parsed_d.get('include_task_details', False))
+            init_inc_rules = bool(parsed_d.get('include_constraints', False))
+
+            html_holder = [html_content]
+            toolbars = preview.findChildren(QToolBar)
+            preview_widgets = preview.findChildren(QPrintPreviewWidget)
+            pw = preview_widgets[0] if preview_widgets else None
+            base_cal_html = SmartCalendarService._build_html(s_name, details, plan_bundle['days'], plan_bundle['profile'])
+
+            def refresh_preview_html():
+                inc_t = chk_tb_tasks.isChecked()
+                inc_r = chk_tb_rules.isChecked()
+                cur_d = dict(parsed_d)
+                cur_d['include_task_details'] = inc_t
+                cur_d['include_constraints'] = inc_r
+                sec = detailed_section(plan_bundle['days'], plan_bundle['profile'], cur_d)
+                if sec.strip() and '<div class="footer">' in base_cal_html:
+                    html_holder[0] = base_cal_html.replace('<div class="footer">', sec + '\n            <div class="footer">', 1)
+                else:
+                    html_holder[0] = base_cal_html
+                if pw:
+                    pw.updatePreview()
+
+            if toolbars:
+                tb = toolbars[0]
+                tb.addSeparator()
+                lbl_mode = QLabel("  📄 Sayfa Tercihi: ")
+                lbl_mode.setStyleSheet("font-weight: 600; color: #1e293b;")
+                tb.addWidget(lbl_mode)
+
+                chk_tb_tasks = QCheckBox("📋 Görev Listesi")
+                chk_tb_tasks.setToolTip("İşaretlenirse takvimin arkasına saatlik detay tablosu eklenir.")
+                chk_tb_tasks.setChecked(init_inc_tasks)
+                chk_tb_tasks.toggled.connect(lambda _: refresh_preview_html())
+                tb.addWidget(chk_tb_tasks)
+
+                chk_tb_rules = QCheckBox("⚙️ Kısıtlar & Kurallar")
+                chk_tb_rules.setToolTip("İşaretlenirse planlama kısıtları özeti eklenir.")
+                chk_tb_rules.setChecked(init_inc_rules)
+                chk_tb_rules.toggled.connect(lambda _: refresh_preview_html())
+                tb.addWidget(chk_tb_rules)
+
             def handle_print(p):
                 doc = QTextDocument()
                 doc.setDocumentMargin(0)
                 doc.setPageSize(p.pageRect(QPrinter.Unit.Point).size())
-                doc.setHtml(html_content)
+                doc.setHtml(html_holder[0])
                 doc.print(p)
-                
+
             preview.paintRequested.connect(handle_print)
             preview.exec()
             # Hiçbir zaman otomatik onaylama: kaydı yalnızca öğretmen isterse yap.
             if student_key(student_uid) and differences['changed']:
-                confirmation = QMessageBox.question(
-                    self, 'Plan Taslağını Onayla',
-                    'Önizlediğiniz haftalık planı bu öğrenci için son onaylanmış plan '
-                    'olarak kaydetmek ister misiniz?\n\n'
-                    'Verilen Ödevler tablosu ve elle düzenlediğiniz planlar değişmez.',
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No)
-                if confirmation == QMessageBox.StandardButton.Yes:
+                box = QMessageBox(self)
+                box.setWindowTitle("📅 Haftalık Planı Güncel Plan Olarak Onayla")
+                box.setIcon(QMessageBox.Icon.Question)
+                box.setText("<b>Önizlediğiniz haftalık planı bu öğrenci için güncel referans plan olarak kaydetmek ister misiniz?</b>")
+                box.setInformativeText(
+                    "• <b>Evet, Kaydet:</b> Bu yeni çalışma takvimi öğrencinin güncel resmi planı olarak sisteme kaydedilir.\n"
+                    "• <b>Hayır, Sadece İnceledim:</b> Takvim yalnızca önizlenmiş / yazdırılmış olur; sistemdeki eski kayıt değişmez.\n\n"
+                    "<i>(Not: Verilen Ödevler tablonuz ve öğrenci verileriniz hiçbir şekilde silinmez veya bozulmaz.)</i>"
+                )
+                btn_yes = box.addButton("Evet, Kaydet", QMessageBox.ButtonRole.YesRole)
+                btn_no = box.addButton("Hayır, Sadece İnceledim", QMessageBox.ButtonRole.NoRole)
+                box.setDefaultButton(btn_yes)
+                box.exec()
+                if box.clickedButton() == btn_yes:
                     approve_snapshot(student_uid, snapshot)
             
         except ImportError:

@@ -35,3 +35,4 @@ rubicon-objc==0.5.2
 six==1.17.0
 tzdata==2025.2
 XlsxWriter==3.2.0
+qrcode>=7.4

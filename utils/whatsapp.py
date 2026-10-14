@@ -310,11 +310,10 @@ def whatsapp_gonder(numaralar: list, mesaj: str, ogrenci_id=None, time_delay=Non
                     except Exception:
                         pass
                 else:
-                    # Windows / Linux: yapıştır ve gönder
-                    if mesaj:
-                        _paste(mesaj)
-                        _sleep(0.5)
-                        _press_enter(times=burst, pause=pause)
+                    # Windows / Linux: _open_deeplink(n, text=mesaj) mesajı giriş kutusuna zaten doldurur.
+                    # İkinci kez _paste (Ctrl+V) yapılırsa mesaj çift gönderilir. Dolayısıyla sadece Enter ile gönderilir:
+                    _sleep(0.5)
+                    _press_enter(times=burst, pause=pause)
 
                 if image_path and os.path.exists(str(image_path)):
                     _sleep(0.5)

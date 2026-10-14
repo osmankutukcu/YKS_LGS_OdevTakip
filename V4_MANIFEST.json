@@ -1,0 +1,59 @@
+{
+  "package": "YKS-LGS Offline V4 Encrypted Recovery PILOT",
+  "base": "YKS_LGS_HomeworkManager_V3_Entegre_Kaynak_Veriler_Haric.zip (V3 modular sync required)",
+  "stage": "TEST_ONLY_NO_LIVE_INSTALL",
+  "changed_files": [
+    {
+      "path": "web_api/static/js/offline_vault.js",
+      "action": "new",
+      "sha256": "5fc933f8cb5a90620c58947370de509df2a0212a6cd08ebcdba9c3275db510d5"
+    },
+    {
+      "path": "web_api/static/js/offline_sync.js",
+      "action": "updated",
+      "sha256": "1680eda1005ca7dab7381501f8c7cec061f4c8535cfbb8ff73ffbcb8bd64572d"
+    },
+    {
+      "path": "web_api/static/sw.js",
+      "action": "updated",
+      "sha256": "7ac16c41a04a64aafa721996e8141bf386439319cfcf5f536c82b4ba685f6f80"
+    },
+    {
+      "path": "web_api/templates/index.html",
+      "action": "updated",
+      "sha256": "f76a8acce21ca45606631b0ec141d5bec1959fbf4971596e11732b75fbd0c1d4"
+    },
+    {
+      "path": "tests/test_offline_vault_v4.cjs",
+      "action": "new",
+      "sha256": "dea7b4f85af64daaa9228c476d753219d2051fbdd4e0d65c14c8d291f0b6d056"
+    },
+    {
+      "path": "MOBIL_OFFLINE_V4_KURULUM_VE_TEST.md",
+      "action": "new",
+      "sha256": "16a419b40ea14168ad3963a562e7e48ab95a9f234a4bf26a427db6ba88d0a699"
+    }
+  ],
+  "preserved_byte_identical_core": [
+    "db.py",
+    "web_api/main.py",
+    "main_window.py",
+    "ui/homework_form.py",
+    "web_api/homework_store.py",
+    "ui/web_access_dialog.py",
+    "web_api/sync_transactions.py",
+    "web_api/sync_engine.py"
+  ],
+  "tests": {
+    "node_webcrypto_fake_indexeddb": "passed (7 scenarios)",
+    "python_regression": "84 passed, 3 subtests passed",
+    "real_ios_android_windows_browser": "not executed - must pilot"
+  },
+  "limitations": [
+    "Existing IndexedDB records are NOT encrypted at rest",
+    "Backup must be manually saved",
+    "Requires fixed HTTPS PWA origin for offline reopen",
+    "No real Windows/iOS/Android end-to-end test",
+    "No SQLite database or personal record changed"
+  ]
+}

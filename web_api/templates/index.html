@@ -3,496 +3,1192 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>YKS-LGS Mobil Panel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>YKS-LGS Koçluk & Ödev Takip</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Koçluk">
     <style>
-        /* --- CORE STYLES (Tailwind-like) --- */
         :root {
             --primary: #2563eb;
             --primary-dark: #1d4ed8;
+            --primary-light: #eff6ff;
             --success: #10b981;
+            --success-light: #ecfdf5;
+            --danger: #ef4444;
+            --danger-light: #fef2f2;
             --warning: #f59e0b;
-            --bg: #f1f5f9;
+            --warning-light: #fffbeb;
+            --bg: #f8fafc;
             --surface: #ffffff;
-            --text-main: #1e293b;
+            --text-main: #0f172a;
             --text-sub: #64748b;
             --border: #e2e8f0;
+            --border-light: #f1f5f9;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+            --safe-bottom: env(safe-area-inset-bottom, 16px);
         }
 
         * {
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
+            margin: 0;
+            padding: 0;
         }
 
         body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background: var(--bg);
             color: var(--text-main);
             font-size: 14px;
-            padding-bottom: 80px;
+            line-height: 1.45;
+            padding-bottom: calc(75px + var(--safe-bottom));
+            -webkit-font-smoothing: antialiased;
         }
 
-        .hidden {
-            display: none !important;
+        .hidden { display: none !important; }
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .justify-center { justify-content: center; }
+        .gap-1 { gap: 4px; }
+        .gap-2 { gap: 8px; }
+        .gap-3 { gap: 12px; }
+        .gap-4 { gap: 16px; }
+        .w-full { width: 100%; }
+        .text-center { text-align: center; }
+        .font-bold { font-weight: 700; }
+        .font-semibold { font-weight: 600; }
+        .font-medium { font-weight: 500; }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Container */
+        .app-container {
+            max-width: 540px;
+            margin: 0 auto;
+            padding: 12px 16px;
         }
 
-        .flex {
-            display: flex;
-        }
-
-        .flex-col {
-            flex-direction: column;
-        }
-
-        .items-center {
-            align-items: center;
-        }
-
-        .justify-between {
-            justify-content: space-between;
-        }
-
-        .justify-center {
-            justify-content: center;
-        }
-
-        .gap-2 {
-            gap: 0.5rem;
-        }
-
-        .gap-3 {
-            gap: 0.75rem;
-        }
-
-        .gap-4 {
-            gap: 1rem;
-        }
-
-        .p-4 {
-            padding: 1rem;
-        }
-
-        .p-6 {
-            padding: 1.5rem;
-        }
-
-        .px-6 {
-            padding-left: 1.5rem;
-            padding-right: 1.5rem;
-        }
-
-        .py-4 {
-            padding-top: 1rem;
-            padding-bottom: 1rem;
-        }
-
-        .rounded-xl {
-            border-radius: 0.75rem;
-        }
-
-        .rounded-2xl {
-            border-radius: 1rem;
-        }
-
-        .rounded-full {
-            border-radius: 9999px;
-        }
-
-        .shadow {
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .shadow-lg {
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        }
-
-        .text-white {
-            color: white;
-        }
-
-        .text-center {
-            text-align: center;
-        }
-
-        .font-bold {
-            font-weight: 700;
-        }
-
-        .font-medium {
-            font-weight: 500;
-        }
-
-        .text-sm {
-            font-size: 0.875rem;
-        }
-
-        .text-xs {
-            font-size: 0.75rem;
-        }
-
-        .text-lg {
-            font-size: 1.125rem;
-        }
-
-        .text-xl {
-            font-size: 1.25rem;
-        }
-
-        .text-2xl {
-            font-size: 1.5rem;
-        }
-
-        .text-3xl {
-            font-size: 1.875rem;
-        }
-
-        .w-full {
-            width: 100%;
-        }
-
-        .h-full {
-            height: 100%;
-        }
-
-        .bg-white {
-            background: var(--surface);
-        }
-
-        .bg-slate-50 {
-            background: #f8fafc;
-        }
-
-        .border {
-            border: 1px solid var(--border);
-        }
-
-        .border-b {
-            border-bottom: 1px solid var(--border);
-        }
-
-        /* --- COMPONENTS --- */
-        .header {
+        /* Top Header */
+        .app-header {
             position: sticky;
             top: 0;
             z-index: 40;
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(8px);
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--border);
-        }
-
-        .card {
-            background: var(--surface);
-            border-radius: 1rem;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-            border: 1px solid var(--border);
-            overflow: hidden;
-            transition: transform 0.1s;
-        }
-
-        .card:active {
-            transform: scale(0.98);
-        }
-
-        .btn {
-            border: none;
-            outline: none;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
+            padding: 10px 16px;
             transition: all 0.2s;
-            font-family: inherit;
         }
-
-        .btn-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: #f1f5f9;
-            color: var(--text-sub);
+        .header-content {
+            max-width: 540px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
-
-        .btn-primary {
-            background: var(--primary);
-            color: white;
-            border-radius: 0.75rem;
-            padding: 1rem;
-            font-weight: 600;
-            width: 100%;
-            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+        .app-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-
-        .btn-primary:active {
-            background: var(--primary-dark);
-        }
-
-        .btn-primary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .btn-fab {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4);
-            z-index: 30;
-        }
-
-        /* --- SPECIFIC STYLES --- */
-        .stat-card {
-            padding: 1rem;
-            border-radius: 1rem;
-            color: white;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-card.blue {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-        }
-
-        .stat-card.green {
-            background: linear-gradient(135deg, #10b981, #059669);
-        }
-
-        .input-field {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            border-radius: 0.75rem;
-            border: 1px solid var(--border);
-            background: #f8fafc;
-            font-size: 1rem;
-            margin-bottom: 1rem;
-            outline: none;
-        }
-
-        .input-field:focus {
-            border-color: var(--primary);
-            background: white;
-        }
-
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 50;
+        .brand-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff;
             display: flex;
             align-items: center;
             justify-content: center;
-            backdrop-filter: blur(2px);
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+        }
+        .brand-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1.2;
+        }
+        .brand-subtitle {
+            font-size: 11px;
+            color: var(--text-sub);
+            font-weight: 500;
         }
 
-        .modal-content {
-            background: white;
-            width: 100%;
-            max-width: 400px;
-            padding: 1.5rem;
-            border-radius: 1rem;
-            margin: 1rem;
-            animation: slideUp 0.3s ease-out;
-            max-height: 90vh;
-            overflow-y: auto;
+        /* Student Active Pill in Header */
+        .active-student-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--primary-light);
+            border: 1px solid rgba(37, 99, 235, 0.2);
+            color: var(--primary);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            max-width: 170px;
+        }
+        .active-student-pill:active {
+            background: #dbeafe;
         }
 
-        @keyframes slideUp {
-            from {
-                transform: translateY(20px);
-                opacity: 0;
-            }
-
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        /* Loaders */
-        .spinner {
-            width: 24px;
-            height: 24px;
-            border: 3px solid #e2e8f0;
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        #loader-overlay {
+        /* Bottom Navigation Bar */
+        .bottom-nav {
             position: fixed;
-            inset: 0;
-            background: white;
-            z-index: 100;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 50;
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-top: 1px solid var(--border);
+            padding: 6px 12px calc(6px + var(--safe-bottom));
+        }
+        .nav-inner {
+            max-width: 540px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        .nav-item {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 1rem;
-            transition: opacity 0.3s;
+            gap: 3px;
+            padding: 6px 10px;
+            border-radius: 10px;
+            background: transparent;
+            border: none;
+            color: var(--text-sub);
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.15s ease;
+            position: relative;
+        }
+        .nav-item svg {
+            width: 22px;
+            height: 22px;
+            transition: transform 0.15s ease;
+        }
+        .nav-item.active {
+            color: var(--primary);
+        }
+        .nav-item.active svg {
+            transform: scale(1.1);
+            color: var(--primary);
+        }
+        .nav-badge {
+            position: absolute;
+            top: 2px;
+            right: 12px;
+            background: var(--danger);
+            color: white;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 10px;
+            min-width: 14px;
+            text-align: center;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .card-interactive:active {
+            transform: scale(0.99);
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: none;
+            outline: none;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: var(--radius-md);
+            padding: 9px 14px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+        }
+        .btn-primary:active {
+            background: var(--primary-dark);
+            transform: scale(0.98);
+        }
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+        .btn-success:active {
+            background: #059669;
+        }
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        .btn-secondary {
+            background: #f1f5f9;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:active {
+            background: #e2e8f0;
+        }
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 11px;
+            border-radius: var(--radius-sm);
+        }
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border-radius: 50%;
+            background: #f1f5f9;
+            color: var(--text-sub);
+            border: 1px solid var(--border);
+        }
+        .btn-icon:active {
+            background: #e2e8f0;
+        }
+
+        /* Inputs & Selects */
+        .input-group {
+            margin-bottom: 12px;
+        }
+        .input-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+        .input-control {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: #fff;
+            color: var(--text-main);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.15s;
+            font-family: inherit;
+        }
+        .input-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+
+        /* Search Bar */
+        .search-box {
+            position: relative;
+            margin-bottom: 14px;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 10px 14px 10px 38px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            background: #ffffff;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.15s;
+        }
+        .search-box input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-sub);
+            pointer-events: none;
+        }
+
+        /* Horizontal Scroll Carousel (Lessons) */
+        .scroll-chips {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 4px 0 10px 0;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        .scroll-chips::-webkit-scrollbar {
+            display: none;
+        }
+        .chip {
+            flex-shrink: 0;
+            padding: 7px 14px;
+            border-radius: 20px;
+            background: #ffffff;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .chip:active {
+            transform: scale(0.96);
+        }
+        .chip.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+        }
+        .chip-sm {
+            padding: 5px 11px;
+            font-size: 11px;
+        }
+        .chip-danger.active {
+            background: #dc2626 !important;
+            color: white !important;
+            border-color: #dc2626 !important;
+            box-shadow: 0 2px 6px rgba(220, 38, 38, 0.3) !important;
+        }
+        .chip-warning.active {
+            background: #d97706 !important;
+            color: white !important;
+            border-color: #d97706 !important;
+            box-shadow: 0 2px 6px rgba(217, 119, 6, 0.3) !important;
+        }
+        .chip-info.active {
+            background: #0284c7 !important;
+            color: white !important;
+            border-color: #0284c7 !important;
+            box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3) !important;
+        }
+        .chip-purple.active {
+            background: #7c3aed !important;
+            color: white !important;
+            border-color: #7c3aed !important;
+            box-shadow: 0 2px 6px rgba(124, 58, 237, 0.3) !important;
+        }
+
+        /* Book Pills & Tag Management */
+        .book-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+            padding: 5px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            margin: 3px;
+        }
+        .book-remove-btn {
+            background: transparent;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            padding: 0 2px;
+            font-weight: bold;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-success { background: var(--success-light); color: #065f46; border: 1px solid #a7f3d0; }
+        .badge-warning { background: var(--warning-light); color: #92400e; border: 1px solid #fde68a; }
+        .badge-danger { background: var(--danger-light); color: #991b1b; border: 1px solid #fecaca; }
+        .badge-info { background: var(--primary-light); color: #1e40af; border: 1px solid #bfdbfe; }
+        .badge-neutral { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+
+        /* Modals */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            z-index: 100;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-sheet {
+            background: #ffffff;
+            width: 100%;
+            max-width: 520px;
+            border-radius: 20px 20px 0 0;
+            max-height: 88vh;
+            display: flex;
+            flex-direction: column;
+            transform: translateY(100%);
+            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            padding-bottom: calc(16px + var(--safe-bottom));
+            box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .modal-overlay.active .modal-sheet {
+            transform: translateY(0);
+        }
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .modal-handle {
+            width: 36px;
+            height: 4px;
+            background: #cbd5e1;
+            border-radius: 4px;
+            margin: 8px auto 4px auto;
+        }
+        .modal-body {
+            padding: 16px 20px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: #1e293b;
+            color: #fff;
+            padding: 10px 18px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: var(--shadow-lg);
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Spinner */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .spinner-blue {
+            border-color: #e2e8f0;
+            border-top-color: var(--primary);
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Access layer */
+        #access-layer {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* Sync & Offline Banner */
+        .sync-banner {
+            background: #f8fafc;
+            border-bottom: 1px solid var(--border);
+            padding: 7px 16px;
+            font-size: 11px;
+            color: var(--text-sub);
+        }
+        .sync-banner-content {
+            max-width: 540px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .sync-status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dot-green { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }
+        .dot-yellow { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.5); }
+        .dot-gray { background: #94a3b8; }
+        .btn-sync {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-main);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.15s;
+        }
+        .btn-sync:active { transform: scale(0.96); }
+        .btn-sync-primary {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #fff;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
         }
     </style>
 </head>
 
 <body>
 
-    <!-- LOADER -->
-    <div id="loader-overlay">
-        <div class="spinner" style="width: 48px; height: 48px; border-width: 4px;"></div>
-        <div style="color: var(--text-sub); font-weight: 500;">Yükleniyor...</div>
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="toast">
+        <span id="toast-icon">✓</span>
+        <span id="toast-message">İşlem başarılı</span>
     </div>
 
-    <!-- ERROR BOX -->
-    <div id="error-box" class="hidden"
-        style="position:fixed; top:0; left:0; width:100%; background:#ef4444; color:white; padding:15px; z-index:101; font-size:12px;">
+    <!-- ACCESS LAYER (SECURITY) -->
+    <div id="access-layer">
+        <div style="background:#fff; border-radius:20px; max-width:400px; width:100%; padding:28px; box-shadow:0 12px 35px rgba(0,0,0,0.08); border:1px solid #e2e8f0;">
+            <div style="width:48px; height:48px; background:#eff6ff; border-radius:14px; display:flex; align-items:center; justify-content:center; color:#2563eb; margin-bottom:14px;">
+                <svg width="24" height="24" fill="currentColor" viewBox="0 0 256 256"><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Zm-80-56a16,16,0,1,1-16-16A16,16,0,0,1,128,152Z"/></svg>
+            </div>
+            <h2 style="font-size:18px; font-weight:700; color:#0f172a; margin-bottom:6px;">Ödev Takip Web Girişi</h2>
+            <p style="font-size:13px; color:#64748b; margin-bottom:16px;">Masaüstü programında <b>Mobil & Web Erişim → Güvenlik</b> sekmesindeki anahtarla giriş yapın veya QR kodu okutun.</p>
+            <input id="access-key" type="password" placeholder="Web erişim anahtarını yapıştırın" autocomplete="off"
+                   style="width:100%; padding:12px 14px; border:1px solid #cbd5e1; border-radius:12px; font-size:14px; margin-bottom:12px; outline:none;">
+            <button id="access-submit" type="button" class="btn btn-primary w-full" style="padding:12px; font-size:14px;">Giriş Yap</button>
+            <p id="access-error" style="color:#ef4444; font-size:12px; margin-top:10px; font-weight:600;"></p>
+            <div style="margin-top:14px; border-top:1px solid #e2e8f0; padding-top:12px;">
+                <input id="offline-unlock-pass" type="password" autocomplete="off" placeholder="Çevrimdışı erişim parolanız" style="display:none; width:100%; padding:11px; border:1px solid #c7d2fe; border-radius:10px; margin-bottom:7px;">
+                <button id="btn-offline-unlock" type="button" style="display:none; width:100%; background:#eef2ff; border:1px solid #c7d2fe; border-radius:10px; padding:11px; font-weight:700;" onclick="unlockPhoneOffline()">🔐 Telefon verilerini çevrimdışı aç</button>
+                <button type="button" style="margin-top:8px; width:100%; padding:9px; border:1px solid #e2e8f0; background:white; border-radius:10px;" onclick="toggleVaultPanel(true)">🛟 Şifreli yedekten kurtar</button>
+                <p style="font-size:11px; color:#64748b; margin-top:8px;">Çevrimdışı giriş, bilgisayar açıkken önceden ayarlanmış olmalıdır.</p>
+            </div>
+        </div>
     </div>
 
-    <!-- HEADER -->
-    <header class="header px-6 py-4 flex justify-between items-center">
-        <div class="flex items-center gap-3">
-            <div class="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-xl text-white shadow">
-                <!-- Cap Icon -->
-                <svg width="20" height="20" fill="currentColor" viewBox="0 0 256 256">
-                    <path
-                        d="M251.76,88.94l-120-64a8,8,0,0,0-7.52,0l-120,64a8,8,0,0,0,0,14.12L32,117.87v48.42a15.91,15.91,0,0,0,4.06,10.65C49.16,191.53,78.51,216,128,216a130,130,0,0,0,48-8.76V240a8,8,0,0,0,16,0V199.51a115.63,115.63,0,0,0,27.94-12.57C224.84,182.06,232,171.05,232,166.29V117.87l27.76-14.81a8,8,0,0,0,0-14.12ZM128,200c-43.27,0-72-21.82-80-33.71V126.4l76.24,40.66a8,8,0,0,0,7.52,0L208,126.4v33.71C200,178.18,171.27,200,128,200Zm0-49.07L46.32,108,128,64.44,209.68,108Z">
-                    </path>
-                </svg>
+    <!-- TOP HEADER -->
+    <header class="app-header">
+        <div class="header-content">
+            <div class="app-brand">
+                <div class="brand-icon">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 256 256">
+                        <path d="M251.76,88.94l-120-64a8,8,0,0,0-7.52,0l-120,64a8,8,0,0,0,0,14.12L32,117.87v48.42a15.91,15.91,0,0,0,4.06,10.65C49.16,191.53,78.51,216,128,216a130,130,0,0,0,48-8.76V240a8,8,0,0,0,16,0V199.51a115.63,115.63,0,0,0,27.94-12.57C224.84,182.06,232,171.05,232,166.29V117.87l27.76-14.81a8,8,0,0,0,0-14.12ZM128,200c-43.27,0-72-21.82-80-33.71V126.4l76.24,40.66a8,8,0,0,0,7.52,0L208,126.4v33.71C200,178.18,171.27,200,128,200Zm0-49.07L46.32,108,128,64.44,209.68,108Z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="brand-title">YKS-LGS Koçluk</h1>
+                    <p class="brand-subtitle" id="header-status">Canlı Veritabanı</p>
+                </div>
             </div>
-            <div>
-                <h1 class="text-lg font-bold text-slate-800" style="line-height:1.1;">YKS-LGS</h1>
-                <p class="text-xs text-slate-400 font-medium">Asistan v3.0 (Offline)</p>
+
+            <div class="flex items-center gap-2">
+                <!-- Active Student Pill (When chosen) -->
+                <div id="header-student-pill" class="active-student-pill hidden" onclick="openStudentPicker()">
+                    <span class="truncate" id="header-student-name">Öğrenci</span>
+                    <span style="font-size:10px;">▾</span>
+                </div>
+                <button id="btn-student-info" class="btn btn-icon hidden" onclick="openStudentProfileModal()" title="Öğrenci & Veli Bilgisi">
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,84a12,12,0,1,1,12,12A12,12,0,0,1,112,84Z"/></svg>
+                </button>
             </div>
-        </div>
-        <div class="flex gap-2">
-            <button id="btn-info" class="btn btn-icon hidden" onclick="openInfo()">
-                <!-- Info Icon -->
-                <svg width="24" height="24" fill="currentColor" viewBox="0 0 256 256">
-                    <path
-                        d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,84a12,12,0,1,1,12,12A12,12,0,0,1,112,84Z">
-                    </path>
-                </svg>
-            </button>
-            <button id="btn-home" class="btn btn-icon hidden" onclick="renderHomeView()">
-                <!-- Home Icon -->
-                <svg width="24" height="24" fill="currentColor" viewBox="0 0 256 256">
-                    <path
-                        d="M224,115.55V208a16,16,0,0,1-16,16H168a16,16,0,0,1-16-16V168a8,8,0,0,0-8-8H112a8,8,0,0,0-8,8v40a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V115.55a16,16,0,0,1,5.17-11.78l80-75.48.11-.11a16,16,0,0,1,21.53,0,1.14,1.14,0,0,0,.11.11l80,75.48A16,16,0,0,1,224,115.55Z">
-                    </path>
-                </svg>
-            </button>
-        </div>
     </header>
 
-    <!-- CONTENT ROOT -->
-    <main id="app-root" class="p-6" style="max-width: 500px; margin: 0 auto;"></main>
-
-    <!-- FAB -->
-    <button id="fab-assign" class="btn btn-fab hidden" onclick="openAssignModal()">
-        <svg width="28" height="28" fill="currentColor" viewBox="0 0 256 256">
-            <path
-                d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z">
-            </path>
-        </svg>
-    </button>
-
-    <!-- ASSIGN MODAL -->
-    <div id="modal-assign" class="modal-overlay hidden">
-        <div class="modal-content">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold">Yeni Ödev Ver</h3>
-                <button onclick="closeAssignModal()" class="text-slate-400">✕</button>
+    <!-- OFFLINE & SYNC STRIP -->
+    <div id="sync-banner" class="sync-banner">
+        <div class="sync-banner-content">
+            <div class="sync-status-indicator">
+                <span id="sync-status-dot" class="status-dot dot-green"></span>
+                <span id="sync-status-text">Bağlantı kuruluyor...</span>
             </div>
-            <div id="form-content">
-                <!-- Form dynamically injected -->
+            <div class="flex items-center gap-2">
+                <button class="btn-sync" onclick="toggleVaultPanel(true)" title="Şifreli yedekleme ve kurtarma">🛡 Yedek</button>
+                <button id="btn-sync-pull" class="btn-sync" onclick="triggerDownloadSnapshot()" title="Masaüstünden en son verileri telefona indir">
+                    📥 İndir
+                </button>
+                <button id="btn-sync-push" class="btn-sync btn-sync-primary hidden" onclick="triggerPushSync()" title="Çevrimdışı verilen ödevleri bilgisayara aktar">
+                    🔄 Aktar (<span id="sync-pending-badge">0</span>)
+                </button>
             </div>
-            <button id="btn-submit-hw" onclick="submitHomework()" class="btn-primary" style="margin-top:1rem;"
-                disabled>Kaydet</button>
         </div>
     </div>
 
-    <!-- JAVASCRIPT LOGIC (No Frameworks) -->
-    <div id="access-layer" style="position:fixed;inset:0;z-index:9999;background:#f1f5f9;display:flex;align-items:center;justify-content:center;padding:20px">
-      <div style="background:#fff;border-radius:18px;max-width:420px;width:100%;padding:28px;box-shadow:0 8px 30px #0002">
-        <h2 style="margin:0 0 12px">🔒 Ödev Takip Web Girişi</h2>
-        <p>Masaüstü programında Mobil & Web Erişim → Güvenlik sekmesinden erişim anahtarını kopyalayın.</p>
-        <input id="access-key" autocomplete="off" type="password" placeholder="Web erişim anahtarı"
-               style="width:100%;padding:14px;border:1px solid #94a3b8;border-radius:9px;margin:10px 0"/>
-        <button id="access-submit" type="button" style="background:#2563eb;color:#fff;border:0;padding:12px;border-radius:9px;width:100%">Giriş Yap</button>
-        <p id="access-error" role="alert" style="color:#b91c1c;font-size:13px"></p>
-        <p style="font-size:12px;color:#64748b">Anahtar yalnızca bu sekmenin belleğinde tutulur; URL'ye eklenmez.</p>
-      </div>
+    <!-- MAIN APP PAGES (TABS) -->
+    <main class="app-container">
+
+        <!-- TAB 1: ÖĞRENCİLER (STUDENTS HUB) -->
+        <section id="tab-students" class="tab-page">
+            <!-- Search & Quick Stats -->
+            <div class="search-box">
+                <svg class="search-icon" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg>
+                <input type="text" id="student-search-input" placeholder="Öğrenci adı veya sınıf ara..." oninput="filterStudents(this.value)">
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="flex gap-2 mb-3">
+                <div class="card p-3 w-full text-center" style="margin-bottom:0; background:linear-gradient(135deg, #eff6ff, #dbeafe); border-color:#bfdbfe;">
+                    <div style="font-size:11px; font-weight:600; color:#1e40af;">Toplam Öğrenci</div>
+                    <div style="font-size:22px; font-weight:800; color:#1e3a8a;" id="stat-students-count">0</div>
+                </div>
+                <div class="card p-3 w-full text-center" style="margin-bottom:0; background:linear-gradient(135deg, #fef3c7, #fde68a); border-color:#fcd34d;">
+                    <div style="font-size:11px; font-weight:600; color:#92400e;">Bekleyen Ödev</div>
+                    <div style="font-size:22px; font-weight:800; color:#78350f;" id="stat-pending-tasks">0</div>
+                </div>
+                <div class="card p-3 w-full text-center" style="margin-bottom:0; background:linear-gradient(135deg, #ecfdf5, #d1fae5); border-color:#a7f3d0;">
+                    <div style="font-size:11px; font-weight:600; color:#065f46;">Başarı Oranı</div>
+                    <div style="font-size:22px; font-weight:800; color:#064e3b;" id="stat-success-rate">%0</div>
+                </div>
+            </div>
+
+            <!-- QUICK CONTROL DATE FILTERS -->
+            <div id="date-filter-bar" class="scroll-chips" style="margin-top:12px; margin-bottom:4px; padding:2px 0;">
+                <button class="chip active" id="pill-date-all" onclick="setDateFilter('all', this)">Tümü</button>
+                <button class="chip chip-danger" id="pill-date-overdue" onclick="setDateFilter('overdue', this)">🚨 Gecikenler <span id="count-overdue" class="badge" style="background:#fee2e2; color:#b91c1c; margin-left:4px; font-size:10px; font-weight:700;">0</span></button>
+                <button class="chip chip-warning" id="pill-date-today" onclick="setDateFilter('today', this)">📅 Bugün Teslim <span id="count-today" class="badge" style="background:#fef3c7; color:#92400e; margin-left:4px; font-size:10px; font-weight:700;">0</span></button>
+                <button class="chip chip-info" id="pill-date-tomorrow" onclick="setDateFilter('tomorrow', this)">⏳ Yarın <span id="count-tomorrow" class="badge" style="background:#e0f2fe; color:#0369a1; margin-left:4px; font-size:10px; font-weight:700;">0</span></button>
+                <button class="chip chip-purple" id="pill-date-week" onclick="setDateFilter('week', this)">📆 Bu Hafta <span id="count-week" class="badge" style="background:#ede9fe; color:#6d28d9; margin-left:4px; font-size:10px; font-weight:700;">0</span></button>
+            </div>
+
+            <div class="flex justify-between items-center mb-2" style="margin-top:10px;">
+                <h3 style="font-size:14px; font-weight:700; color:var(--text-main);">Öğrenci Listesi</h3>
+                <span id="student-count-badge" class="badge badge-neutral">0 Öğrenci</span>
+            </div>
+
+            <!-- Student List Container -->
+            <div id="students-list-container">
+                <div class="card text-center p-6" style="color:var(--text-sub);">
+                    <div class="spinner spinner-blue" style="margin:0 auto 10px auto;"></div>
+                    Öğrenciler yükleniyor...
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 2: ÖDEV TAKİP & MATRİS (TOPICS & BOOKS) -->
+        <section id="tab-matrix" class="tab-page hidden">
+            <!-- Active Student Notification Banner if no student selected -->
+            <div id="matrix-no-student" class="card text-center p-6 hidden">
+                <p style="font-weight:600; color:var(--text-sub); margin-bottom:12px;">Lütfen önce bir öğrenci seçin</p>
+                <button class="btn btn-primary" onclick="switchTab('students')">Öğrenci Seç</button>
+            </div>
+
+            <div id="matrix-content">
+                <!-- Lesson Selector (Horizontal Swipeable Chips) -->
+                <div class="flex justify-between items-center mb-1">
+                    <span class="input-label" style="margin-bottom:0;">Ders Seçimi</span>
+                    <span id="matrix-active-lesson-label" style="font-size:11px; font-weight:700; color:var(--primary);"></span>
+                </div>
+                <div id="matrix-lessons-chips" class="scroll-chips">
+                    <!-- Lesson chips dynamically loaded -->
+                </div>
+
+                <!-- Student's Books Management Panel -->
+                <div class="card" style="padding:14px; margin-top:8px; border-left:4px solid var(--primary);">
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="flex items-center gap-2">
+                            <span style="font-size:13px; font-weight:700; color:var(--text-main);">📚 Öğrencinin Kitapları</span>
+                            <span id="student-books-count-badge" class="badge badge-info" style="font-size:10px;">0 Kitap</span>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="openAddBookModal()">
+                            <span>+ Kitap Ekle</span>
+                        </button>
+                    </div>
+
+                    <!-- Book Chips -->
+                    <div id="student-books-list" class="flex" style="flex-wrap:wrap; gap:4px; min-height:30px; align-items:center;">
+                        <span style="font-size:12px; color:var(--text-sub);">Bu ders için kayıtlı kitap yok. "+ Kitap Ekle"ye basarak ekleyin.</span>
+                    </div>
+                </div>
+
+                <!-- Book Focus & Status Filter (Masaüstü Ödev Takip Formu Matrisi) -->
+                <div class="flex justify-between items-center mb-1" style="margin-top:12px;">
+                    <span class="input-label" style="margin-bottom:0;">Kitap İnceleme Odağı</span>
+                    <span id="matrix-focused-book-stats" style="font-size:11px; font-weight:700; color:var(--primary);"></span>
+                </div>
+                <div id="matrix-book-focus-chips" class="scroll-chips" style="padding-bottom:4px;">
+                    <!-- Book focus chips dynamically populated -->
+                </div>
+
+                <!-- Mini Status Counters Bar -->
+                <div id="matrix-mini-stats-bar" class="flex gap-1 mb-2" style="font-size:11px; font-weight:700; flex-wrap:wrap;">
+                    <!-- [ 5 Bitmiş ] [ 4 Devam ] [ 1 Gecikmiş ] [ 12 Boş ] -->
+                </div>
+
+                <!-- Status Filter Chips -->
+                <div class="flex gap-1 mb-2 scroll-chips" id="matrix-status-filter-chips" style="padding-bottom:4px;">
+                    <button type="button" class="chip active matrix-status-chip" onclick="setMatrixStatusFilter('Hepsi', this)">Tümü</button>
+                    <button type="button" class="chip matrix-status-chip" style="color:#dc2626;" onclick="setMatrixStatusFilter('gecikmis', this)">🚨 Gecikmiş (<span id="mat-count-gecikmis">0</span>)</button>
+                    <button type="button" class="chip matrix-status-chip" style="color:#b45309;" onclick="setMatrixStatusFilter('devam', this)">⏳ Devam Eden (<span id="mat-count-devam">0</span>)</button>
+                    <button type="button" class="chip matrix-status-chip" style="color:#059669;" onclick="setMatrixStatusFilter('tamam', this)">✅ Yapıldı (<span id="mat-count-tamam">0</span>)</button>
+                    <button type="button" class="chip matrix-status-chip" style="color:#64748b;" onclick="setMatrixStatusFilter('bos', this)">⚪ Verilmedi (<span id="mat-count-bos">0</span>)</button>
+                </div>
+
+                <!-- Topic Search & Progress List -->
+                <div class="flex justify-between items-center mb-2" style="margin-top:8px;">
+                    <h3 style="font-size:13px; font-weight:700; color:var(--text-main);">📖 Konu İlerleme & Ödev Durumu</h3>
+                    <span id="matrix-topics-count" class="badge badge-neutral">0 Konu</span>
+                </div>
+
+                <div class="search-box" style="margin-bottom:10px;">
+                    <svg class="search-icon" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg>
+                    <input type="text" id="matrix-topic-search" placeholder="Ders içi konu ara..." oninput="filterMatrixTopics(this.value)">
+                </div>
+
+                <div id="matrix-topics-container">
+                    <!-- Topics with status badges loaded here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: HIZLI ÖDEV VER (ASSIGN HOMEWORK) -->
+        <section id="tab-assign" class="tab-page hidden">
+            <div class="card">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 style="font-size:16px; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:8px;">
+                        <span>✍️</span> Yeni Ödev Ata
+                    </h2>
+                    <span id="assign-student-badge" class="badge badge-info truncate" style="max-width:180px;">Öğrenci Seçilmedi</span>
+                </div>
+
+                <!-- Student Selector -->
+                <div class="input-group">
+                    <label class="input-label">Öğrenci</label>
+                    <select id="assign-student-select" class="input-control" onchange="onAssignStudentChange(this.value)">
+                        <!-- Dynamic options -->
+                    </select>
+                </div>
+
+                <!-- Lesson Selector -->
+                <div class="input-group">
+                    <label class="input-label">Ders</label>
+                    <select id="assign-lesson-select" class="input-control" onchange="onAssignLessonChange(this.value)">
+                        <option value="">Önce ders seçiniz...</option>
+                    </select>
+                </div>
+
+                <!-- Book Selector (with option to add manual) -->
+                <div class="input-group">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="input-label" style="margin-bottom:0;">Kitap</label>
+                        <button type="button" class="btn btn-sm" style="color:var(--primary); padding:0; background:none;" onclick="openAddBookModal()">+ Yeni Kitap</button>
+                    </div>
+                    <select id="assign-book-select" class="input-control" onchange="onAssignBookChange(this.value)">
+                        <option value="">Önce ders seçiniz...</option>
+                    </select>
+                    <div id="assign-manual-book-wrap" class="hidden" style="margin-top:8px;">
+                        <input type="text" id="assign-manual-book-input" class="input-control" placeholder="Örn: 345 TYT Fizik...">
+                    </div>
+                </div>
+
+                <!-- Topics Picker with Search & Multi-Select -->
+                <div class="input-group">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="input-label" style="margin-bottom:0;">Konular (Çoklu Seçim)</label>
+                        <div class="flex gap-2">
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllAssignTopics(true)">Tümü</button>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllAssignTopics(false)">Temizle</button>
+                        </div>
+                    </div>
+
+                    <!-- Topic Status Filter for selected book -->
+                    <div class="flex gap-1 mb-2 scroll-chips" id="assign-status-filter-chips" style="padding-bottom:4px;">
+                        <button type="button" class="chip active assign-status-chip" onclick="setAssignStatusFilter('Hepsi', this)">Tümü</button>
+                        <button type="button" class="chip assign-status-chip" style="color:#64748b;" onclick="setAssignStatusFilter('bos', this)">⚪ Bu Kitaptan Verilmemiş</button>
+                        <button type="button" class="chip assign-status-chip" style="color:#b45309;" onclick="setAssignStatusFilter('devam', this)">⏳ Devam Eden</button>
+                        <button type="button" class="chip assign-status-chip" style="color:#dc2626;" onclick="setAssignStatusFilter('gecikmis', this)">🚨 Gecikmiş</button>
+                        <button type="button" class="chip assign-status-chip" style="color:#059669;" onclick="setAssignStatusFilter('tamam', this)">✅ Zaten Bitmiş</button>
+                    </div>
+
+                    <input type="text" id="assign-topic-search" class="input-control" placeholder="Konu listesinde filtrele..." oninput="filterAssignTopics(this.value)" style="margin-bottom:8px; padding:8px 12px; font-size:13px;">
+
+                    <div id="assign-topics-list" style="max-height:260px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius-md); padding:6px; background:#fafafa;">
+                        <div style="font-size:12px; color:var(--text-sub); text-align:center; padding:16px;">Önce ders seçiniz</div>
+                    </div>
+                    <div id="assign-selected-count-msg" style="font-size:11px; font-weight:600; color:var(--primary); margin-top:4px;">0 konu seçildi</div>
+                </div>
+
+                <!-- Duration Pills -->
+                <div class="input-group">
+                    <label class="input-label">Hedef Çalışma Süresi</label>
+                    <div class="flex gap-1" style="flex-wrap:wrap; margin-bottom:8px;">
+                        <button type="button" class="chip duration-chip" onclick="setAssignDuration(30, this)">30 dk</button>
+                        <button type="button" class="chip duration-chip" onclick="setAssignDuration(45, this)">45 dk</button>
+                        <button type="button" class="chip duration-chip active" onclick="setAssignDuration(60, this)">60 dk</button>
+                        <button type="button" class="chip duration-chip" onclick="setAssignDuration(75, this)">75 dk</button>
+                        <button type="button" class="chip duration-chip" onclick="setAssignDuration(90, this)">90 dk</button>
+                    </div>
+                    <input type="number" id="assign-duration-input" class="input-control" value="60" placeholder="Dakika cinsinden süre">
+                </div>
+
+                <!-- Due Date with Preset Chips -->
+                <div class="input-group">
+                    <label class="input-label">Teslim Tarihi</label>
+                    <div class="flex gap-1" style="margin-bottom:8px;">
+                        <button type="button" class="chip" onclick="setPresetDueDate(3, this)">+3 Gün</button>
+                        <button type="button" class="chip active" onclick="setPresetDueDate(7, this)">+7 Gün (Haftalık)</button>
+                        <button type="button" class="chip" onclick="setPresetDueDate(14, this)">+14 Gün</button>
+                    </div>
+                    <input type="date" id="assign-due-date-input" class="input-control">
+                </div>
+
+                <!-- Submit Button -->
+                <button type="button" id="btn-submit-assignment" class="btn btn-primary w-full" style="padding:13px; font-size:14px; margin-top:8px;" onclick="submitAssignment()">
+                    <span>💾 Ödevi Ata ve Kaydet</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- TAB 4: ÖDEV KONTROL (HOMEWORK REVIEW & GRADING) -->
+        <section id="tab-control" class="tab-page hidden">
+            <!-- Summary Banner -->
+            <div class="card" style="padding:14px; background:linear-gradient(135deg, #1e293b, #0f172a); color:#fff; border:none;">
+                <div class="flex justify-between items-center mb-2">
+                    <div>
+                        <div style="font-size:11px; text-transform:uppercase; color:#94a3b8; font-weight:700;">Ödev Kontrol Durumu</div>
+                        <div id="control-student-title" style="font-size:16px; font-weight:800;">Tüm Ödevler</div>
+                    </div>
+                    <button class="btn btn-sm" style="background:#22c55e; color:#fff;" onclick="sendWhatsAppReport()">
+                        <span>📲 WhatsApp Raporu</span>
+                    </button>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="flex justify-between items-end mb-1">
+                    <span id="control-stats-progress-text" style="font-size:12px; font-weight:600; color:#cbd5e1;">0 / 0 Tamamlandı</span>
+                    <span id="control-stats-percent" style="font-size:16px; font-weight:800; color:#4ade80;">%0</span>
+                </div>
+                <div style="height:7px; background:rgba(255,255,255,0.15); border-radius:10px; overflow:hidden;">
+                    <div id="control-progress-fill" style="height:100%; width:0%; background:#22c55e; transition:width 0.3s ease;"></div>
+                </div>
+            </div>
+
+            <!-- Filter Controls (Segmented Control) -->
+            <div class="flex gap-1 mb-2" style="background:#e2e8f0; padding:3px; border-radius:12px;">
+                <button class="btn w-full control-filter-btn active" style="padding:6px; font-size:12px; border-radius:9px; background:#fff; color:var(--primary); box-shadow:0 1px 2px rgba(0,0,0,0.06);" onclick="filterControlList('Hepsi', this)">Tümü</button>
+                <button class="btn w-full control-filter-btn" style="padding:6px; font-size:12px; border-radius:9px; background:transparent; color:var(--text-sub);" onclick="filterControlList('Yapılmayanlar', this)">⏳ Bekleyenler</button>
+                <button class="btn w-full control-filter-btn" style="padding:6px; font-size:12px; border-radius:9px; background:transparent; color:var(--text-sub);" onclick="filterControlList('Yapılanlar', this)">✅ Yapılanlar</button>
+            </div>
+
+            <!-- Date Filter (Zaman Kapsülleri) -->
+            <div id="control-date-filters" class="scroll-chips mb-2" style="padding:2px 0;">
+                <button class="chip chip-sm active" onclick="filterControlDate('all', this)">Zaman: Hepsi</button>
+                <button class="chip chip-sm chip-danger" onclick="filterControlDate('overdue', this)">🚨 Gecikenler</button>
+                <button class="chip chip-sm chip-warning" onclick="filterControlDate('today', this)">📅 Bugün</button>
+                <button class="chip chip-sm chip-info" onclick="filterControlDate('tomorrow', this)">⏳ Yarın</button>
+                <button class="chip chip-sm chip-purple" onclick="filterControlDate('week', this)">📆 Bu Hafta</button>
+            </div>
+
+            <!-- Lesson Filter Dropdown -->
+            <div class="flex justify-between items-center mb-2">
+                <span class="input-label" style="margin-bottom:0;">Ders Filtresi:</span>
+                <select id="control-lesson-filter" class="input-control" style="width:auto; padding:5px 10px; font-size:12px;" onchange="onControlLessonFilterChange(this.value)">
+                    <option value="Hepsi">Tüm Dersler</option>
+                </select>
+            </div>
+
+            <!-- Homework Items List -->
+            <div id="control-homework-list">
+                <!-- Homework cards injected here -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- BOTTOM PERSISTENT NAVIGATION -->
+    <nav class="bottom-nav">
+        <div class="nav-inner">
+            <button class="nav-item active" id="nav-btn-students" onclick="switchTab('students')">
+                <svg fill="currentColor" viewBox="0 0 256 256"><path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.38a8,8,0,0,1-11.07-2.33,79.83,79.83,0,0,0-53.54-37.45,8,8,0,1,1,3.48-15.62,95.83,95.83,0,0,1,64.29,44.91A8,8,0,0,1,250.14,206.38ZM164,152a44,44,0,1,1,44-44A44.05,44.05,0,0,1,164,152Z"/></svg>
+                <span>Öğrenciler</span>
+            </button>
+
+            <button class="nav-item" id="nav-btn-matrix" onclick="switchTab('matrix')">
+                <svg fill="currentColor" viewBox="0 0 256 256"><path d="M224,48H32a8,8,0,0,0-8,8V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A8,8,0,0,0,224,48ZM40,64H96v40H40ZM96,120v40H40V120Zm16-56h64v40H112Zm0,56h64v40H112Zm104,80H40V176H216v16Zm0-32H192V120h24Zm0-56H192V64h24Z"/></svg>
+                <span>Takip & Matris</span>
+            </button>
+
+            <button class="nav-item" id="nav-btn-assign" onclick="switchTab('assign')">
+                <svg fill="currentColor" viewBox="0 0 256 256"><path d="M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.68,147.31,64l24-24L216,84.68Z"/></svg>
+                <span>Ödev Ver</span>
+            </button>
+
+            <button class="nav-item" id="nav-btn-control" onclick="switchTab('control')">
+                <svg fill="currentColor" viewBox="0 0 256 256"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>
+                <span id="nav-control-badge" class="nav-badge hidden">0</span>
+                <span>Ödev Kontrol</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- MODAL: KİTAP EKLEME (ADD BOOK SHEET) -->
+    <div id="modal-add-book" class="modal-overlay" onclick="closeModalOnOverlay(event, 'modal-add-book')">
+        <div class="modal-sheet">
+            <div class="modal-handle"></div>
+            <div class="modal-header">
+                <h3 style="font-size:16px; font-weight:700;">📚 Öğrenciye Kitap Ekle</h3>
+                <button class="btn btn-sm btn-icon" onclick="closeModal('modal-add-book')">✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:12px; color:var(--text-sub); margin-bottom:14px;">
+                    <b id="modal-book-student-name">Öğrenci</b> için <b id="modal-book-lesson-name">Seçili Ders</b> havuzuna yeni bir kitap bağlayın.
+                </p>
+
+                <!-- Option A: Existing books in pool -->
+                <div class="input-group">
+                    <label class="input-label">Mevcut Kitap Havuzundan Seç</label>
+                    <select id="modal-pool-book-select" class="input-control" onchange="onModalPoolSelectChange(this.value)">
+                        <option value="">Havuzdan kitap seçiniz...</option>
+                    </select>
+                </div>
+
+                <div class="text-center" style="font-size:12px; color:var(--text-sub); margin:10px 0; font-weight:600;">— VEYA —</div>
+
+                <!-- Option B: Brand new book name -->
+                <div class="input-group">
+                    <label class="input-label">Yeni Bir Kitap Adı Yaz</label>
+                    <input type="text" id="modal-new-book-input" class="input-control" placeholder="Örn: 345 TYT Fizik Soru Bankası">
+                    <span style="font-size:11px; color:var(--text-sub); margin-top:4px; display:block;">Yazdığınız kitap hem bu öğrenciye hem de dersin genel kitap havuzuna otomatik eklenir.</span>
+                </div>
+
+                <button class="btn btn-primary w-full" style="padding:12px; font-size:14px; margin-top:8px;" onclick="confirmAddBookToStudent()">
+                    <span>💾 Kitabı Kaydet & Ata</span>
+                </button>
+            </div>
+        </div>
     </div>
+
+    <!-- MODAL: ÖĞRENCİ DETAY & VELİ İLETİŞİM (STUDENT PROFILE SHEET) -->
+    <div id="modal-student-profile" class="modal-overlay" onclick="closeModalOnOverlay(event, 'modal-student-profile')">
+        <div class="modal-sheet">
+            <div class="modal-handle"></div>
+            <div class="modal-header">
+                <h3 style="font-size:16px; font-weight:700;">🎓 Öğrenci & İletişim Bilgileri</h3>
+                <button class="btn btn-sm btn-icon" onclick="closeModal('modal-student-profile')">✕</button>
+            </div>
+            <div class="modal-body" id="modal-student-profile-body">
+                <div class="spinner spinner-blue" style="margin:20px auto;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: WHATSAPP ALICI SEÇİMİ (WHATSAPP RECIPIENT SHEET) -->
+    <div id="modal-whatsapp-choice" class="modal-overlay" onclick="closeModalOnOverlay(event, 'modal-whatsapp-choice')">
+        <div class="modal-sheet">
+            <div class="modal-handle"></div>
+            <div class="modal-header">
+                <h3 style="font-size:16px; font-weight:700;">📲 WhatsApp Raporu Gönder</h3>
+                <button class="btn btn-sm btn-icon" onclick="closeModal('modal-whatsapp-choice')">✕</button>
+            </div>
+            <div class="modal-body" style="padding-bottom:24px;">
+                <p style="font-size:13px; color:var(--text-sub); margin-bottom:14px;">
+                    Raporu doğrudan WhatsApp sohbet kutusuna göndermek için alıcıyı seçiniz:
+                </p>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <button id="btn-wa-veli" type="button" class="btn" style="background:#22c55e; color:#fff; padding:13px 16px; font-weight:700; text-align:left; justify-content:flex-start; border-radius:12px; font-size:14px;">
+                        <span id="btn-wa-veli-text">👨‍👩‍👦 Veliye Gönder</span>
+                    </button>
+                    <button id="btn-wa-ogr" type="button" class="btn" style="background:#0284c7; color:#fff; padding:13px 16px; font-weight:700; text-align:left; justify-content:flex-start; border-radius:12px; font-size:14px;">
+                        <span id="btn-wa-ogr-text">🎓 Öğrenciye Gönder</span>
+                    </button>
+                    <button type="button" class="btn" onclick="copyWhatsAppOnly()" style="border:1px solid #cbd5e1; background:#f8fafc; color:var(--text-main); padding:11px; border-radius:12px; margin-top:4px; font-size:13px; font-weight:600;">
+                        📋 Sadece Rapor Metnini Kopyala
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT APP LOGIC -->
     <script>
-        // --- STATE ---
+        // --- APP STATE ---
         const state = {
-            view: 'home',
+            currentTab: 'students',
             students: [],
             stats: null,
-            selectedStudent: null,
+            selectedStudent: null, // Active student object {id, ad_soyad, sinif, okul, telefon, ogr_tel, veli_tel1, veli_tel2, veli_ad}
             studentInfo: null,
-            clusters: [],
-            trackingItems: [],
-            changes: new Set(),
-            assign: { lesson: '', book: '', manualBook: '', selectedTopics: new Set() },
-            lessons: [],
-            books: [],
-            topics: []
+            activeDateFilter: 'all', // 'all' | 'overdue' | 'today' | 'tomorrow' | 'week'
+            // Matrix state
+            matrixLessons: [],
+            selectedLesson: null, // {id, name}
+            studentBooks: [],
+            poolBooks: [],
+            matrixTopics: [],
+            matrixBookFilter: 'Hepsi', // 'Hepsi' or specific book name
+            matrixStatusFilter: 'Hepsi', // 'Hepsi' | 'gecikmis' | 'devam' | 'tamam' | 'bos'
+            // Assign form state
+            assign: {
+                studentId: null,
+                lessonId: '',
+                book: '',
+                manualBook: '',
+                selectedTopics: new Set(),
+                duration: 60,
+                dueDate: '',
+                statusFilter: 'Hepsi' // 'Hepsi' | 'bos' | 'devam' | 'gecikmis' | 'tamam'
+            },
+            // Control state
+            controlFilter: 'Hepsi', // 'Hepsi' | 'Yapılmayanlar' | 'Yapılanlar'
+            controlDateFilter: 'all', // 'all' | 'overdue' | 'today' | 'tomorrow' | 'week'
+            controlLessonFilter: 'Hepsi',
+            controlItems: [],
+            controlStats: { total: 0, completed: 0, percent: 0, active: 0 },
+            lastWhatsAppText: ''
         };
 
-        // --- DOM HELPERS ---
-        const $ = (id) => document.getElementById(id);
-        const show = (id) => $(id).classList.remove('hidden');
-        const hide = (id) => $(id).classList.add('hidden');
-        const html = (id, html) => $(id).innerHTML = html;
-        const esc = value => String(value ?? '').replace(/[&<>"']/g,
-            ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-        const phoneUrl = value => String(value ?? '').replace(/[^0-9+]/g, '');
+        // --- DOM SHORTCUTS ---
+        const $ = id => document.getElementById(id);
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const cleanPhone = p => String(p ?? '').replace(/[^0-9+]/g, '');
 
-        // --- ERROR HANDLING ---
-        function showError(msg) {
-            const eb = $('error-box');
-            show('error-box');
-            eb.innerText = "Hata: " + msg;
-            setTimeout(() => hide('error-box'), 5000);
+        // --- TOAST HELPER ---
+        function showToast(message, isSuccess = true) {
+            const toast = $('toast');
+            $('toast-icon').textContent = isSuccess ? '✓' : '⚠️';
+            $('toast-message').textContent = message;
+            toast.style.background = isSuccess ? '#0f172a' : '#ef4444';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
         }
-        window.onerror = (msg) => showError(msg);
 
-        // --- API HELPERS ---
+        // --- API CALLER WITH MODULAR OFFLINE FALLBACK ---
+        async function _originalApi(url, method = 'GET', body = null) {
+            const key = sessionStorage.getItem('yks_access') || '';
+            const opts = {
+                method,
+                headers: { 'X-Access-Key': key }
+            };
+            if (body) {
+                opts.headers['Content-Type'] = 'application/json';
+                opts.body = JSON.stringify(body);
+            }
+            const res = await fetch(url, opts);
+            if (res.status === 401) {
+                sessionStorage.removeItem('yks_access');
+                $('access-layer').style.display = 'flex';
+                throw new Error('Yetki hatası: Geçerli erişim anahtarı giriniz.');
+            }
+            if (!res.ok) {
+                const errJson = await res.json().catch(() => ({}));
+                throw new Error(errJson.detail || errJson.message || res.statusText);
+            }
+            return await res.json();
+        }
+        window._originalApi = _originalApi;
+
         async function api(url, method = 'GET', body = null) {
             try {
-                const opts = { method, headers: {'X-Access-Key': sessionStorage.getItem('yks_access') || ''} };
-                if (body) {
-                    opts.headers['Content-Type'] = 'application/json';
-                    opts.body = JSON.stringify(body);
+                if (window.OfflineSync && !window.OfflineSync.isServerOnline) {
+                    return await window.OfflineSync.handleOfflineApi(url, method, body);
                 }
-                const res = await fetch(url, opts);
-                if (res.status === 401) {
-                    sessionStorage.removeItem('yks_access');
-                    document.getElementById('access-layer').style.display = 'flex';
-                    throw new Error('Erişim anahtarı gerekli veya geçersiz.');
+                return await _originalApi(url, method, body);
+            } catch (err) {
+                if (window.OfflineSync && (err.name === 'TypeError' || err.message.includes('fetch') || err.message.includes('NetworkError') || err.message.includes('Failed to fetch'))) {
+                    window.OfflineSync.isServerOnline = false;
+                    window.OfflineSync.notify();
+                    return await window.OfflineSync.handleOfflineApi(url, method, body);
                 }
-                if (!res.ok) throw new Error(res.statusText);
-                const data = await res.json();
-                if (data && data.status === 'error') throw new Error(data.message);
-                return data;
-            } catch (e) {
-                showError(e.message);
-                throw e;
+                throw err;
+            }
+        }
+        window.api = api;
+
+        // --- NAVIGATION TABS ---
+        function switchTab(tabName) {
+            state.currentTab = tabName;
+            document.querySelectorAll('.tab-page').forEach(p => p.classList.add('hidden'));
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+
+            const targetPage = $('tab-' + tabName);
+            const targetNav = $('nav-btn-' + tabName);
+            if (targetPage) targetPage.classList.remove('hidden');
+            if (targetNav) targetNav.classList.add('active');
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            if (tabName === 'matrix') {
+                loadMatrixView();
+            } else if (tabName === 'assign') {
+                prepareAssignForm();
+            } else if (tabName === 'control') {
+                loadControlView();
             }
         }
 
-        // --- INIT ---
-        async function init() {
+        // --- INIT & AUTHENTICATION ---
+        async function initApp() {
             try {
                 const [stats, students] = await Promise.all([
                     api('/api/dashboard'),
@@ -500,455 +1196,1579 @@
                 ]);
                 state.stats = stats;
                 state.students = students;
-                renderHomeView();
-                hide('loader-overlay');
-            } catch (e) {
-                $('loader-overlay').innerHTML = `<p style="color:red">Bağlantı Hatası.<br>Lütfen sayfayı yenileyin.</p>`;
-            }
-        }
 
-        // --- VIEWS ---
+                // Render dashboard statistics
+                $('stat-students-count').textContent = stats.student_count;
+                $('stat-pending-tasks').textContent = stats.pending_tasks;
+                $('stat-success-rate').textContent = `%${stats.success_rate}`;
+                $('nav-control-badge').textContent = stats.pending_tasks;
+                if (stats.pending_tasks > 0) $('nav-control-badge').classList.remove('hidden');
 
-        function renderHomeView() {
-            state.view = 'home';
-            state.selectedStudent = null;
-            hide('btn-home'); hide('btn-info'); hide('fab-assign');
+                updateDateFilterCounts();
+                filterStudents($('student-search-input') ? $('student-search-input').value : '');
 
-            const s = state.stats;
-            const studentListHtml = state.students.map(std => `
-                <div onclick="selectStudent(${std.id})" class="card p-4 flex justify-between items-center" style="margin-bottom: 0.75rem; cursor:pointer;">
-                    <div class="flex items-center gap-4">
-                        <div class="flex items-center justify-center w-12 h-12 bg-slate-50 border rounded-full font-bold text-slate-500">
-                            ${esc(std.ad_soyad.charAt(0))}
-                        </div>
-                        <div>
-                            <div class="font-bold text-slate-800 text-lg">${esc(std.ad_soyad)}</div>
-                            <div class="text-xs text-slate-400">${esc(std.sinif || '-')} • ${esc(std.okul || '-')}</div>
-                        </div>
-                    </div>
-                    <div style="color:#cbd5e1">›</div>
-                </div>
-            `).join('');
-
-            html('app-root', `
-                <div class="flex gap-4 mb-6">
-                    <div class="stat-card blue w-full">
-                        <div class="text-xs text-white/80">Toplam Öğrenci</div>
-                        <div class="text-3xl font-bold">${s.student_count}</div>
-                    </div>
-                    <div class="stat-card green w-full">
-                        <div class="text-xs text-white/80">Başarı Oranı</div>
-                        <div class="text-3xl font-bold">%${s.success_rate}</div>
-                    </div>
-                </div>
-                <h2 class="text-lg font-bold text-slate-800 mb-4">Öğrenciler</h2>
-                <div>${studentListHtml}</div>
-            `);
-        }
-
-        async function selectStudent(id) {
-            $('loader-overlay').style.opacity = '1'; show('loader-overlay'); // Soft loader
-            state.selectedStudent = state.students.find(s => s.id === id);
-            try {
-                state.clusters = await api(`/api/student/${id}/clusters`);
-                state.studentInfo = null; // Reset info
-                renderStudentView();
-            } catch (e) {
-                alert("Öğrenci verileri yüklenemedi: " + e.message);
-            } finally {
-                hide('loader-overlay');
-            }
-        }
-
-        function renderStudentView() {
-            state.view = 'student';
-            show('btn-home'); show('btn-info'); show('fab-assign');
-
-            const std = state.selectedStudent;
-            const clustersHtml = state.clusters.length ? state.clusters.map(c => `
-                <div onclick="openTracking('Hepsi', '${c.id}')" class="card p-4 mb-3 cursor-pointer">
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">${esc(c.status_label)}</span>
-                        <span class="text-xs text-slate-400">#${c.id}</span>
-                    </div>
-                    <div class="flex justify-between items-end">
-                        <div class="text-2xl font-bold text-slate-800">%${c.percent}</div>
-                        <div class="text-xs text-slate-500">${c.completed_items}/${c.total_items} Görev</div>
-                    </div>
-                    <div style="height:6px; background:#f1f5f9; border-radius:99px; margin-top:8px; overflow:hidden;">
-                        <div style="height:100%; width:${c.percent}%; background:#3b82f6;"></div>
-                    </div>
-                </div>
-            `).join('') : '<div class="text-center text-slate-400 py-8 border-dashed border-2 rounded-xl">Paket Yok</div>';
-
-            html('app-root', `
-                <div class="text-center mb-6">
-                    <div class="w-16 h-16 mx-auto bg-white border-4 border-slate-50 rounded-full flex items-center justify-center text-xl font-bold text-slate-700 shadow-sm mb-2">
-                        ${esc(std.ad_soyad.charAt(0))}
-                    </div>
-                    <h2 class="text-xl font-bold text-slate-800">${esc(std.ad_soyad)}</h2>
-                    <p class="text-sm text-slate-400">${esc(std.sinif || '')}</p>
-                </div>
-                <div class="flex gap-3 mb-6">
-                    <button onclick="openTracking('Yapılmayanlar')" class="card p-3 w-full flex flex-col items-center gap-1 active:bg-orange-50">
-                        <div class="text-warning font-bold text-lg">⚠</div>
-                        <div class="text-xs font-bold text-slate-600">Eksikler</div>
-                    </button>
-                    <button onclick="openTracking('Yapılanlar')" class="card p-3 w-full flex flex-col items-center gap-1 active:bg-green-50">
-                        <div class="text-success font-bold text-lg">✓</div>
-                        <div class="text-xs font-bold text-slate-600">Tamamlanan</div>
-                    </button>
-                </div>
-                <h3 class="font-bold text-slate-700 mb-3">Ödev Paketleri</h3>
-                <div>${clustersHtml}</div>
-            `);
-        }
-
-        async function openInfo() {
-            $('loader-overlay').style.opacity = '1'; show('loader-overlay');
-            try {
-                state.studentInfo = await api(`/api/student/${state.selectedStudent.id}/info`);
-                renderInfoView();
-            } finally { hide('loader-overlay'); }
-        }
-
-        function renderInfoView() {
-            state.view = 'info';
-            hide('btn-info'); hide('fab-assign'); show('btn-home');
-            const i = state.studentInfo;
-
-            if (!i) {
-                html('app-root', '<div class="p-6 text-center"><div class="spinner mx-auto mb-2"></div><p class="text-slate-500">Bilgiler yükleniyor veya bulunamadı.</p></div>');
-                return;
-            }
-
-            html('app-root', `
-                <div class="card p-6 mb-4">
-                    <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">🎓 Öğrenci</h3>
-                    <div class="text-sm text-slate-500 uppercase font-bold text-xs mb-1">Ad Soyad</div>
-                    <div class="text-lg font-medium text-slate-800 mb-4">${esc(i.ad_soyad)}</div>
-                    
-                    <div class="flex gap-4 mb-4">
-                        <div class="w-full">
-                            <div class="text-slate-500 font-bold text-xs">Sınıf</div>
-                            <div>${esc(i.sinif)}</div>
-                        </div>
-                        <div class="w-full">
-                            <div class="text-slate-500 font-bold text-xs">Okul</div>
-                            <div>${esc(i.okul)}</div>
-                        </div>
-                    </div>
-                     <div class="text-slate-500 font-bold text-xs">Telefon</div>
-                    <a href="tel:${phoneUrl(i.ogrenci_tel)}" class="text-blue-600 font-bold block">${esc(i.ogrenci_tel)}</a>
-                </div>
-
-                <div class="card p-6 mb-4">
-                    <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">👨‍👩‍👧 Veli</h3>
-                    <div class="text-slate-500 font-bold text-xs mb-1">Veli Adı</div>
-                    <div class="text-lg font-medium text-slate-800 mb-4">${esc(i.veli_ad)}</div>
-                    
-                    <div class="text-slate-500 font-bold text-xs">Veli Telefon</div>
-                    <a href="tel:${phoneUrl(i.veli_tel1)}" class="text-blue-600 font-bold block">${esc(i.veli_tel1)}</a>
-                </div>
-                
-                ${i.notlar ? `<div class="card p-6"><h3 class="font-bold text-slate-800 mb-2">Notlar</h3><p class="text-slate-600 text-sm whitespace-pre-line">${esc(i.notlar)}</p></div>` : ''}
-            `);
-        }
-
-        // --- TRACKING LOGIC ---
-        async function openTracking(filterVal, clusterId = null) {
-            $('loader-overlay').style.opacity = '1'; show('loader-overlay');
-            state.trackingFilter = filterVal;
-            state.changes.clear();
-            try {
-                let url = `/api/student/${state.selectedStudent.id}/tracking?status=${encodeURIComponent(filterVal)}`;
-                if (clusterId) url += `&cluster_id=${clusterId}`;
-                const data = await api(url);
-                state.trackingItems = data.items;
-                renderTrackingView();
-            } finally { hide('loader-overlay'); }
-        }
-
-        function renderTrackingView() {
-            state.view = 'tracking';
-            hide('fab-assign'); show('btn-home');
-            const items = state.trackingItems;
-
-            const listHtml = items.length ? items.map(item => `
-                <div class="card p-4 mb-3" style="border-left: 4px solid ${item.status === 'tamam' ? 'var(--success)' : 'var(--warning)'};" id="item-${item.id}">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <div class="font-bold text-slate-800 mb-1">${esc(item.lesson)}</div>
-                            <div class="text-xs text-slate-500 mb-1">${esc(item.book)}</div>
-                            <span class="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500">${esc(item.topic)}</span>
-                        </div>
-                        <button onclick="toggleStatus(${item.id})" class="btn" style="width:32px; height:32px; border-radius:50%; border:2px solid #e2e8f0; ${item.status === 'tamam' ? 'background:var(--success); border-color:var(--success); color:white;' : ''}">
-                            ✓
-                        </button>
-                    </div>
-                </div>
-            `).join('') : '<div class="text-center text-slate-400 py-10">Kayıt Yok</div>';
-
-            html('app-root', `
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-bold text-slate-800 text-lg">${esc(state.trackingFilter)}</h3>
-                    <span class="bg-slate-200 text-xs font-bold px-2 py-1 rounded-full text-slate-600">${items.length}</span>
-                </div>
-                <div style="padding-bottom: 80px;">${listHtml}</div>
-                <div id="save-bar" class="hidden" style="position:fixed; bottom:20px; left:20px; right:20px; z-index:50;">
-                    <button onclick="saveChanges()" class="btn-primary" style="box-shadow: 0 10px 20px -5px rgba(37,99,235,0.5);">💾 Değişiklikleri Kaydet</button>
-                </div>
-            `);
-        }
-
-        function toggleStatus(id) {
-            const item = state.trackingItems.find(x => x.id === id);
-            if (item) {
-                item.status = item.status === 'tamam' ? 'devam' : 'tamam';
-                state.changes.add(id);
-                renderTrackingView();
-                show('save-bar');
-            }
-        }
-
-        async function saveChanges() {
-            $('loader-overlay').style.opacity = '1'; show('loader-overlay');
-            const toComplete = [], toPending = [];
-            state.changes.forEach(id => {
-                const it = state.trackingItems.find(x => x.id === id);
-                if (it) it.status === 'tamam' ? toComplete.push(id) : toPending.push(id);
-            });
-
-            try {
-                if (toComplete.length) await api('/api/homework/status/bulk', 'POST', { homework_ids: toComplete, status: 'tamam' });
-                if (toPending.length) await api('/api/homework/status/bulk', 'POST', { homework_ids: toPending, status: 'devam' });
-                state.changes.clear();
-                hide('save-bar');
-                alert("Kaydedildi!");
-            } catch (e) {
-                alert("Hata");
-            } finally { hide('loader-overlay'); }
-        }
-
-        // --- ASSIGN MODAL LOGIC ---
-        async function openAssignModal() {
-            show('modal-assign');
-            // Reset form state
-            state.assign = { lesson: '', book: '', manualBook: '', selectedTopics: new Set() };
-
-            html('form-content', '<div class="p-6 text-center"><div class="spinner mx-auto mb-2"></div><p class="text-slate-500">Dersler yükleniyor...</p></div>');
-
-            // Always fetch lessons based on selected student to support dynamic curriculum
-            try {
-                const stdId = state.selectedStudent ? state.selectedStudent.id : '';
-                state.lessons = await api(`/api/lessons/list?student_id=${stdId}`);
-            } catch (e) {
-                console.error("Error loading lessons:", e);
-                state.lessons = [];
-                html('form-content', '<p class="text-center text-red-500">Ders listesi yüklenemedi.</p>');
-                return;
-            }
-
-            renderAssignForm();
-        }
-
-        function closeAssignModal() { hide('modal-assign'); }
-
-        function renderAssignForm() {
-            const f = state.assign;
-            const lessonOpts = state.lessons.map(l => `<option value="${esc(l.id)}" ${f.lesson === l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
-
-            let bookOpts = '<option value="" disabled selected>Kitap Seçiniz</option>';
-            if (f.lesson) {
-                const list = state.books.length ? state.books : [];
-                bookOpts = list.map(b => `<option value="${esc(b)}" ${f.book === b ? 'selected' : ''}>${esc(b)}</option>`).join('');
-                bookOpts += `<option value="manual" ${f.book === 'manual' ? 'selected' : ''} style="color:blue; font-weight:bold;">+ Manuel Giriş</option>`;
-                if (!list.length) bookOpts = `<option value="manual" selected>Kitap Yok - Manuel Giriniz</option>` + bookOpts;
-            }
-
-            // Topics Multi-Select UI
-            let topicHtml = '<div class="text-slate-400 text-sm p-2 text-center">Önce Ders Seçiniz</div>';
-            if (f.lesson) {
-                if (state.topics.length) {
-                    topicHtml = state.topics.map((t, i) => {
-                        const isChecked = f.selectedTopics && f.selectedTopics.has(t.name);
-
-                        // Badges for existing statuses
-                        let badges = '';
-                        if (t.assignments && t.assignments.length) {
-                            badges = '<div class="flex flex-wrap gap-1 mt-1 ml-8">';
-                            t.assignments.forEach(a => {
-                                const color = a.status === 'tamam' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700';
-                                const icon = a.status === 'tamam' ? '✓' : '⟳';
-                                badges += `<span class="text-[10px] px-1.5 py-0.5 rounded ${color} border border-black/5 font-medium flex items-center gap-1">${esc(a.book)} ${icon}</span>`;
-                            });
-                            badges += '</div>';
-                        }
-
-                        // Use Array Index access to avoid quoting issues with topic names
-                        return `
-                            <div class="mb-2">
-                                <label id="lbl-topic-${i}" class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors w-full ${isChecked ? 'bg-blue-50 border-blue-200' : 'bg-white hover:bg-slate-50'}">
-                                    <input type="checkbox" onchange="toggleTopic(${i})" ${isChecked ? 'checked' : ''} class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500">
-                                    <span class="${isChecked ? 'text-blue-700 font-medium' : 'text-slate-700'}">${esc(t.name)}</span>
-                                </label>
-                                ${badges}
-                            </div>
-                         `;
-                    }).join('');
-                    topicHtml = `<div style="max-height: 250px; overflow-y: auto; padding-right:4px;">${topicHtml}</div>`;
-                } else {
-                    topicHtml = '<div class="text-slate-400 text-sm p-2 text-center">Konu Bulunamadı</div>';
+                // Auto-select first student if available and none selected
+                if (students.length > 0 && !state.selectedStudent) {
+                    selectStudent(students[0].id, false);
                 }
-            }
-
-            html('form-content', `
-                <div class="flex flex-col gap-3">
-                    <div>
-                        <label class="text-xs font-bold text-slate-500">DERS</label>
-                        <select onchange="updateAssign('lesson', this.value)" class="input-field mb-0">
-                            <option value="">Seçiniz</option>
-                            ${lessonOpts}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-slate-500">KİTAP</label>
-                        <select id="sel-book" onchange="updateAssign('book', this.value)" class="input-field mb-0" ${!f.lesson ? 'disabled' : ''}>
-                            ${bookOpts}
-                        </select>
-                        ${(f.book === 'manual' || (f.lesson && !state.books.length)) ?
-                    `<input type="text" placeholder="Kitap Adı..." oninput="updateAssign('manualBook', this.value)" class="input-field mt-2 mb-0" value="${esc(f.manualBook)}">` : ''}
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-slate-500 mb-1 block">KONULAR (Çoklu Seçim)</label>
-                        ${topicHtml}
-                    </div>
-                </div>
-            `);
-            checkAssignValidity();
-        }
-
-        function toggleTopic(index) {
-            // Get name from state.topics using index
-            if (!state.topics || !state.topics[index]) return;
-            const topicName = state.topics[index].name;
-
-            if (!state.assign.selectedTopics) state.assign.selectedTopics = new Set();
-            const isSelected = state.assign.selectedTopics.has(topicName);
-
-            if (isSelected) {
-                state.assign.selectedTopics.delete(topicName);
-            } else {
-                state.assign.selectedTopics.add(topicName);
-            }
-
-            // Visual Update (Manual)
-            const lbl = document.getElementById('lbl-topic-' + index);
-            if (lbl) {
-                if (!isSelected) { // Now selected
-                    lbl.classList.add('bg-blue-50', 'border-blue-200');
-                    lbl.classList.remove('bg-white', 'hover:bg-slate-50');
-                    // Find span? Optional but good
-                    const span = lbl.querySelector('span');
-                    if (span) { span.classList.add('text-blue-700', 'font-medium'); span.classList.remove('text-slate-700'); }
-                } else { // Now unselected
-                    lbl.classList.remove('bg-blue-50', 'border-blue-200');
-                    lbl.classList.add('bg-white', 'hover:bg-slate-50');
-                    const span = lbl.querySelector('span');
-                    if (span) { span.classList.remove('text-blue-700', 'font-medium'); span.classList.add('text-slate-700'); }
-                }
-            }
-
-            // Do NOT re-render entire form, just check button validity
-            checkAssignValidity();
-        }
-
-        async function updateAssign(field, val) {
-            state.assign[field] = val;
-
-            // If typing in manual book, DO NOT re-render to keep focus!
-            if (field === 'manualBook') return;
-
-            if (field === 'lesson') {
-                state.assign.book = ''; state.assign.manualBook = ''; state.assign.selectedTopics = new Set();
-                // Fetch books/topics
-                const [b, t] = await Promise.all([
-                    api(`/api/books/list?lesson_id=${encodeURIComponent(val)}`),
-                    api(`/api/topics/list?lesson_id=${encodeURIComponent(val)}&student_id=${state.selectedStudent.id}`)
-                ]);
-                state.books = b; state.topics = t;
-                // Auto switch to manual if no books
-                if (b.length === 0) { state.assign.book = 'manual'; }
-            }
-            if (field === 'book' && val === 'manual') state.assign.manualBook = '';
-
-            renderAssignForm(); // Re-render only for lesson/book changes
-        }
-
-        function checkAssignValidity() {
-            const f = state.assign;
-            const hasBook = (f.book && f.book !== 'manual') || f.manualBook;
-            const hasTopics = f.selectedTopics && f.selectedTopics.size > 0;
-
-            const valid = f.lesson && hasBook && hasTopics;
-            const btn = $('btn-submit-hw');
-            if (btn) {
-                btn.disabled = !valid;
-                btn.style.opacity = valid ? '1' : '0.5';
+            } catch (err) {
+                showToast('Veriler yüklenemedi: ' + err.message, false);
             }
         }
 
-        async function submitHomework() {
-            const f = state.assign;
-            const finalBook = (f.book === 'manual' || !f.book) ? f.manualBook : f.book;
-            const selectedTopics = Array.from(state.assign.selectedTopics || []);
-
-            if (selectedTopics.length === 0) { alert("Konu seçiniz"); return; }
-
-            $('btn-submit-hw').innerText = 'Kaydediliyor...';
-            try {
-                await api('/api/homework', 'POST', {
-                    student_id: state.selectedStudent.id,
-                    lesson: f.lesson,
-                    book: finalBook,
-                    topic: "",
-                    topics: selectedTopics // THIS IS THE KEY FIX
-                });
-                closeAssignModal();
-                alert("Ödev Verildi!");
-                selectStudent(state.selectedStudent.id); // Refresh view
-                state.assign = { lesson: '', book: '', manualBook: '', selectedTopics: new Set() };
-            } catch (e) {
-                alert("Hata: " + e.message);
-            } finally {
-                if ($('btn-submit-hw')) $('btn-submit-hw').innerText = 'Kaydet';
-            }
-        }
-
-        // --- BOOT: erişim anahtarı yoksa kişisel veri isteği başlamaz.
-        async function tryLogin() {
-            const raw = document.getElementById('access-key').value.trim();
-            document.getElementById('access-error').textContent = '';
+        async function tryLogin(explicitKey = null) {
+            const raw = explicitKey || $('access-key').value.trim();
+            $('access-error').textContent = '';
             if (!raw) return;
+
             sessionStorage.setItem('yks_access', raw);
             try {
-                const res = await fetch('/api/dashboard', {headers: {'X-Access-Key': raw}});
-                if (!res.ok) throw new Error('Anahtar kabul edilmedi');
-                document.getElementById('access-layer').style.display='none';
-                document.getElementById('access-key').value='';
-                await init();
-            } catch(e) {
+                localStorage.setItem('yks_access', raw);
+            } catch (_) {}
+            try {
+                const res = await fetch('/api/dashboard', { headers: { 'X-Access-Key': raw } });
+                if (!res.ok) throw new Error('Erişim anahtarı geçersiz.');
+                $('access-layer').style.display = 'none';
+                $('access-key').value = '';
+                await initApp();
+            } catch (err) {
                 sessionStorage.removeItem('yks_access');
-                document.getElementById('access-error').textContent=e.message;
+                $('access-error').textContent = err.message;
+                $('access-layer').style.display = 'flex';
             }
         }
-        document.getElementById('access-submit').addEventListener('click', tryLogin);
-        document.getElementById('access-key').addEventListener('keydown', e=>{if(e.key==='Enter')tryLogin();});
-        if (sessionStorage.getItem('yks_access')) {
-            document.getElementById('access-layer').style.display='none';
-            init();
+
+        $('access-submit').addEventListener('click', () => tryLogin());
+        $('access-key').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+
+        // URL hash (#key=...) auto login check
+        (function checkAutoKey() {
+            try {
+                let autoKey = '';
+                const hashMatch = window.location.hash.match(/[#&]key=([^&]+)/);
+                const searchMatch = window.location.search.match(/[?&]key=([^&]+)/);
+                if (hashMatch && hashMatch[1]) autoKey = decodeURIComponent(hashMatch[1]);
+                else if (searchMatch && searchMatch[1]) autoKey = decodeURIComponent(searchMatch[1]);
+
+                if (autoKey) {
+                    tryLogin(autoKey);
+                    return;
+                }
+            } catch (e) {
+                console.warn(e);
+            }
+
+            const savedKey = sessionStorage.getItem('yks_access') || (function() { try { return localStorage.getItem('yks_access'); } catch(_) { return null; } })();
+            if (savedKey) {
+                sessionStorage.setItem('yks_access', savedKey);
+                $('access-layer').style.display = 'none';
+                window.addEventListener('load', async () => {
+                    if (window.offlineSyncReady) await window.offlineSyncReady;
+                    await initApp();
+                }, {once: true});
+            }
+        })();
+
+        // --- TAB 1: ÖĞRENCİLER & TARİH FİLTRELERİ ---
+        function updateDateFilterCounts() {
+            let overdueTotal = 0, todayTotal = 0, tomorrowTotal = 0, weekTotal = 0;
+            state.students.forEach(s => {
+                if ((s.overdue_count || 0) > 0) overdueTotal++;
+                if ((s.today_count || 0) > 0) todayTotal++;
+                if ((s.tomorrow_count || 0) > 0) tomorrowTotal++;
+                if ((s.week_count || 0) > 0) weekTotal++;
+            });
+            if ($('count-overdue')) $('count-overdue').textContent = overdueTotal;
+            if ($('count-today')) $('count-today').textContent = todayTotal;
+            if ($('count-tomorrow')) $('count-tomorrow').textContent = tomorrowTotal;
+            if ($('count-week')) $('count-week').textContent = weekTotal;
         }
 
+        function setDateFilter(filterType, elem) {
+            state.activeDateFilter = filterType;
+            document.querySelectorAll('#date-filter-bar .chip').forEach(c => c.classList.remove('active'));
+            if (elem) elem.classList.add('active');
+            const searchVal = $('student-search-input') ? $('student-search-input').value : '';
+            filterStudents(searchVal);
+        }
+
+        function renderStudentsList(list) {
+            $('student-count-badge').textContent = `${list.length} Öğrenci`;
+            if (!list.length) {
+                const isFiltered = state.activeDateFilter !== 'all';
+                const msg = isFiltered ? 'Bu tarih filtresine uyan öğrenci bulunamadı.' : 'Eşleşen öğrenci bulunamadı.';
+                $('students-list-container').innerHTML = `
+                    <div class="card text-center p-6" style="color:var(--text-sub);">
+                        ${msg}
+                    </div>`;
+                return;
+            }
+
+            const colors = ['#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626', '#0891b2', '#4f46e5'];
+
+            $('students-list-container').innerHTML = list.map((std, idx) => {
+                const isSelected = state.selectedStudent && state.selectedStudent.id === std.id;
+                const avatarColor = colors[idx % colors.length];
+                const initial = (std.ad_soyad || '?').charAt(0).toUpperCase();
+
+                // Status badges based on actual homework due dates
+                let statusBadges = '';
+                if ((std.overdue_count || 0) > 0) {
+                    statusBadges += `<span class="badge badge-danger" style="font-size:10px; font-weight:700;">🚨 ${std.overdue_count} Gecikmiş</span>`;
+                }
+                if ((std.today_count || 0) > 0) {
+                    statusBadges += `<span class="badge badge-warning" style="font-size:10px; font-weight:700;">📅 ${std.today_count} Bugün</span>`;
+                }
+                if ((std.tomorrow_count || 0) > 0) {
+                    statusBadges += `<span class="badge badge-info" style="font-size:10px; font-weight:700;">⏳ ${std.tomorrow_count} Yarın</span>`;
+                }
+                if ((std.week_count || 0) > 0 && !std.today_count && !std.tomorrow_count) {
+                    statusBadges += `<span class="badge" style="background:#ede9fe; color:#6d28d9; font-size:10px; font-weight:700;">📆 ${std.week_count} Bu Hafta</span>`;
+                }
+                if (!statusBadges) {
+                    if ((std.pending_count || 0) > 0) {
+                        statusBadges = `<span class="badge badge-neutral" style="font-size:10px;">⏳ ${std.pending_count} Bekliyor</span>`;
+                    } else {
+                        statusBadges = `<span class="badge badge-success" style="font-size:10px;">✓ Tamamlandı</span>`;
+                    }
+                }
+
+                return `
+                <div class="card card-interactive flex justify-between items-center" 
+                     style="cursor:pointer; margin-bottom:10px; padding:14px; ${isSelected ? 'border-color:var(--primary); background:#eff6ff;' : ''}"
+                     onclick="selectStudent(${std.id}, true)">
+                    <div class="flex items-center gap-3">
+                        <div style="width:44px; height:44px; border-radius:50%; background:${avatarColor}; color:#fff; display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:700; flex-shrink:0;">
+                            ${esc(initial)}
+                        </div>
+                        <div>
+                            <div style="font-size:15px; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                                <span>${esc(std.ad_soyad)}</span>
+                                ${isSelected ? '<span class="badge badge-info" style="font-size:10px;">Aktif</span>' : ''}
+                            </div>
+                            <div style="font-size:12px; color:var(--text-sub); margin-bottom:4px;">${esc(std.sinif || 'Sınıf Yok')} • ${esc(std.okul || 'YKS/LGS')}</div>
+                            <div class="flex items-center gap-1" style="flex-wrap:wrap;">
+                                ${statusBadges}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span style="color:#cbd5e1; font-size:20px; font-weight:600;">›</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function filterStudents(query) {
+            const q = (query || '').trim().toLowerCase();
+            let filtered = state.students;
+
+            // Apply date pill filter
+            if (state.activeDateFilter === 'overdue') {
+                filtered = filtered.filter(s => (s.overdue_count || 0) > 0);
+            } else if (state.activeDateFilter === 'today') {
+                filtered = filtered.filter(s => (s.today_count || 0) > 0);
+            } else if (state.activeDateFilter === 'tomorrow') {
+                filtered = filtered.filter(s => (s.tomorrow_count || 0) > 0);
+            } else if (state.activeDateFilter === 'week') {
+                filtered = filtered.filter(s => (s.week_count || 0) > 0);
+            }
+
+            // Apply text query
+            if (q) {
+                filtered = filtered.filter(s =>
+                    s.ad_soyad.toLowerCase().includes(q) ||
+                    (s.sinif && s.sinif.toLowerCase().includes(q)) ||
+                    (s.okul && s.okul.toLowerCase().includes(q))
+                );
+            }
+            renderStudentsList(filtered);
+        }
+
+        function selectStudent(studentId, navigate = false) {
+            const student = state.students.find(s => s.id === studentId);
+            if (!student) return;
+
+            state.selectedStudent = student;
+
+            // Update top header pill
+            $('header-student-name').textContent = student.ad_soyad;
+            $('header-student-pill').classList.remove('hidden');
+            $('btn-student-info').classList.remove('hidden');
+
+            const currentSearch = $('student-search-input') ? $('student-search-input').value : '';
+            filterStudents(currentSearch); // refresh active badge
+
+            if (navigate) {
+                // If a date filter is selected on Tab 1, jump directly to Tab 4 (Ödev Kontrol) with that filter!
+                if (state.activeDateFilter && state.activeDateFilter !== 'all') {
+                    state.controlDateFilter = state.activeDateFilter;
+                    if (typeof syncControlDatePills === 'function') syncControlDatePills();
+                    switchTab('control');
+                } else {
+                    switchTab('matrix');
+                }
+            }
+        }
+
+        function openStudentPicker() {
+            switchTab('students');
+        }
+
+        // --- TAB 2: ÖDEV TAKİP & MATRİS ---
+        async function loadMatrixView() {
+            if (!state.selectedStudent) {
+                $('matrix-no-student').classList.remove('hidden');
+                $('matrix-content').classList.add('hidden');
+                return;
+            }
+            $('matrix-no-student').classList.add('hidden');
+            $('matrix-content').classList.remove('hidden');
+
+            // Load lessons for this student
+            try {
+                const lessons = await api(`/api/lessons/list?student_id=${state.selectedStudent.id}`);
+                state.matrixLessons = lessons;
+
+                if (!lessons.length) {
+                    $('matrix-lessons-chips').innerHTML = '<div style="color:var(--text-sub); font-size:12px;">Ders bulunamadı</div>';
+                    return;
+                }
+
+                // If currently selected lesson is not in the list, default to first
+                if (!state.selectedLesson || !lessons.find(l => l.id === state.selectedLesson.id)) {
+                    state.selectedLesson = lessons[0];
+                }
+
+                renderLessonChips();
+                await loadLessonDetails(state.selectedLesson.id);
+            } catch (err) {
+                showToast('Dersler alınamadı: ' + err.message, false);
+            }
+        }
+
+        function renderLessonChips() {
+            $('matrix-lessons-chips').innerHTML = state.matrixLessons.map(l => {
+                const isActive = state.selectedLesson && state.selectedLesson.id === l.id;
+                return `
+                <button type="button" class="chip ${isActive ? 'active' : ''}" onclick="onSelectMatrixLesson('${l.id}')">
+                    <span>${esc(l.name)}</span>
+                </button>`;
+            }).join('');
+
+            $('matrix-active-lesson-label').textContent = state.selectedLesson ? state.selectedLesson.name : '';
+        }
+
+        async function onSelectMatrixLesson(lessonId) {
+            const l = state.matrixLessons.find(x => x.id === lessonId);
+            if (!l) return;
+            state.selectedLesson = l;
+            renderLessonChips();
+            await loadLessonDetails(lessonId);
+        }
+
+        async function loadLessonDetails(lessonTable) {
+            $('student-books-list').innerHTML = '<div class="spinner spinner-blue"></div>';
+            $('matrix-topics-container').innerHTML = '<div class="spinner spinner-blue" style="margin:20px auto;"></div>';
+
+            try {
+                // Fetch student books, pool books, and topics concurrently
+                const [studentBooks, poolBooks, topics] = await Promise.all([
+                    api(`/api/student/${state.selectedStudent.id}/books/${encodeURIComponent(lessonTable)}`),
+                    api(`/api/books/${encodeURIComponent(lessonTable)}`),
+                    api(`/api/topics/list?lesson_id=${encodeURIComponent(lessonTable)}&student_id=${state.selectedStudent.id}`)
+                ]);
+
+                state.studentBooks = studentBooks;
+                state.poolBooks = poolBooks;
+                state.matrixTopics = topics;
+                state.matrixBookFilter = 'Hepsi';
+                state.matrixStatusFilter = 'Hepsi';
+
+                renderStudentBooks();
+                renderBookFocusChips();
+                updateMatrixCounts();
+                renderMatrixTopics(topics);
+            } catch (err) {
+                showToast('Detaylar yüklenemedi: ' + err.message, false);
+            }
+        }
+
+        function renderStudentBooks() {
+            const list = state.studentBooks;
+            $('student-books-count-badge').textContent = `${list.length} Kitap`;
+
+            if (!list.length) {
+                $('student-books-list').innerHTML = `
+                    <span style="font-size:12px; color:var(--text-sub);">
+                        Bu ders için atanmış kitap yok. <b>+ Kitap Ekle</b> butonuna tıklayarak öğrenciye kitap ekleyin.
+                    </span>`;
+                return;
+            }
+
+            $('student-books-list').innerHTML = list.map(b => `
+                <div class="book-pill">
+                    <span>📖 ${esc(b)}</span>
+                    <button type="button" class="book-remove-btn" onclick="removeBookFromStudent('${esc(b)}')" title="Kitabı Kaldır">×</button>
+                </div>
+            `).join('');
+        }
+
+        function renderBookFocusChips() {
+            const container = $('matrix-book-focus-chips');
+            if (!container) return;
+
+            let html = `
+                <button type="button" class="chip ${state.matrixBookFilter === 'Hepsi' ? 'active' : ''}" onclick="setMatrixFocusedBook('Hepsi')">
+                    <span>📚 Tüm Kitaplar</span>
+                </button>
+            `;
+
+            state.studentBooks.forEach(b => {
+                const isActive = state.matrixBookFilter === b;
+                html += `
+                    <button type="button" class="chip ${isActive ? 'active' : ''}" onclick="setMatrixFocusedBook('${esc(b)}')">
+                        <span>📖 ${esc(b)}</span>
+                    </button>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function setMatrixFocusedBook(bookName) {
+            state.matrixBookFilter = bookName;
+            renderBookFocusChips();
+            updateMatrixCounts();
+            renderMatrixTopics(state.matrixTopics);
+        }
+
+        function setMatrixStatusFilter(status, btnElem) {
+            state.matrixStatusFilter = status;
+            document.querySelectorAll('.matrix-status-chip').forEach(b => b.classList.remove('active'));
+            if (btnElem) btnElem.classList.add('active');
+            renderMatrixTopics(state.matrixTopics);
+        }
+
+        function updateMatrixCounts() {
+            const topics = state.matrixTopics || [];
+            const focusedBook = state.matrixBookFilter;
+
+            let countGecikmis = 0;
+            let countDevam = 0;
+            let countTamam = 0;
+            let countBos = 0;
+
+            topics.forEach(t => {
+                const assigns = t.assignments || [];
+                if (focusedBook === 'Hepsi') {
+                    // Overall topic status
+                    const hasGecikmis = assigns.some(a => a.status === 'gecikmis');
+                    const hasDevam = assigns.some(a => a.status === 'devam' || a.status === 'yaklasan' || a.status === 'yaklasan_bugun');
+                    const hasTamam = assigns.some(a => a.status === 'tamam' || a.status === 'yapildi');
+                    
+                    if (hasGecikmis) countGecikmis++;
+                    else if (hasDevam) countDevam++;
+                    else if (hasTamam) countTamam++;
+                    else countBos++;
+                } else {
+                    // Focused on a specific book
+                    const a = assigns.find(x => (x.book || '').toLowerCase() === focusedBook.toLowerCase());
+                    if (!a) {
+                        countBos++;
+                    } else if (a.status === 'tamam' || a.status === 'yapildi') {
+                        countTamam++;
+                    } else if (a.status === 'gecikmis') {
+                        countGecikmis++;
+                    } else {
+                        countDevam++;
+                    }
+                }
+            });
+
+            if ($('mat-count-gecikmis')) $('mat-count-gecikmis').textContent = countGecikmis;
+            if ($('mat-count-devam')) $('mat-count-devam').textContent = countDevam;
+            if ($('mat-count-tamam')) $('mat-count-tamam').textContent = countTamam;
+            if ($('mat-count-bos')) $('mat-count-bos').textContent = countBos;
+
+            if ($('matrix-focused-book-stats')) {
+                $('matrix-focused-book-stats').textContent = focusedBook === 'Hepsi' ? 'Tüm Kitaplar Özeti' : `${esc(focusedBook)} (${countTamam}/${topics.length} Yapıldı)`;
+            }
+        }
+
+        async function removeBookFromStudent(bookName) {
+            if (!confirm(`"${bookName}" kitabını öğrenciden kaldırmak istediğinize emin misiniz?`)) return;
+
+            try {
+                await api('/api/student/books', 'POST', {
+                    student_id: state.selectedStudent.id,
+                    lesson_table: state.selectedLesson.id,
+                    book_name: bookName,
+                    action: 'remove'
+                });
+                showToast('Kitap öğrenciden kaldırıldı.');
+                await loadLessonDetails(state.selectedLesson.id);
+            } catch (err) {
+                showToast('Hata: ' + err.message, false);
+            }
+        }
+
+        function renderMatrixTopics(topics) {
+            $('matrix-topics-count').textContent = `${topics.length} Konu`;
+
+            if (!topics.length) {
+                $('matrix-topics-container').innerHTML = `
+                    <div class="card text-center p-6" style="color:var(--text-sub);">
+                        Bu ders için kayıtlı konu bulunamadı.
+                    </div>`;
+                return;
+            }
+
+            const q = ($('matrix-topic-search') ? $('matrix-topic-search').value : '').trim().toLowerCase();
+            const statusFilter = state.matrixStatusFilter;
+            const focusedBook = state.matrixBookFilter;
+
+            const filtered = topics.filter(t => {
+                // 1. Text search
+                if (q && !t.name.toLowerCase().includes(q)) return false;
+
+                // 2. Status filter
+                if (statusFilter !== 'Hepsi') {
+                    const assigns = t.assignments || [];
+                    if (focusedBook === 'Hepsi') {
+                        if (statusFilter === 'gecikmis' && !assigns.some(a => a.status === 'gecikmis')) return false;
+                        if (statusFilter === 'devam' && !assigns.some(a => a.status === 'devam' || a.status === 'yaklasan' || a.status === 'yaklasan_bugun')) return false;
+                        if (statusFilter === 'tamam' && !assigns.some(a => a.status === 'tamam' || a.status === 'yapildi')) return false;
+                        if (statusFilter === 'bos' && assigns.length > 0) return false;
+                    } else {
+                        const a = assigns.find(x => (x.book || '').toLowerCase() === focusedBook.toLowerCase());
+                        if (statusFilter === 'bos' && a) return false;
+                        if (statusFilter === 'tamam' && (!a || (a.status !== 'tamam' && a.status !== 'yapildi'))) return false;
+                        if (statusFilter === 'gecikmis' && (!a || a.status !== 'gecikmis')) return false;
+                        if (statusFilter === 'devam' && (!a || (a.status !== 'devam' && a.status !== 'yaklasan' && a.status !== 'yaklasan_bugun'))) return false;
+                    }
+                }
+                return true;
+            });
+
+            if (!filtered.length) {
+                $('matrix-topics-container').innerHTML = `
+                    <div class="card text-center p-6" style="color:var(--text-sub);">
+                        Filtreye uygun konu bulunamadı.
+                    </div>`;
+                return;
+            }
+
+            $('matrix-topics-container').innerHTML = filtered.map(t => {
+                let badgesHtml = '';
+                const assigns = t.assignments || [];
+
+                if (focusedBook !== 'Hepsi') {
+                    // Focused on a specific book (e.g. FİZİK1)
+                    const a = assigns.find(x => (x.book || '').toLowerCase() === focusedBook.toLowerCase());
+                    if (a) {
+                        const isDone = a.status === 'tamam' || a.status === 'yapildi';
+                        const isOverdue = a.status === 'gecikmis';
+                        const isApproaching = a.status === 'yaklasan' || a.status === 'yaklasan_bugun';
+
+                        let badgeClass = 'badge-success';
+                        let icon = '✅';
+                        let detailText = 'Yapıldı (Bitmiş)';
+
+                        if (isOverdue) {
+                            badgeClass = 'badge-danger';
+                            icon = '🚨';
+                            detailText = `Gecikmiş (${a.days}g - Son: ${a.due_date_formatted})`;
+                        } else if (isApproaching) {
+                            badgeClass = 'badge-warning';
+                            icon = '⚠️';
+                            detailText = `${a.label} (Son: ${a.due_date_formatted})`;
+                        } else if (!isDone) {
+                            badgeClass = 'badge-info';
+                            icon = '⏳';
+                            detailText = `Devam Ediyor (Son: ${a.due_date_formatted || 'Tarihsiz'})`;
+                        }
+
+                        badgesHtml = `
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="badge ${badgeClass}" style="font-size:12px; padding:4px 9px;">
+                                    ${icon} <b>${esc(focusedBook)}:</b> ${esc(detailText)}
+                                </span>
+                            </div>
+                        `;
+                    } else {
+                        badgesHtml = `
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="badge badge-neutral" style="font-size:11px; padding:3px 8px;">
+                                    ⚪ <b>${esc(focusedBook)}'den Henüz Verilmedi</b>
+                                </span>
+                            </div>
+                        `;
+                    }
+
+                    // Also show other books if student solved it in them
+                    const others = assigns.filter(x => (x.book || '').toLowerCase() !== focusedBook.toLowerCase());
+                    if (others.length) {
+                        badgesHtml += '<div class="flex items-center gap-1" style="font-size:11px; color:var(--text-sub); flex-wrap:wrap; margin-top:2px;">';
+                        badgesHtml += '<span>Diğer:</span>';
+                        others.forEach(o => {
+                            const oDone = o.status === 'tamam' || o.status === 'yapildi';
+                            const oOverdue = o.status === 'gecikmis';
+                            const oColor = oDone ? 'badge-success' : (oOverdue ? 'badge-danger' : 'badge-warning');
+                            const oIcon = oDone ? '✓' : (oOverdue ? '🚨' : '⏳');
+                            badgesHtml += `<span class="badge ${oColor}" style="font-size:10px;">${esc(o.book)} ${oIcon}</span>`;
+                        });
+                        badgesHtml += '</div>';
+                    }
+                } else {
+                    // Multi-book matrix mode (Tüm Kitaplar)
+                    if (state.studentBooks.length > 0) {
+                        badgesHtml = '<div class="flex" style="flex-wrap:wrap; gap:4px;">';
+                        state.studentBooks.forEach(b => {
+                            const a = assigns.find(x => (x.book || '').toLowerCase() === b.toLowerCase());
+                            if (a) {
+                                const isDone = a.status === 'tamam' || a.status === 'yapildi';
+                                const isOverdue = a.status === 'gecikmis';
+                                const colorClass = isDone ? 'badge-success' : (isOverdue ? 'badge-danger' : 'badge-warning');
+                                const icon = isDone ? '✓' : (isOverdue ? '🚨' : '⏳');
+                                badgesHtml += `<span class="badge ${colorClass}" style="font-size:11px;">${icon} ${esc(b)}</span>`;
+                            } else {
+                                badgesHtml += `<span class="badge badge-neutral" style="font-size:10px; opacity:0.6;">⚪ ${esc(b)}</span>`;
+                            }
+                        });
+                        badgesHtml += '</div>';
+                    } else if (assigns.length) {
+                        badgesHtml = '<div class="flex" style="flex-wrap:wrap; gap:4px;">' + assigns.map(a => {
+                            const isDone = a.status === 'tamam' || a.status === 'yapildi';
+                            const isOverdue = a.status === 'gecikmis';
+                            const colorClass = isDone ? 'badge-success' : (isOverdue ? 'badge-danger' : 'badge-warning');
+                            const icon = isDone ? '✓' : (isOverdue ? '🚨' : '⏳');
+                            return `<span class="badge ${colorClass}">${icon} ${esc(a.book)}</span>`;
+                        }).join(' ') + '</div>';
+                    } else {
+                        badgesHtml = '<span class="badge badge-neutral">Henüz ödev verilmedi</span>';
+                    }
+                }
+
+                const targetBookForAssign = focusedBook !== 'Hepsi' ? focusedBook : '';
+
+                return `
+                <div class="card" style="padding:12px 14px; margin-bottom:8px;">
+                    <div class="flex justify-between items-start gap-2">
+                        <div style="flex:1;">
+                            <div style="font-size:14px; font-weight:700; color:var(--text-main); margin-bottom:4px;">${esc(t.name)}</div>
+                            ${badgesHtml}
+                        </div>
+                        <button class="btn btn-sm btn-primary" onclick="quickAssignTopic('${esc(t.name)}', '${esc(targetBookForAssign)}')">
+                            <span>+ Ödev</span>
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function filterMatrixTopics(query) {
+            renderMatrixTopics(state.matrixTopics || []);
+        }
+
+        function quickAssignTopic(topicName, prefillBook = '') {
+            state.assign.studentId = state.selectedStudent ? state.selectedStudent.id : null;
+            state.assign.lessonId = state.selectedLesson ? state.selectedLesson.id : '';
+            if (prefillBook) {
+                state.assign.book = prefillBook;
+            }
+            state.assign.selectedTopics = new Set([topicName]);
+            switchTab('assign');
+        }
+
+        // --- MODAL: KİTAP EKLEME ---
+        function openAddBookModal() {
+            if (!state.selectedStudent || !state.selectedLesson) {
+                showToast('Önce öğrenci ve ders seçiniz.', false);
+                return;
+            }
+
+            $('modal-book-student-name').textContent = state.selectedStudent.ad_soyad;
+            $('modal-book-lesson-name').textContent = state.selectedLesson.name;
+            $('modal-new-book-input').value = '';
+
+            // Populate pool books dropdown
+            const opts = state.poolBooks.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+            $('modal-pool-book-select').innerHTML = `<option value="">Havuzdan kitap seçiniz (${state.poolBooks.length} mevcut)...</option>${opts}`;
+
+            openModal('modal-add-book');
+        }
+
+        function onModalPoolSelectChange(val) {
+            if (val) {
+                $('modal-new-book-input').value = val;
+            }
+        }
+
+        async function confirmAddBookToStudent() {
+            const selectedPool = $('modal-pool-book-select').value.trim();
+            const typedNew = $('modal-new-book-input').value.trim();
+            const bookName = typedNew || selectedPool;
+
+            if (!bookName) {
+                showToast('Lütfen bir kitap seçin veya kitap adı yazın.', false);
+                return;
+            }
+
+            try {
+                // 1. Add to student books (backend automatically inserts to pool too)
+                await api('/api/student/books', 'POST', {
+                    student_id: state.selectedStudent.id,
+                    lesson_table: state.selectedLesson.id,
+                    book_name: bookName,
+                    action: 'add'
+                });
+
+                closeModal('modal-add-book');
+                showToast(`"${bookName}" kitabı başarıyla eklendi!`);
+                await loadLessonDetails(state.selectedLesson.id);
+            } catch (err) {
+                showToast('Kitap eklenemedi: ' + err.message, false);
+            }
+        }
+
+        // --- TAB 3: HIZLI ÖDEV VER (ASSIGN HOMEWORK) ---
+        async function prepareAssignForm() {
+            // Setup student dropdown
+            const stdOpts = state.students.map(s => `
+                <option value="${s.id}" ${state.selectedStudent && state.selectedStudent.id === s.id ? 'selected' : ''}>
+                    ${esc(s.ad_soyad)} (${esc(s.sinif || 'Sınıf Yok')})
+                </option>
+            `).join('');
+            $('assign-student-select').innerHTML = `<option value="">Öğrenci Seçiniz</option>${stdOpts}`;
+
+            if (state.selectedStudent) {
+                $('assign-student-select').value = state.selectedStudent.id;
+                $('assign-student-badge').textContent = state.selectedStudent.ad_soyad;
+            }
+
+            // Default due date = today + 7 days
+            if (!state.assign.dueDate) {
+                setPresetDueDate(7);
+            }
+
+            // Load lessons for selected student
+            await updateAssignLessons();
+        }
+
+        async function updateAssignLessons() {
+            const studentId = $('assign-student-select').value;
+            if (!studentId) {
+                $('assign-lesson-select').innerHTML = '<option value="">Önce öğrenci seçiniz</option>';
+                return;
+            }
+
+            try {
+                const lessons = await api(`/api/lessons/list?student_id=${studentId}`);
+                const opts = lessons.map(l => `
+                    <option value="${l.id}" ${state.assign.lessonId === l.id ? 'selected' : ''}>${esc(l.name)}</option>
+                `).join('');
+                $('assign-lesson-select').innerHTML = `<option value="">Ders Seçiniz</option>${opts}`;
+
+                if (state.assign.lessonId) {
+                    $('assign-lesson-select').value = state.assign.lessonId;
+                    await onAssignLessonChange(state.assign.lessonId);
+                }
+            } catch (err) {
+                showToast('Dersler alınamadı: ' + err.message, false);
+            }
+        }
+
+        function onAssignStudentChange(stdId) {
+            if (stdId) {
+                selectStudent(parseInt(stdId), false);
+                $('assign-student-badge').textContent = state.selectedStudent ? state.selectedStudent.ad_soyad : '';
+            }
+            updateAssignLessons();
+        }
+
+        async function onAssignLessonChange(lessonId) {
+            state.assign.lessonId = lessonId;
+            if (!lessonId) {
+                $('assign-book-select').innerHTML = '<option value="">Önce ders seçiniz</option>';
+                $('assign-topics-list').innerHTML = '<div style="font-size:12px; color:var(--text-sub); text-align:center; padding:16px;">Önce ders seçiniz</div>';
+                return;
+            }
+
+            const studentId = $('assign-student-select').value;
+            $('assign-book-select').innerHTML = '<option value="">Yükleniyor...</option>';
+            $('assign-topics-list').innerHTML = '<div class="spinner spinner-blue" style="margin:16px auto;"></div>';
+
+            try {
+                const [studentBooks, poolBooks, topics] = await Promise.all([
+                    api(`/api/student/${studentId}/books/${encodeURIComponent(lessonId)}`),
+                    api(`/api/books/${encodeURIComponent(lessonId)}`),
+                    api(`/api/topics/list?lesson_id=${encodeURIComponent(lessonId)}&student_id=${studentId}`)
+                ]);
+
+                // Populate books dropdown (student books first, then other pool books)
+                let bookOptions = '<option value="">Kitap Seçiniz...</option>';
+                if (studentBooks.length) {
+                    bookOptions += `<optgroup label="Öğrencinin Kitapları">`;
+                    studentBooks.forEach(b => {
+                        bookOptions += `<option value="${esc(b)}">${esc(b)}</option>`;
+                    });
+                    bookOptions += `</optgroup>`;
+                }
+
+                const otherPool = poolBooks.filter(b => !studentBooks.includes(b));
+                if (otherPool.length) {
+                    bookOptions += `<optgroup label="Genel Kitap Havuzu">`;
+                    otherPool.forEach(b => {
+                        bookOptions += `<option value="${esc(b)}">${esc(b)}</option>`;
+                    });
+                    bookOptions += `</optgroup>`;
+                }
+
+                bookOptions += `<option value="__manual__" style="color:var(--primary); font-weight:bold;">+ Yeni Kitap Yaz...</option>`;
+                $('assign-book-select').innerHTML = bookOptions;
+
+                if (state.assign.book) {
+                    $('assign-book-select').value = state.assign.book;
+                }
+
+                // Render topics for selection
+                window._assignTopicsData = topics;
+                renderAssignTopicsList(topics);
+            } catch (err) {
+                showToast('Ders verisi yüklenemedi: ' + err.message, false);
+            }
+        }
+
+        function onAssignBookChange(val) {
+            if (val === undefined && $('assign-book-select')) {
+                val = $('assign-book-select').value;
+            }
+            state.assign.book = val;
+            if (val === '__manual__') {
+                $('assign-manual-book-wrap').classList.remove('hidden');
+                $('assign-manual-book-input').focus();
+            } else {
+                $('assign-manual-book-wrap').classList.add('hidden');
+            }
+            if (window._assignTopicsData) {
+                renderAssignTopicsList(window._assignTopicsData);
+            }
+        }
+
+        function setAssignStatusFilter(filterType, btnElem) {
+            state.assign.statusFilter = filterType;
+            document.querySelectorAll('.assign-status-chip').forEach(b => b.classList.remove('active'));
+            if (btnElem) btnElem.classList.add('active');
+            if (window._assignTopicsData) {
+                renderAssignTopicsList(window._assignTopicsData);
+            }
+        }
+
+        function renderAssignTopicsList(topics) {
+            if (!topics || !topics.length) {
+                $('assign-topics-list').innerHTML = '<div style="font-size:12px; color:var(--text-sub); text-align:center; padding:16px;">Konu bulunamadı</div>';
+                return;
+            }
+
+            const q = ($('assign-topic-search') ? $('assign-topic-search').value.trim().toLowerCase() : '');
+            let selectedBook = state.assign.book;
+            if (selectedBook === '__manual__') {
+                selectedBook = ($('assign-manual-book-input') ? $('assign-manual-book-input').value.trim() : '');
+            }
+            const stFilter = state.assign.statusFilter || 'Hepsi';
+
+            const filtered = topics.filter(t => {
+                // 1. Text filter
+                if (q && !t.name.toLowerCase().includes(q)) return false;
+
+                // 2. Status filter relative to selectedBook
+                if (stFilter !== 'Hepsi') {
+                    const assigns = t.assignments || [];
+                    if (selectedBook) {
+                        const a = assigns.find(x => (x.book || '').toLowerCase() === selectedBook.toLowerCase());
+                        if (stFilter === 'bos' && a) return false;
+                        if (stFilter === 'tamam' && (!a || (a.status !== 'tamam' && a.status !== 'yapildi'))) return false;
+                        if (stFilter === 'gecikmis' && (!a || a.status !== 'gecikmis')) return false;
+                        if (stFilter === 'devam' && (!a || (a.status !== 'devam' && a.status !== 'yaklasan' && a.status !== 'yaklasan_bugun'))) return false;
+                    } else {
+                        // General filter if no book selected
+                        if (stFilter === 'bos' && assigns.length > 0) return false;
+                        if (stFilter === 'tamam' && !assigns.some(a => a.status === 'tamam' || a.status === 'yapildi')) return false;
+                        if (stFilter === 'gecikmis' && !assigns.some(a => a.status === 'gecikmis')) return false;
+                        if (stFilter === 'devam' && !assigns.some(a => a.status === 'devam' || a.status === 'yaklasan' || a.status === 'yaklasan_bugun')) return false;
+                    }
+                }
+                return true;
+            });
+
+            if (!filtered.length) {
+                $('assign-topics-list').innerHTML = '<div style="font-size:12px; color:var(--text-sub); text-align:center; padding:16px;">Filtreye uygun konu bulunamadı</div>';
+                return;
+            }
+
+            $('assign-topics-list').innerHTML = filtered.map(t => {
+                const isChecked = state.assign.selectedTopics.has(t.name);
+                const assigns = t.assignments || [];
+                let badges = '';
+
+                if (selectedBook) {
+                    // Specific status badge for this selected book
+                    const targetAssign = assigns.find(x => (x.book || '').toLowerCase() === selectedBook.toLowerCase());
+                    if (targetAssign) {
+                        const isDone = targetAssign.status === 'tamam' || targetAssign.status === 'yapildi';
+                        const isOverdue = targetAssign.status === 'gecikmis';
+                        const isApproaching = targetAssign.status === 'yaklasan' || targetAssign.status === 'yaklasan_bugun';
+
+                        if (isDone) {
+                            badges += `
+                                <div class="flex items-center gap-1 mt-1 ml-6">
+                                    <span class="badge badge-success" style="font-size:11px;">
+                                        ✅ <b>${esc(selectedBook)}:</b> Yapıldı (Bitmiş)
+                                    </span>
+                                </div>
+                            `;
+                        } else if (isOverdue) {
+                            badges += `
+                                <div class="flex items-center gap-1 mt-1 ml-6">
+                                    <span class="badge badge-danger" style="font-size:11px;">
+                                        🚨 <b>${esc(selectedBook)}:</b> Gecikmiş (${targetAssign.days}g - Son: ${targetAssign.due_date_formatted})
+                                    </span>
+                                </div>
+                            `;
+                        } else if (isApproaching) {
+                            badges += `
+                                <div class="flex items-center gap-1 mt-1 ml-6">
+                                    <span class="badge badge-warning" style="font-size:11px;">
+                                        ⚠️ <b>${esc(selectedBook)}:</b> ${targetAssign.label} (Son: ${targetAssign.due_date_formatted})
+                                    </span>
+                                </div>
+                            `;
+                        } else {
+                            badges += `
+                                <div class="flex items-center gap-1 mt-1 ml-6">
+                                    <span class="badge" style="font-size:11px; background:#fef9c3; color:#854d0e; border:1px solid #fde047;">
+                                        ⏳ <b>${esc(selectedBook)}:</b> Devam Ediyor (Son: ${targetAssign.due_date_formatted || 'Tarihsiz'})
+                                    </span>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        badges += `
+                            <div class="flex items-center gap-1 mt-1 ml-6">
+                                <span class="badge badge-neutral" style="font-size:10px;">
+                                    ⚪ <b>${esc(selectedBook)}'den henüz verilmedi</b>
+                                </span>
+                            </div>
+                        `;
+                    }
+
+                    // Show other books if solved in them
+                    const others = assigns.filter(x => (x.book || '').toLowerCase() !== selectedBook.toLowerCase());
+                    if (others.length) {
+                        badges += '<div class="flex items-center gap-1 mt-1 ml-6" style="font-size:10px; color:var(--text-sub); flex-wrap:wrap;">';
+                        badges += '<span>Diğer:</span>';
+                        others.forEach(o => {
+                            const oDone = o.status === 'tamam' || o.status === 'yapildi';
+                            const oOverdue = o.status === 'gecikmis';
+                            const oColor = oDone ? 'badge-success' : (oOverdue ? 'badge-danger' : 'badge-warning');
+                            const oIcon = oDone ? '✓' : (oOverdue ? '🚨' : '⏳');
+                            badges += `<span class="badge ${oColor}" style="font-size:9px;">${esc(o.book)} ${oIcon}</span>`;
+                        });
+                        badges += '</div>';
+                    }
+                } else if (assigns.length) {
+                    badges = '<div class="flex" style="flex-wrap:wrap; gap:3px; margin-left:26px; margin-top:2px;">';
+                    assigns.forEach(a => {
+                        const isDone = a.status === 'tamam' || a.status === 'yapildi';
+                        const isOverdue = a.status === 'gecikmis';
+                        const colorClass = isDone ? 'badge-success' : (isOverdue ? 'badge-danger' : 'badge-warning');
+                        const icon = isDone ? '✓' : (isOverdue ? '🚨' : '⏳');
+                        badges += `<span class="badge ${colorClass}" style="font-size:10px;">${icon} ${esc(a.book)}</span>`;
+                    });
+                    badges += '</div>';
+                }
+
+                return `
+                <div style="padding:7px 6px; border-bottom:1px solid #f1f5f9;">
+                    <label class="flex items-center gap-2" style="cursor:pointer; font-size:13px; font-weight:500;">
+                        <input type="checkbox" style="width:18px; height:18px;" onchange="toggleAssignTopic('${esc(t.name)}', this.checked)" ${isChecked ? 'checked' : ''}>
+                        <span class="${isChecked ? 'font-bold' : ''}" style="${isChecked ? 'color:var(--primary);' : ''}">${esc(t.name)}</span>
+                    </label>
+                    ${badges}
+                </div>`;
+            }).join('');
+
+            updateAssignSelectedCount();
+        }
+
+        function toggleAssignTopic(topicName, isChecked) {
+            if (isChecked) state.assign.selectedTopics.add(topicName);
+            else state.assign.selectedTopics.delete(topicName);
+            updateAssignSelectedCount();
+        }
+
+        function selectAllAssignTopics(selectAll) {
+            const list = window._assignTopicsData || [];
+            if (selectAll) {
+                list.forEach(t => state.assign.selectedTopics.add(t.name));
+            } else {
+                state.assign.selectedTopics.clear();
+            }
+            renderAssignTopicsList(list);
+        }
+
+        function filterAssignTopics(q) {
+            if (window._assignTopicsData) {
+                renderAssignTopicsList(window._assignTopicsData);
+            }
+        }
+
+        function updateAssignSelectedCount() {
+            const count = state.assign.selectedTopics.size;
+            $('assign-selected-count-msg').textContent = `${count} konu seçildi`;
+        }
+
+        function setAssignDuration(mins, btnElem) {
+            state.assign.duration = mins;
+            $('assign-duration-input').value = mins;
+            document.querySelectorAll('.duration-chip').forEach(b => b.classList.remove('active'));
+            if (btnElem) btnElem.classList.add('active');
+        }
+
+        function setPresetDueDate(days, btnElem) {
+            const d = new Date();
+            d.setDate(d.getDate() + days);
+            const iso = d.toISOString().split('T')[0];
+            $('assign-due-date-input').value = iso;
+            state.assign.dueDate = iso;
+            if (btnElem) {
+                btnElem.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+                btnElem.classList.add('active');
+            }
+        }
+
+        async function submitAssignment() {
+            const studentId = parseInt($('assign-student-select').value);
+            const lesson = $('assign-lesson-select').value;
+            let book = $('assign-book-select').value;
+            if (book === '__manual__') {
+                book = $('assign-manual-book-input').value.trim();
+            }
+            const topics = Array.from(state.assign.selectedTopics);
+            const dueDate = $('assign-due-date-input').value;
+
+            if (!studentId) { showToast('Lütfen bir öğrenci seçiniz.', false); return; }
+            if (!lesson) { showToast('Lütfen bir ders seçiniz.', false); return; }
+            if (!book) { showToast('Lütfen bir kitap seçiniz veya adını yazınız.', false); return; }
+            if (!topics.length) { showToast('Lütfen en az bir konu seçiniz.', false); return; }
+
+            const submitBtn = $('btn-submit-assignment');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<div class="spinner"></div> Ödev Kaydediliyor...';
+
+            try {
+                await api('/api/homework', 'POST', {
+                    student_id: studentId,
+                    lesson: lesson,
+                    book: book,
+                    topic: '',
+                    topics: topics,
+                    due_date: dueDate
+                });
+
+                showToast(`✅ ${topics.length} konu için ödev başarıyla atandı!`);
+                state.assign.selectedTopics.clear();
+
+                // Refresh matrix or control view
+                setTimeout(() => {
+                    switchTab('control');
+                }, 800);
+            } catch (err) {
+                showToast('Ödev kaydedilemedi: ' + err.message, false);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span>💾 Ödevi Ata ve Kaydet</span>';
+            }
+        }
+
+        // --- TAB 4: ÖDEV KONTROL (HOMEWORK REVIEW & GRADING) ---
+        async function loadControlView() {
+            if (!state.selectedStudent) {
+                showToast('Lütfen önce bir öğrenci seçiniz.', false);
+                switchTab('students');
+                return;
+            }
+
+            $('control-student-title').textContent = state.selectedStudent.ad_soyad;
+            $('control-homework-list').innerHTML = '<div class="spinner spinner-blue" style="margin:24px auto;"></div>';
+
+            try {
+                let url = `/api/student/${state.selectedStudent.id}/tracking?status=${encodeURIComponent(state.controlFilter)}`;
+                if (state.controlLessonFilter && state.controlLessonFilter !== 'Hepsi') {
+                    url += `&lesson=${encodeURIComponent(state.controlLessonFilter)}`;
+                }
+                if (state.controlDateFilter && state.controlDateFilter !== 'all') {
+                    url += `&date_filter=${encodeURIComponent(state.controlDateFilter)}`;
+                }
+
+                const res = await api(url);
+                state.controlItems = res.items || [];
+                state.controlStats = res.stats || { total: 0, completed: 0, percent: 0, active: 0 };
+
+                // Update summary banner
+                const s = state.controlStats;
+                $('control-stats-progress-text').textContent = `${s.completed} / ${s.total} Tamamlandı (${s.active} Bekleyen)`;
+                $('control-stats-percent').textContent = `%${s.percent}`;
+                $('control-progress-fill').style.width = `${s.percent}%`;
+
+                // Populate lesson filter if empty
+                populateControlLessonFilter(state.controlItems);
+
+                renderControlList();
+            } catch (err) {
+                showToast('Ödevler yüklenemedi: ' + err.message, false);
+            }
+        }
+
+        function populateControlLessonFilter(items) {
+            const lessons = Array.from(new Set(items.map(it => it.lesson))).filter(Boolean).sort();
+            const current = $('control-lesson-filter').value;
+            let opts = `<option value="Hepsi" ${current === 'Hepsi' ? 'selected' : ''}>Tüm Dersler (${items.length})</option>`;
+            lessons.forEach(l => {
+                opts += `<option value="${esc(l)}" ${current === l ? 'selected' : ''}>${esc(l)}</option>`;
+            });
+            $('control-lesson-filter').innerHTML = opts;
+        }
+
+        function onControlLessonFilterChange(val) {
+            state.controlLessonFilter = val;
+            loadControlView();
+        }
+
+        function filterControlList(filterType, btnElem) {
+            state.controlFilter = filterType;
+            document.querySelectorAll('.control-filter-btn').forEach(b => {
+                b.style.background = 'transparent';
+                b.style.color = 'var(--text-sub)';
+                b.style.boxShadow = 'none';
+            });
+            if (btnElem) {
+                btnElem.style.background = '#fff';
+                btnElem.style.color = 'var(--primary)';
+                btnElem.style.boxShadow = '0 1px 2px rgba(0,0,0,0.06)';
+            }
+            loadControlView();
+        }
+
+        function filterControlDate(dateType, elem) {
+            state.controlDateFilter = dateType;
+            document.querySelectorAll('#control-date-filters .chip').forEach(c => c.classList.remove('active'));
+            if (elem) elem.classList.add('active');
+            loadControlView();
+        }
+
+        function syncControlDatePills() {
+            const pills = document.querySelectorAll('#control-date-filters .chip');
+            pills.forEach(p => p.classList.remove('active'));
+            const map = { 'all': 0, 'overdue': 1, 'today': 2, 'tomorrow': 3, 'week': 4 };
+            const idx = map[state.controlDateFilter] ?? 0;
+            if (pills[idx]) pills[idx].classList.add('active');
+        }
+
+        function renderControlList() {
+            const items = state.controlItems;
+            if (!items.length) {
+                $('control-homework-list').innerHTML = `
+                    <div class="card text-center p-8" style="color:var(--text-sub); margin-top:12px;">
+                        Bu filtreye uygun ödev kaydı bulunamadı.
+                    </div>`;
+                return;
+            }
+
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const tmrw = new Date();
+            tmrw.setDate(tmrw.getDate() + 1);
+            const tmrwStr = tmrw.toISOString().slice(0, 10);
+
+            $('control-homework-list').innerHTML = items.map(it => {
+                const isDone = it.status === 'tamam' || it.status === 'yapildi';
+                const dueDateStr = (it.due_date || '').slice(0, 10);
+
+                let dueBadge = '';
+                if (dueDateStr) {
+                    if (isDone) {
+                        dueBadge = `<span class="badge badge-success" style="font-size:10px;">✓ Teslim: ${esc(dueDateStr)}</span>`;
+                    } else if (dueDateStr < todayStr) {
+                        dueBadge = `<span class="badge badge-danger" style="font-size:10px; font-weight:700;">🚨 Gecikti: ${esc(dueDateStr)}</span>`;
+                    } else if (dueDateStr === todayStr) {
+                        dueBadge = `<span class="badge badge-warning" style="font-size:10px; font-weight:700;">📅 Bugün Teslim</span>`;
+                    } else if (dueDateStr === tmrwStr) {
+                        dueBadge = `<span class="badge badge-info" style="font-size:10px; font-weight:700;">⏳ Yarın Teslim</span>`;
+                    } else {
+                        dueBadge = `<span class="badge" style="background:#ede9fe; color:#6d28d9; font-size:10px;">📆 Teslim: ${esc(dueDateStr)}</span>`;
+                    }
+                }
+
+                return `
+                <div class="card" style="padding:14px; margin-bottom:10px; border-left:4px solid ${isDone ? 'var(--success)' : 'var(--warning)'};">
+                    <div class="flex justify-between items-start gap-3">
+                        <div style="flex:1;">
+                            <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                <span class="badge ${isDone ? 'badge-success' : 'badge-warning'}">${esc(it.lesson)}</span>
+                                <span style="font-size:11px; color:var(--text-sub);">📖 ${esc(it.book)}</span>
+                                ${dueBadge}
+                            </div>
+                            <div style="font-size:14px; font-weight:700; color:var(--text-main); margin-bottom:4px;">${esc(it.topic)}</div>
+                            <div class="flex items-center gap-3" style="font-size:11px; color:var(--text-sub);">
+                                ${it.duration ? `<span>⏱️ ${it.duration} dk</span>` : ''}
+                                ${it.date ? `<span>📅 Veriliş: ${esc(it.date)}</span>` : ''}
+                            </div>
+                        </div>
+
+                        <!-- Status Action Button -->
+                        <div>
+                            <button type="button" 
+                                    class="btn btn-sm ${isDone ? 'btn-success' : 'btn-secondary'}" 
+                                    style="padding:8px 12px; min-width:85px; font-size:12px;"
+                                    onclick="toggleHomeworkStatus(${it.id}, '${it.status}')">
+                                ${isDone ? '✓ Yapıldı' : '⏳ Eksik'}
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function toggleHomeworkStatus(hwId, currentStatus) {
+            const isDone = currentStatus === 'tamam' || currentStatus === 'yapildi';
+            const newStatus = isDone ? 'devam' : 'tamam';
+
+            // Optimistic update
+            const item = state.controlItems.find(x => x.id === hwId);
+            if (item) {
+                item.status = newStatus;
+                renderControlList();
+            }
+
+            try {
+                await api('/api/homework/status/bulk', 'POST', {
+                    homework_ids: [hwId],
+                    status: newStatus,
+                    expected_status: currentStatus
+                });
+                showToast(newStatus === 'tamam' ? '✓ Ödev yapıldı olarak işaretlendi.' : '⏳ Ödev eksik/bekliyor durumuna alındı.');
+                loadControlView(); // refresh stats
+            } catch (err) {
+                showToast('Durum güncellenemedi: ' + err.message, false);
+                loadControlView(); // rollback
+            }
+        }
+
+        // --- WHATSAPP UTILITIES & AUTO REPORTING ---
+        function formatWhatsAppPhone(phone) {
+            let digits = String(phone || '').replace(/[^0-9]/g, '');
+            if (!digits) return '';
+            if (digits.startsWith('90') && digits.length === 12) return digits;
+            if (digits.startsWith('0') && digits.length === 11) return '90' + digits.slice(1);
+            if (digits.length === 10) return '90' + digits;
+            return digits;
+        }
+
+        function formatPhoneDisplay(phone) {
+            let d = String(phone || '').replace(/[^0-9]/g, '');
+            if (d.startsWith('90') && d.length === 12) d = '0' + d.slice(2);
+            if (d.length === 10) d = '0' + d;
+            if (d.length === 11) {
+                return `${d.slice(0,4)} ${d.slice(4,7)} ${d.slice(7,9)} ${d.slice(9)}`;
+            }
+            return phone || '';
+        }
+
+        function dispatchWhatsApp(phone, text) {
+            const clean = formatWhatsAppPhone(phone);
+            const encoded = encodeURIComponent(text);
+            const waUrl = clean ? `https://api.whatsapp.com/send?phone=${clean}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
+            window.open(waUrl, '_blank');
+            closeModal('modal-whatsapp-choice');
+            showToast('WhatsApp açıldı!');
+        }
+
+        async function copyWhatsAppOnly() {
+            if (state.lastWhatsAppText) {
+                try {
+                    await navigator.clipboard.writeText(state.lastWhatsAppText);
+                    showToast('✓ Rapor panoya kopyalandı!');
+                } catch (_) {
+                    showToast('Panoya kopyalanamadı.', false);
+                }
+            }
+            closeModal('modal-whatsapp-choice');
+        }
+
+        async function sendWhatsAppReport() {
+            if (!state.selectedStudent) return;
+            try {
+                showToast('WhatsApp raporu hazırlanıyor...');
+                let url = `/api/student/${state.selectedStudent.id}/whatsapp?lesson=${encodeURIComponent(state.controlLessonFilter)}&status=${encodeURIComponent(state.controlFilter)}`;
+                if (state.controlDateFilter && state.controlDateFilter !== 'all') {
+                    url += `&date_filter=${encodeURIComponent(state.controlDateFilter)}`;
+                }
+                const res = await api(url, 'POST');
+                const text = res.text || '';
+
+                if (!text || text.includes('bulunamadı')) {
+                    showToast('Gösterilecek ödev bulunamadı.', false);
+                    return;
+                }
+
+                state.lastWhatsAppText = text;
+
+                // Copy to clipboard proactively so user can always paste anywhere
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text).catch(() => {});
+                }
+
+                // Check student & parent phones in DB
+                const std = state.selectedStudent;
+                const veliTel = std.veli_tel1 || std.veli_tel2 || '';
+                const ogrTel = std.ogr_tel || std.telefon || '';
+                const veliAd = std.veli_ad || 'Veli';
+
+                const btnVeli = $('btn-wa-veli');
+                const btnOgr = $('btn-wa-ogr');
+
+                if (veliTel) {
+                    btnVeli.style.display = 'flex';
+                    $('btn-wa-veli-text').textContent = `👨‍👩‍👦 ${esc(veliAd)}'ye Gönder (${formatPhoneDisplay(veliTel)})`;
+                    btnVeli.onclick = () => dispatchWhatsApp(veliTel, text);
+                } else {
+                    btnVeli.style.display = 'none';
+                }
+
+                if (ogrTel) {
+                    btnOgr.style.display = 'flex';
+                    $('btn-wa-ogr-text').textContent = `🎓 Öğrenciye Gönder (${formatPhoneDisplay(ogrTel)} - ${esc(std.ad_soyad)})`;
+                    btnOgr.onclick = () => dispatchWhatsApp(ogrTel, text);
+                } else {
+                    btnOgr.style.display = 'none';
+                }
+
+                if (!veliTel && !ogrTel) {
+                    // No telephone in record
+                    showToast('Öğrenci veya veli telefonu sistemde kayıtlı değil. Rapor metni kopyalandı.', false);
+                }
+
+                openModal('modal-whatsapp-choice');
+            } catch (err) {
+                showToast('Rapor oluşturulamadı: ' + err.message, false);
+            }
+        }
+
+        // --- STUDENT PROFILE MODAL ---
+        async function openStudentProfileModal() {
+            if (!state.selectedStudent) return;
+            openModal('modal-student-profile');
+            $('modal-student-profile-body').innerHTML = '<div class="spinner spinner-blue" style="margin:20px auto;"></div>';
+
+            try {
+                const info = await api(`/api/student/${state.selectedStudent.id}/info`);
+                state.studentInfo = info;
+
+                const ogrTel = info.ogrenci_tel || info.telefon || '-';
+                const veliTel = info.veli_tel1 || '-';
+
+                $('modal-student-profile-body').innerHTML = `
+                    <div class="card" style="padding:16px; margin-bottom:12px; background:#f8fafc;">
+                        <div style="font-size:12px; font-weight:700; color:var(--text-sub); text-transform:uppercase; margin-bottom:4px;">Öğrenci Ad Soyad</div>
+                        <div style="font-size:18px; font-weight:800; color:var(--text-main); margin-bottom:12px;">${esc(info.ad_soyad)}</div>
+
+                        <div class="flex gap-3 mb-3">
+                            <div class="w-full">
+                                <div style="font-size:11px; font-weight:700; color:var(--text-sub);">Sınıf / Grup</div>
+                                <div style="font-size:14px; font-weight:600;">${esc(info.sinif || '-')}</div>
+                            </div>
+                            <div class="w-full">
+                                <div style="font-size:11px; font-weight:700; color:var(--text-sub);">Okul / Alan</div>
+                                <div style="font-size:14px; font-weight:600;">${esc(info.okul || '-')}</div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style="font-size:11px; font-weight:700; color:var(--text-sub); margin-bottom:4px;">Öğrenci Telefonu</div>
+                            <div class="flex items-center gap-2">
+                                <a href="tel:${cleanPhone(ogrTel)}" class="btn btn-primary btn-sm" style="flex:1;">
+                                    📞 Ara: ${esc(ogrTel)}
+                                </a>
+                                ${cleanPhone(ogrTel) ? `<a href="https://api.whatsapp.com/send?phone=${cleanPhone(ogrTel)}" target="_blank" class="btn btn-success btn-sm">💬 WP</a>` : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="padding:16px; margin-bottom:12px; background:#f8fafc;">
+                        <div style="font-size:12px; font-weight:700; color:var(--text-sub); text-transform:uppercase; margin-bottom:4px;">Veli Bilgisi</div>
+                        <div style="font-size:16px; font-weight:700; color:var(--text-main); margin-bottom:10px;">${esc(info.veli_ad || 'Veli Adı Yok')}</div>
+
+                        <div>
+                            <div style="font-size:11px; font-weight:700; color:var(--text-sub); margin-bottom:4px;">Veli Telefonu</div>
+                            <div class="flex items-center gap-2">
+                                <a href="tel:${cleanPhone(veliTel)}" class="btn btn-primary btn-sm" style="flex:1;">
+                                    📞 Ara: ${esc(veliTel)}
+                                </a>
+                                ${cleanPhone(veliTel) ? `<a href="https://api.whatsapp.com/send?phone=${cleanPhone(veliTel)}" target="_blank" class="btn btn-success btn-sm">💬 WP</a>` : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    ${info.notlar ? `
+                    <div class="card" style="padding:16px; margin-bottom:0;">
+                        <div style="font-size:12px; font-weight:700; color:var(--text-sub); text-transform:uppercase; margin-bottom:6px;">Öğrenci Notları</div>
+                        <p style="font-size:13px; color:var(--text-main); white-space:pre-line;">${esc(info.notlar)}</p>
+                    </div>` : ''}
+                `;
+            } catch (err) {
+                $('modal-student-profile-body').innerHTML = `<p style="color:red; text-align:center;">Bilgiler alınamadı: ${esc(err.message)}</p>`;
+            }
+        }
+
+        // --- MODAL UTILITIES ---
+        function openModal(modalId) {
+            const m = $(modalId);
+            if (m) m.classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            const m = $(modalId);
+            if (m) m.classList.remove('active');
+        }
+
+        function closeModalOnOverlay(e, modalId) {
+            if (e.target.id === modalId) {
+                closeModal(modalId);
+            }
+        }
+
+        // --- OFFLINE & SYNC UI HANDLERS ---
+        function updateSyncUI(syncObj) {
+            const dot = $('sync-status-dot');
+            const txt = $('sync-status-text');
+            const pushBtn = $('btn-sync-push');
+            const badge = $('sync-pending-badge');
+
+            if (!dot || !txt || !pushBtn) return;
+
+            const pending = syncObj.pendingCount || 0;
+            if (badge) badge.textContent = pending;
+
+            if (syncObj.isServerOnline) {
+                if (pending > 0) {
+                    dot.className = 'status-dot dot-yellow';
+                    txt.textContent = `Bağlı (${pending} Aktarım Bekliyor)`;
+                    pushBtn.classList.remove('hidden');
+                } else {
+                    dot.className = 'status-dot dot-green';
+                    txt.textContent = 'Bilgisayara Bağlı (Canlı)';
+                    pushBtn.classList.add('hidden');
+                }
+            } else {
+                if (pending > 0) {
+                    dot.className = 'status-dot dot-yellow';
+                    txt.textContent = `Çevrimdışı (${pending} Bekliyor)`;
+                    pushBtn.classList.remove('hidden');
+                } else {
+                    dot.className = 'status-dot dot-gray';
+                    txt.textContent = 'Çevrimdışı (Telefon Hafızası)';
+                    pushBtn.classList.add('hidden');
+                }
+            }
+        }
+
+        async function triggerDownloadSnapshot() {
+            try {
+                showToast('Masaüstü verileri indiriliyor...', true);
+                $('btn-sync-pull').disabled = true;
+                $('btn-sync-pull').textContent = '⏳ İndiriliyor...';
+                await OfflineSync.downloadSnapshot();
+                showToast('Tüm veriler telefonunuza kopyalandı! Çevrimdışı kullanabilirsiniz.', true);
+            } catch (err) {
+                showToast('İndirme hatası: ' + err.message, false);
+            } finally {
+                $('btn-sync-pull').disabled = false;
+                $('btn-sync-pull').textContent = '📥 İndir';
+            }
+        }
+
+        async function triggerPushSync() {
+            try {
+                showToast('Ödevler bilgisayara aktarılıyor...', true);
+                $('btn-sync-push').disabled = true;
+                $('btn-sync-push').textContent = '⏳ Aktarılıyor...';
+                const res = await OfflineSync.pushSync();
+                if (res.remaining > 0) {
+                    showToast(`${res.acknowledged_count || 0} işlem onaylandı; ${res.remaining} işlem güvenle bekliyor.`, false);
+                } else {
+                    showToast(`Eşitlendi: ${res.acknowledged_count || 0} işlem onaylandı.`, true);
+                }
+                if (state.currentTab === 'control') loadControlView();
+                else if (state.currentTab === 'matrix' && state.selectedLesson) loadLessonDetails(state.selectedLesson.id);
+            } catch (err) {
+                showToast('Aktarım hatası: ' + err.message, false);
+            } finally {
+                $('btn-sync-push').disabled = false;
+                $('btn-sync-push').innerHTML = '🔄 Aktar (<span id="sync-pending-badge">0</span>)';
+            }
+        }
+    </script>
+
+
+    <!-- V4: Separate recovery UI; desktop modules and existing forms untouched. -->
+    <div id="vault-layer" role="dialog" aria-modal="true" aria-label="Çevrimdışı güvenlik ve yedek" style="display:none; position:fixed; inset:0; z-index:10010; background:rgba(15,23,42,.65); overflow:auto; padding:22px; align-items:center; justify-content:center;">
+      <div style="width:min(100%,480px); background:#fff; border-radius:16px; padding:20px; margin:auto; color:#0f172a;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
+          <h2 style="font-size:18px;">🛡 Çevrimdışı Güvenlik</h2>
+          <button type="button" class="btn" onclick="toggleVaultPanel(false)" style="padding:8px 12px;" aria-label="Kapat">✕</button>
+        </div>
+        <p style="font-size:12px; color:#64748b; margin-bottom:12px;">Güçlü parolanız cihazınızdan gönderilmez. Yedek dosyası AES-256-GCM ile şifrelenir. Mevcut telefon içi IndexedDB kayıtları henüz ayrıca şifrelenmiş değildir.</p>
+        <label for="vault-pass" style="font-size:12px; font-weight:700;">Parola (en az 12 karakter)</label>
+        <input id="vault-pass" type="password" autocomplete="new-password" placeholder="Güçlü yedek / erişim parolası" style="display:block; width:100%; padding:12px; border:1px solid #cbd5e1; border-radius:9px; margin:6px 0 10px;">
+        <label for="vault-confirm" style="font-size:12px; font-weight:700;">Parola tekrarı (ayar/yedek için)</label>
+        <input id="vault-confirm" type="password" autocomplete="new-password" placeholder="Parolayı tekrar yazın" style="display:block; width:100%; padding:12px; border:1px solid #cbd5e1; border-radius:9px; margin:6px 0 12px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <button class="btn btn-primary" id="vault-enable" onclick="configureOfflinePhone()" type="button">🔐 Çevrimdışı Giriş Ayarla</button>
+          <button class="btn" id="vault-export" onclick="exportPhoneBackup()" type="button" style="border:1px solid #cbd5e1;">📤 Şifreli Yedek Al</button>
+        </div>
+        <div style="border-top:1px solid #e2e8f0; margin:14px 0; padding-top:14px;">
+          <label for="vault-file" style="font-size:12px; font-weight:700;">Şifreli yedeği geri yükle (.yksbackup)</label>
+          <input id="vault-file" type="file" accept=".yksbackup,application/octet-stream" style="display:block; width:100%; margin:8px 0; font-size:12px;">
+          <button class="btn" id="vault-import" onclick="importPhoneBackup()" type="button" style="border:1px solid #cbd5e1; width:100%;">📥 Kayıpları Kurtar (Mevcut Kuyruğu Koru)</button>
+        </div>
+        <p id="vault-storage" style="font-size:11px; color:#64748b; margin-top:10px;"></p>
+        <p id="vault-result" role="status" aria-live="polite" style="font-size:12px; font-weight:650; white-space:pre-wrap; margin-top:12px;"></p>
+      </div>
+    </div>
+    <script src="/static/js/offline_vault.js"></script>
+    <!-- MODULAR OFFLINE SYNC SCRIPT -->
+    <script src="/static/js/offline_sync.js"></script>
+    <script>
+        async function toggleVaultPanel(show) {
+            const modal = $('vault-layer');
+            modal.style.display = show ? 'flex' : 'none';
+            $('vault-result').textContent = '';
+            if (!show) { $('vault-pass').value=''; $('vault-confirm').value=''; $('vault-file').value=''; }
+            else if (window.OfflineVault) {
+                try {
+                    const space = await OfflineVault.storageSummary();
+                    const usage = space.usage == null ? 'Bilinmiyor' : `${Math.round(space.usage / 1048576)} MB`;
+                    $('vault-storage').textContent = `Cihaz saklama kullanımı: ${usage}. Kalıcı saklama izni: ${space.persistent ? 'Var' : 'Yok / desteklenmiyor'}. Tarayıcı verileri yedek olmadan garanti değildir.`;
+                } catch (_) { $('vault-storage').textContent = 'Depolama güvenilirliği ölçülemedi; mutlaka şifreli yedek alın.'; }
+            }
+        }
+        function vaultPassword(requireMatch = false) {
+            const p = $('vault-pass').value;
+            if (p.length < 12 || p.length > 256) throw new Error('Parola 12–256 karakter olmalı.');
+            if (requireMatch && p !== $('vault-confirm').value) throw new Error('Parolalar aynı değil.');
+            return p;
+        }
+        function vaultResult(message, ok) {
+            const el = $('vault-result');
+            el.textContent = message;
+            el.style.color = ok ? '#166534' : '#b91c1c';
+        }
+        async function refreshOfflineButton() {
+            try {
+                const configured = await OfflineVault.isConfigured();
+                $('btn-offline-unlock').style.display = configured ? 'block' : 'none';
+                $('offline-unlock-pass').style.display = configured ? 'block' : 'none';
+            } catch (_) {
+                $('btn-offline-unlock').style.display = 'none';
+                $('offline-unlock-pass').style.display = 'none';
+            }
+        }
+        async function unlockPhoneOffline() {
+            const field = $('offline-unlock-pass');
+            const pass = field.value;
+            if (!pass) { $('access-error').textContent = 'Çevrimdışı parolanızı girin.'; return; }
+            field.value = '';
+            try {
+                await window.offlineSyncReady;
+                const snap = OfflineSync.lastSnapshot;
+                if (!snap?.database_id) throw new Error('Telefonda tam veri paketi bulunamadı.');
+                const key = await OfflineVault.unlockOfflineAccess(pass, snap.database_id);
+                sessionStorage.setItem('yks_access', key);
+                // No server required: local snapshot + verified encrypted access key.
+                await OfflineSync.checkConnection();
+                $('access-layer').style.display = 'none';
+                await initApp();
+                showToast('Yerel veriler açıldı. Aktarılmayan işlemler telefonda tutuluyor.');
+            } catch (error) {
+                sessionStorage.removeItem('yks_access');
+                $('access-layer').style.display = 'flex';
+                $('access-error').textContent = error.message;
+            }
+        }
+        $('offline-unlock-pass').addEventListener('keydown', e => {if (e.key === 'Enter') unlockPhoneOffline();});
+        async function configureOfflinePhone() {
+            try {
+                const password = vaultPassword(true);
+                const key = sessionStorage.getItem('yks_access');
+                if (!key || !OfflineSync.lastSnapshot?.database_id) throw new Error('Önce bilgisayardan giriş yapıp tam verileri indirin.');
+                const online = await OfflineSync.checkConnection();
+                if (!online || OfflineSync.databaseMismatch || OfflineSync.serverDatabaseId !== OfflineSync.lastSnapshot.database_id) {
+                    throw new Error('Çevrimdışı erişim yalnızca aynı masaüstüne çevrimiçi bağlıyken ayarlanabilir.');
+                }
+                await OfflineVault.configureOfflineAccess(key, password, OfflineSync.lastSnapshot.database_id);
+                vaultResult('Çevrimdışı erişim hazır. Uygulamayı kapatıp açtığınızda bu parolayla çevrimdışı giriş yapabilirsiniz.', true);
+                await refreshOfflineButton();
+            } catch (err) { vaultResult(err.message, false); }
+        }
+        async function exportPhoneBackup() {
+            try {
+                if (OfflineSync.syncing || OfflineVault.busy) throw new Error('Önce eşitlemenin bitmesini bekleyin.');
+                const password = vaultPassword(true);
+                $('vault-export').disabled = true;
+                const blob = await OfflineVault.exportEncryptedBackup(password);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'YKS_LGS_Cevrimdisi_Yedek_' + new Date().toISOString().slice(0,10) + '.yksbackup';
+                document.body.append(a); a.click(); a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 30000);
+                vaultResult('Şifreli yedek dosyası oluşturuldu. Dosyayı ve parolayı ayrı, güvenli yerlerde saklayın.', true);
+            } catch (err) { vaultResult(err.message, false); }
+            finally { $('vault-export').disabled = false; }
+        }
+        async function importPhoneBackup() {
+            try {
+                if (OfflineSync.syncing || OfflineVault.busy) throw new Error('Önce diğer işlemi tamamlayın.');
+                const f = $('vault-file').files?.[0];
+                if (!f) throw new Error('Önce .yksbackup dosyasını seçin.');
+                const password = vaultPassword(false);
+                if (!window.confirm('Geri yükleme mevcut bekleyen işlemleri SİLMEZ. İki kopya farklı masaüstlerine aitse işlem reddedilir. Devam edilsin mi?')) return;
+                $('vault-import').disabled = true;
+                OfflineSync.restoring = true;
+                const status = await OfflineVault.importEncryptedBackup(f, password);
+                OfflineSync.lastSnapshot = null;
+                await OfflineSync.init();
+                await refreshOfflineButton();
+                if (sessionStorage.getItem('yks_access')) await initApp();
+                vaultResult(`Kurtarma tamamlandı: ${status.imported} yeni işlem kaydedildi, ${status.total} yedek işlemi incelendi.
+Çevrimdışı erişim için önceki erişim parolanızı kullanabilirsiniz.`, true);
+            } catch (err) { vaultResult('Geri yüklenemedi: ' + err.message, false); }
+            finally { OfflineSync.restoring = false; $('vault-import').disabled = false; }
+        }
+        if (window.OfflineSync) {
+            OfflineSync.onStatusChange(updateSyncUI);
+            window.offlineSyncReady = OfflineSync.init();
+            refreshOfflineButton();
+        }
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                    .then(reg => console.log('[PWA] Service Worker aktif:', reg.scope))
+                    .catch(err => console.log('[PWA] Service Worker kaydı:', err));
+            });
+        }
     </script>
 </body>
 

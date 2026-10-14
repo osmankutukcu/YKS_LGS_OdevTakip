@@ -65,30 +65,79 @@ def find_free_port(start_port=8085, max_tries=10):
 
 def generate_qr_pixmap(data_url: str, size: int = 210) -> QPixmap:
     """Verilen URL için yüksek kaliteli, net bir QPixmap QR kod üretir."""
-    if not HAS_QRCODE:
-        pix = QPixmap(size, size)
-        pix.fill(Qt.GlobalColor.white)
-        return pix
+    # 1. Öncelik: qrcode kütüphanesi
+    if HAS_QRCODE:
+        try:
+            qr = qrcode.QRCode(
+                version=None,
+                error_correction=qrcode.constants.ERROR_CORRECT_M,
+                box_size=8,
+                border=2,
+            )
+            qr.add_data(data_url)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="#0f172a", back_color="#ffffff")
+            buffer = BytesIO()
+            img.save(buffer, format="PNG")
+            qimg = QImage.fromData(buffer.getvalue())
+            pix = QPixmap.fromImage(qimg)
+            return pix.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        except Exception as e:
+            print("qrcode kütüphanesi hatası, reportlab fallback deneniyor:", e)
+
+    # 2. Öncelik (Fallback): reportlab yerleşik QR motoru (harici bağımlılık gerektirmez)
     try:
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=8,
-            border=2,
-        )
-        qr.add_data(data_url)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="#0f172a", back_color="#ffffff")
-        buffer = BytesIO()
-        img.save(buffer, format="PNG")
-        qimg = QImage.fromData(buffer.getvalue())
-        pix = QPixmap.fromImage(qimg)
-        return pix.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        from reportlab.graphics.barcode.qrencoder import QRCode as RLQRCode, QRErrorCorrectLevel
+        from PyQt6.QtGui import QPainter, QColor
+
+        rl_qr = None
+        for v in range(1, 41):
+            try:
+                q = RLQRCode(v, QRErrorCorrectLevel.M)
+                q.addData(data_url)
+                q.make()
+                rl_qr = q
+                break
+            except Exception:
+                continue
+
+        if rl_qr:
+            count = rl_qr.getModuleCount()
+            border = 2
+            total_modules = count + border * 2
+            cell_size = size / total_modules
+
+            img = QImage(size, size, QImage.Format.Format_ARGB32)
+            img.fill(QColor("#ffffff"))
+            painter = QPainter(img)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#0f172a"))
+
+            for r in range(count):
+                for c in range(count):
+                    if rl_qr.isDark(r, c):
+                        x = int((c + border) * cell_size)
+                        y = int((r + border) * cell_size)
+                        w = int(cell_size + 0.5)
+                        h = int(cell_size + 0.5)
+                        painter.drawRect(x, y, w, h)
+            painter.end()
+            pix = QPixmap.fromImage(img)
+            return pix.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
     except Exception as e:
-        print("QR generation error:", e)
-        pix = QPixmap(size, size)
-        pix.fill(Qt.GlobalColor.white)
-        return pix
+        print("Reportlab QR fallback hatası:", e)
+
+    # 3. Son Çare: Boş beyaz alan yerine bilgilendirici görsel
+    pix = QPixmap(size, size)
+    pix.fill(QColor("#f8fafc"))
+    p = QPainter(pix)
+    p.setPen(QColor("#94a3b8"))
+    p.drawRect(0, 0, size - 1, size - 1)
+    p.setPen(QColor("#ef4444"))
+    p.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+    p.drawText(pix.rect(), Qt.AlignmentFlag.AlignCenter, "QR Kod Modülü\nYüklenemedi\n(pip install qrcode)")
+    p.end()
+    return pix
 
 class WebServerThread(QThread):
     started_sig = pyqtSignal(str)
@@ -388,6 +437,13 @@ class WebAccessDialog(QDialog):
         side_lay.addWidget(lbl_step2)
         side_lay.addWidget(lbl_step3)
 
+        self.chkAutoLogin = QCheckBox("⚡ Otomatik Giriş (Şifre girmeden doğrudan aç)")
+        self.chkAutoLogin.setChecked(True)
+        self.chkAutoLogin.setStyleSheet("font-weight: 700; color: #166534; font-size: 11.5px; margin-top: 4px;")
+        self.chkAutoLogin.setToolTip("İşaretlendiğinde telefondan kamerayla QR okutulduğunda şifre sormadan doğrudan panel açılır.")
+        self.chkAutoLogin.toggled.connect(lambda _: self._refresh_qr_display())
+        side_lay.addWidget(self.chkAutoLogin)
+
         side_lay.addSpacing(6)
         lbl_url_title = QLabel("🔗 Canlı Web Adresi (Tarayıcı İçin):")
         lbl_url_title.setStyleSheet("font-weight: 700; font-size: 11px; color: #64748b;")
@@ -491,21 +547,38 @@ class WebAccessDialog(QDialog):
         s_lay.setSpacing(12)
 
         from web_api.auth import get_access_token
+        key_box = QHBoxLayout()
         self.txtAccessKey = QLineEdit()
         self.txtAccessKey.setReadOnly(True)
         self.txtAccessKey.setEchoMode(QLineEdit.EchoMode.Password)
         self.txtAccessKey.setText(get_access_token())
-        s_lay.addRow("Web erişim anahtarı:", self.txtAccessKey)
+        self.txtAccessKey.setStyleSheet("font-family: monospace; font-size: 12px; background: #f8fafc;")
+        key_box.addWidget(self.txtAccessKey)
+
+        self.btnToggleKey = QPushButton("👁️ Göster")
+        self.btnToggleKey.setFixedWidth(75)
+        self.btnToggleKey.clicked.connect(self._toggle_access_key)
+        key_box.addWidget(self.btnToggleKey)
+
+        s_lay.addRow("Web erişim anahtarı:", key_box)
         btn_copy_key = QPushButton("🔑 Anahtarı Kopyala")
         btn_copy_key.clicked.connect(lambda: QApplication.clipboard().setText(get_access_token()))
         s_lay.addRow(btn_copy_key)
-        warning = QLabel("Bu anahtar tüm mobil verilere erişim verir. Yalnızca güvendiğiniz kişilere verin. "
+        warning = QLabel("Bu anahtar tüm mobil verilere erişim verir. Yalnızca güvendiğiniz kişilere verin.\n"
                          "Ağdaki HTTP bağlantısı şifreli değildir; internette HTTPS kullanın.")
         warning.setWordWrap(True)
         s_lay.addRow(warning)
 
         lay.addWidget(grp_sec)
         lay.addStretch()
+
+    def _toggle_access_key(self):
+        if self.txtAccessKey.echoMode() == QLineEdit.EchoMode.Password:
+            self.txtAccessKey.setEchoMode(QLineEdit.EchoMode.Normal)
+            self.btnToggleKey.setText("🔒 Gizle")
+        else:
+            self.txtAccessKey.setEchoMode(QLineEdit.EchoMode.Password)
+            self.btnToggleKey.setText("👁️ Göster")
 
     def _init_tab_log(self):
         lay = QVBoxLayout(self.tab_log)
@@ -590,15 +663,25 @@ class WebAccessDialog(QDialog):
         self.txtLog.append(f"[+] Sunucu Yayında: {active_url}")
 
         # Generate & Show QR Code
-        qr_pix = generate_qr_pixmap(active_url, size=210)
-        self.lbl_qr.setPixmap(qr_pix)
-        self.lbl_qr.setText("")
+        self._refresh_qr_display()
 
         self.btnStart.setEnabled(False)
         self.btnStop.setEnabled(True)
         self.btnCopy.setEnabled(True)
         self.btnWhatsApp.setEnabled(True)
         self.btnBrowser.setEnabled(True)
+
+    def _refresh_qr_display(self):
+        active_url = self.get_active_url()
+        if not active_url:
+            return
+        from web_api.auth import get_access_token
+        token = get_access_token()
+        auto = getattr(self, 'chkAutoLogin', None) and self.chkAutoLogin.isChecked()
+        qr_url = f"{active_url}#key={token}" if auto else active_url
+        qr_pix = generate_qr_pixmap(qr_url, size=210)
+        self.lbl_qr.setPixmap(qr_pix)
+        self.lbl_qr.setText("")
 
     def on_error(self, err):
         self.lbl_status_icon.setText("🔴")
@@ -638,13 +721,25 @@ class WebAccessDialog(QDialog):
 
     def copy_link(self):
         url = self.get_active_url()
-        QApplication.clipboard().setText(url)
+        from web_api.auth import get_access_token
+        token = get_access_token()
+        auto = getattr(self, 'chkAutoLogin', None) and self.chkAutoLogin.isChecked()
+        final_url = f"{url}#key={token}" if auto else url
+        QApplication.clipboard().setText(final_url)
         self.btnCopy.setText("✅ Kopyalandı!")
         QTimer.singleShot(2000, lambda: self.btnCopy.setText("📋 Bağlantıyı Kopyala"))
 
     def send_whatsapp(self):
         url = self.get_active_url()
-        msg = f"📱 YKS/LGS Takip Mobil Web Paneli Bağlantısı:\n{url}\n\n(Aynı Wi-Fi ağına bağlıyken telefonunuzdan tıklayarak açabilirsiniz)"
+        from web_api.auth import get_access_token
+        token = get_access_token()
+        auto = getattr(self, 'chkAutoLogin', None) and self.chkAutoLogin.isChecked()
+        auto_url = f"{url}#key={token}" if auto else url
+        msg = (
+            f"📱 YKS/LGS Takip Mobil Web Paneli Bağlantısı:\n{auto_url}\n\n"
+            f"🔑 Web Erişim Anahtarı (Gerekirse):\n{token}\n\n"
+            f"(Aynı Wi-Fi ağına bağlıyken telefonunuzdan tıklayarak doğrudan açabilirsiniz.)"
+        )
         import urllib.parse
         encoded = urllib.parse.quote(msg)
         QDesktopServices.openUrl(QUrl(f"https://api.whatsapp.com/send?text={encoded}"))

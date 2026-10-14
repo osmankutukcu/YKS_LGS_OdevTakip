@@ -71,3 +71,51 @@ def test_unassigned_explained_without_dropping_source_tasks():
     assert profile['unassigned']
     assert 'Yerleştirilemeyen görevler:' in bundle['html']
     assert 'Konu 0' in bundle['html']
+
+
+def test_detailed_section_respects_print_preferences_false():
+    s = settings(include_task_details=False, include_constraints=False)
+    bundle = SmartCalendarService.create_weekly_plan_data('Örnek Öğrenci', two_homeworks(), serialize_details(s))
+    html = bundle['html']
+    assert 'GÜN VE SAAT BAZINDA GÖREVLER' not in html
+    assert 'PLANLAMADA DİKKATE ALINAN KISITLAR' not in html
+    assert detailed_section(bundle['days'], bundle['profile'], s) == ''
+
+
+def test_detailed_section_task_details_only():
+    s = settings(include_task_details=True, include_constraints=False)
+    bundle = SmartCalendarService.create_weekly_plan_data('Örnek Öğrenci', two_homeworks(), serialize_details(s))
+    html = bundle['html']
+    assert 'GÜN VE SAAT BAZINDA GÖREVLER' in html
+    assert 'PLANLAMADA DİKKATE ALINAN KISITLAR' not in html
+
+
+def test_detailed_section_constraints_only():
+    s = settings(include_task_details=False, include_constraints=True)
+    bundle = SmartCalendarService.create_weekly_plan_data('Örnek Öğrenci', two_homeworks(), serialize_details(s))
+    html = bundle['html']
+    assert 'GÜN VE SAAT BAZINDA GÖREVLER' not in html
+    assert 'PLANLAMADA DİKKATE ALINAN KISITLAR' in html
+
+
+def test_page_count_single_page_when_details_disabled():
+    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtPrintSupport import QPrinter
+    from PyQt6.QtGui import QTextDocument, QPageSize, QPageLayout
+    import sys
+
+    app = QApplication.instance() or QApplication(sys.argv)
+    s = settings(include_task_details=False, include_constraints=False)
+    bundle = SmartCalendarService.create_weekly_plan_data('Örnek Öğrenci', two_homeworks(), serialize_details(s))
+
+    printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+    printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+    printer.setPageOrientation(QPageLayout.Orientation.Landscape)
+
+    doc = QTextDocument()
+    doc.setDocumentMargin(0)
+    doc.setPageSize(printer.pageRect(QPrinter.Unit.Point).size())
+    doc.setHtml(bundle['html'])
+
+    assert doc.pageCount() == 1
+
