@@ -35,6 +35,7 @@ def fixtures(tmp_path_factory):
     os.environ['YKS_AUTO_ADOPT'] = '0'
     os.environ['YKS_WEB_ACCESS_TOKEN'] = 'local-test-token-only-' + 'z'*32
     import db
+    db.DB_PATH = path
     from web_api import main
     from web_api import sync_engine
     from web_api import sync_transactions
