@@ -38,8 +38,14 @@ def _urlopen_https(url, *, timeout=15):
                 raise UpdateSecurityError('GitHub baglantisi izinsiz sunucuya yonlendirildi.')
             return super().redirect_request(req, fp, code, msg, hdrs, newurl)
 
+    try:
+        import certifi
+        ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        ssl_ctx = ssl.create_default_context()
+
     opener = urllib.request.build_opener(
-        urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+        urllib.request.HTTPSHandler(context=ssl_ctx),
         _SafeRedirect(),
     )
     request = urllib.request.Request(url, headers=_HEADERS)
