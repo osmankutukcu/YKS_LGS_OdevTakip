@@ -5,6 +5,7 @@ import hashlib
 import os
 import sqlite3
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
@@ -60,7 +61,7 @@ class QuickEvidenceContract(unittest.TestCase):
         self.assertEqual(notes[0]['homework_id'],31)
         self.assertEqual(notes[0]['code'],'concept')
         self.assertEqual(self.original(),before)
-        model = sidebar_data(self.con,1,today='2026-10-13')
+        model = sidebar_data(self.con,1,today=date.today().isoformat())
         self.assertEqual(model['evidence_count'],0)  # Never treated as quiz mastery
         self.assertEqual(model['quick_notes'][0]['code'],'concept')
 

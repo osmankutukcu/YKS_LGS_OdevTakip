@@ -58,7 +58,6 @@ class ScenarioEditorDialog(QDialog):
         bar.addWidget(self.btnAdd)
         bar.addWidget(self.btnDel)
         bar.addWidget(self.btnReset)
-        bar.addWidget(self.btnReset)
         bar.addStretch(1)
         self.btnCancel = QPushButton("İptal")
         self.btnOk = QPushButton("Kaydet")
@@ -397,9 +396,6 @@ class HaftalikPlanDialog(QDialog):
         self._update_day_header_totals()
 
     # ---------- Init ----------
-    class HaftalikPlanDialog(QDialog):
-        ...
-
     def __init__(self, items, parent=None, ogrenci_adi="", ogrenci_soyadi="",
                  verilme_tarihi: QDate | None = None, bitis_tarihi: QDate | None = None,
                  gunluk_hedef: int = 90, varsayilan_sure: int = 45):
@@ -528,45 +524,63 @@ class HaftalikPlanDialog(QDialog):
         bar1 = QHBoxLayout()
         bar1.setSpacing(8)
 
-        bar1.addWidget(QLabel("Başlangıç:"))
-        self.dtBasla = QDateEdit(QDate.currentDate())
+        lbl_b = QLabel("📅 Başlangıç:")
+        lbl_b.setStyleSheet("font-weight: 600; color: #1e293b;")
+        bar1.addWidget(lbl_b)
+        self.dtBasla = QDateEdit(getattr(self, "verilis", None) or QDate.currentDate())
         self.dtBasla.setCalendarPopup(True)
         self.dtBasla.setMinimumWidth(110)
+        self.dtBasla.setToolTip("Planın başlayacağı ilk günü belirler (7 günlük takvim buna göre dizilir).")
         bar1.addWidget(self.dtBasla)
 
         bar1.addSpacing(6)
-        bar1.addWidget(QLabel("Günlük Hedef:"))
+        lbl_g = QLabel("🎯 Günlük Hedef:")
+        lbl_g.setStyleSheet("font-weight: 600; color: #1e293b;")
+        bar1.addWidget(lbl_g)
         self.spGunluk = QSpinBox()
         self.spGunluk.setRange(0, 1000)
         self.spGunluk.setValue(getattr(self, "_initial_gunluk_hedef", 90))
         self.spGunluk.setSuffix(" dk")
-        self.spGunluk.setMaximumWidth(85)
+        self.spGunluk.setMaximumWidth(88)
+        self.spGunluk.setToolTip("Öğrencinin günde yapması hedeflenen toplam çalışma süresi (dk).")
         bar1.addWidget(self.spGunluk)
 
         bar1.addSpacing(6)
-        bar1.addWidget(QLabel("Maks. Ödev/Gün:"))
+        lbl_m = QLabel("📊 Maks. Ödev/Gün:")
+        lbl_m.setStyleSheet("font-weight: 600; color: #1e293b;")
+        bar1.addWidget(lbl_m)
         self.spMaxOdev = QSpinBox()
         self.spMaxOdev.setRange(1, 12)
         self.spMaxOdev.setValue(3)
-        self.spMaxOdev.setMaximumWidth(70)
+        self.spMaxOdev.setMaximumWidth(68)
+        self.spMaxOdev.setToolTip("Bir güne atanabilecek maksimum ödev adedi (Kapasite üst sınırı).")
         bar1.addWidget(self.spMaxOdev)
 
         bar1.addSpacing(6)
-        bar1.addWidget(QLabel("Tolerans (± dk):"))
+        lbl_t = QLabel("⚖️ Tolerans (± dk):")
+        lbl_t.setStyleSheet("font-weight: 600; color: #1e293b;")
+        bar1.addWidget(lbl_t)
         self.spTol = QSpinBox()
         self.spTol.setRange(0, 120)
         self.spTol.setValue(10)
-        self.spTol.setMaximumWidth(70)
+        self.spTol.setMaximumWidth(68)
+        self.spTol.setToolTip("Günlük hedeften kabul edilebilir esneme payı (± dk).")
         bar1.addWidget(self.spTol)
 
-        bar1.addSpacing(6)
+        bar1.addSpacing(8)
         self.chkArdArda = QCheckBox("Aynı dersi yığma")
+        self.chkArdArda.setStyleSheet("font-weight: 500; color: #334155;")
+        self.chkArdArda.setToolTip("İşaretliyse, aynı güne aynı dersten birden fazla ödev yığılmaz; farklı dersler günlere dengeli yayılır.")
         bar1.addWidget(self.chkArdArda)
 
         bar1.addStretch(1)
 
-        self.optAuto = QRadioButton("Otomatik")
-        self.optMan = QRadioButton("Manuel")
+        self.optAuto = QRadioButton("⚡ Otomatik")
+        self.optMan = QRadioButton("✏️ Manuel")
+        self.optAuto.setStyleSheet("font-weight: 600; color: #2563eb;")
+        self.optMan.setStyleSheet("font-weight: 600; color: #475569;")
+        self.optAuto.setToolTip("Otomatik mod: Algoritma ödevleri seçilen stratejiye göre akıllıca günlere dağıtır.")
+        self.optMan.setToolTip("Manuel mod: Hücrelere çift tıklayarak hangi ödevin hangi güne konacağını kendiniz seçersiniz.")
         self.optAuto.setChecked(True)
         bar1.addWidget(self.optAuto)
         bar1.addWidget(self.optMan)
@@ -577,11 +591,14 @@ class HaftalikPlanDialog(QDialog):
         bar2 = QHBoxLayout()
         bar2.setSpacing(6)
 
-        bar2.addWidget(QLabel("Senaryo:"))
+        lbl_s = QLabel("👤 Senaryo:")
+        lbl_s.setStyleSheet("font-weight: 600; color: #1e293b;")
+        bar2.addWidget(lbl_s)
         self.cboScenario = QComboBox()
         self.cboScenario.setMinimumContentsLength(16)
         self.cboScenario.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.cboScenario.setMinimumWidth(170)
+        self.cboScenario.setToolTip("Farklı öğrenci profilleri için hazır ayar paketi (Okul Sonrası, Derece, Standart vb.).")
         bar2.addWidget(self.cboScenario)
 
         self.spScenarioMin = QSpinBox()
@@ -590,19 +607,23 @@ class HaftalikPlanDialog(QDialog):
 
         self.btnScnSave = QPushButton("Kaydet")
         self.btnScnDel = QPushButton("Sil")
-        self.btnScnEdit = QPushButton("Senaryoları Düzenle")
+        self.btnScnEdit = QPushButton("⚙️ Senaryoları Düzenle")
         
         self.btnScnSave.setObjectName("btnAction")
         self.btnScnDel.setObjectName("btnDanger")
         self.btnScnEdit.setObjectName("btnStandard")
+
+        self.btnScnSave.setToolTip("Mevcut parametreleri yeni bir senaryo profili olarak kaydeder.")
+        self.btnScnDel.setToolTip("Seçili senaryo profilini siler.")
+        self.btnScnEdit.setToolTip("Senaryo profillerini ekle, sil veya varsayılanlara dön.")
         
         bar2.addWidget(self.btnScnSave)
         bar2.addWidget(self.btnScnDel)
         bar2.addWidget(self.btnScnEdit)
 
-        bar2.addSpacing(12)
+        bar2.addSpacing(10)
         lbl_dur = QLabel("⏱️ Ödev Süresi:")
-        lbl_dur.setStyleSheet("font-weight: 500; color: #1e293b;")
+        lbl_dur.setStyleSheet("font-weight: 600; color: #1e293b;")
         bar2.addWidget(lbl_dur)
 
         self.spOdevSure = QSpinBox()
@@ -610,18 +631,32 @@ class HaftalikPlanDialog(QDialog):
         self.spOdevSure.setSingleStep(5)
         self.spOdevSure.setValue(getattr(self, "_varsayilan_sure", 45))
         self.spOdevSure.setSuffix(" dk")
-        self.spOdevSure.setFixedWidth(72)
-        self.spOdevSure.setToolTip("Plandaki ödevlerin varsayılan süresi")
+        self.spOdevSure.setFixedWidth(74)
+        self.spOdevSure.setToolTip("Plandaki ödevlerin varsayılan süresi (dk).")
         bar2.addWidget(self.spOdevSure)
 
         self.btnApplyDurAll = QPushButton("⚡ Tümüne Uygula")
         self.btnApplyDurAll.setObjectName("btnStandard")
-        self.btnApplyDurAll.setToolTip("Plandaki TÜM ödevlerin süresini bu değere ayarla ve hücreleri güncelle")
+        self.btnApplyDurAll.setToolTip("Plandaki TÜM ödevlerin süresini bu değere ayarlar ve hücreleri anında günceller.")
         self.btnApplyDurAll.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btnApplyDurAll.clicked.connect(self._apply_duration_to_all_tasks)
         bar2.addWidget(self.btnApplyDurAll)
 
         bar2.addStretch(1)
+
+        # Gerçek zamanlı plan özeti rozeti (Badge)
+        self.lblPlanSummary = QLabel("📋 Toplam: 0 Ödev (0 dk)")
+        self.lblPlanSummary.setStyleSheet("""
+            QLabel {
+                background-color: #eff6ff;
+                color: #1e40af;
+                font-weight: bold;
+                padding: 4px 10px;
+                border-radius: 6px;
+                border: 1px solid #bfdbfe;
+            }
+        """)
+        bar2.addWidget(self.lblPlanSummary)
 
         v.addLayout(bar2)
 
@@ -640,8 +675,9 @@ class HaftalikPlanDialog(QDialog):
         self.tbl.setHorizontalHeaderItem(0, QTableWidgetItem("Ödev"))
 
         self.tbl.setStyleSheet("""
-            QTableWidget { gridline-color: #a0a0a0; }
-            QTableWidget::item { border: 1px solid #b0b0b0; padding: 6px; }
+            QTableWidget { gridline-color: #d1d5db; background: white; }
+            QTableWidget::item { border: 1px solid #e5e7eb; padding: 6px; }
+            QTableWidget::item:selected { background-color: #dbeafe; color: #1e3a8a; }
         """)
         v.addWidget(self.tbl, 1)
 
@@ -656,14 +692,14 @@ class HaftalikPlanDialog(QDialog):
         row_settings = QHBoxLayout()
         row_settings.setSpacing(12)
 
-        # Dağıtım Ayarları Kutusu
-        grp_settings = QGroupBox("Dağıtım Ayarları")
+        # Dağıtım İnce Ayarı Kutusu
+        grp_settings = QGroupBox("İnce Ayar")
         grp_settings.setStyleSheet("""
             QGroupBox { 
                 font-weight: bold; 
                 border: 1px solid #d1d5db; 
                 border-radius: 6px; 
-                margin-top: 14px; 
+                margin-top: 12px; 
                 padding: 4px 8px;
             }
             QGroupBox::title {
@@ -685,8 +721,8 @@ class HaftalikPlanDialog(QDialog):
         self.sliderDensity = QSlider(Qt.Orientation.Horizontal)
         self.sliderDensity.setRange(50, 150)
         self.sliderDensity.setValue(100)
-        self.sliderDensity.setFixedWidth(130)
-        self.sliderDensity.setToolTip("Otomatik dağıtımda hedef süreyi ve kapasiteyi çarpar.")
+        self.sliderDensity.setFixedWidth(120)
+        self.sliderDensity.setToolTip("Otomatik dağıtımda hedef süreyi ve kapasiteyi çarpar (%50-%150).")
         self.sliderDensity.setStyleSheet("""
             QSlider::groove:horizontal {
                 border: 1px solid #bbb;
@@ -712,8 +748,8 @@ class HaftalikPlanDialog(QDialog):
         """)
 
         # Karıştır Checkbox
-        self.chkShuffle = QCheckBox("Karıştır")
-        self.chkShuffle.setToolTip("Dersleri rastgele sırada dağıtır (her seferinde farklı sonuçlar için).")
+        self.chkShuffle = QCheckBox("🔀 Karıştır")
+        self.chkShuffle.setToolTip("Ödevleri rastgele sırayla dağıtır (her seferinde farklı alternatif dağıtımlar üretir).")
 
         lay_settings.addWidget(lblDensityIcon)
         lay_settings.addWidget(self.sliderDensity)
@@ -722,7 +758,21 @@ class HaftalikPlanDialog(QDialog):
         lay_settings.addWidget(self.chkShuffle)
         
         row_settings.addWidget(grp_settings)
-        row_settings.addStretch(1)
+
+        # Strateji Bilgi İpucu (Canlı rehber)
+        self.lblStrategyDesc = QLabel("")
+        self.lblStrategyDesc.setStyleSheet("""
+            QLabel {
+                background-color: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 6px 10px;
+                color: #334155;
+                font-size: 12px;
+            }
+        """)
+        self.lblStrategyDesc.setWordWrap(True)
+        row_settings.addWidget(self.lblStrategyDesc, 1)
 
         # Sağ: PDF Özeti ve Son Strateji
         v_opt = QVBoxLayout()
@@ -741,16 +791,16 @@ class HaftalikPlanDialog(QDialog):
 
         self.btnYazdir = QPushButton("📄 PDF / Yazdır")
         self.btnYazdir.setObjectName("btnStandard")
-        self.btnYazdir.setFixedHeight(32)
+        self.btnYazdir.setFixedHeight(34)
         self.btnYazdir.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btnYazdir.setStyleSheet("padding: 4px 14px; font-weight: 600; font-size: 12px;")
 
         lbl_strat = QLabel("Strateji:")
-        lbl_strat.setStyleSheet("font-weight: bold; color: #374151; font-size: 12px;")
+        lbl_strat.setStyleSheet("font-weight: bold; color: #1e293b; font-size: 12.5px;")
 
         self.cboAutoStrategy = QComboBox()
-        self.cboAutoStrategy.setFixedHeight(32)
-        self.cboAutoStrategy.setMinimumWidth(160)
+        self.cboAutoStrategy.setFixedHeight(34)
+        self.cboAutoStrategy.setMinimumWidth(180)
         self.cboAutoStrategy.addItem("⚖️ Dengeli Dağıt (Önerilen)", "balanced")
         self.cboAutoStrategy.addItem("🔥 Yoğun / Derece Modu", "intense")
         self.cboAutoStrategy.addItem("🌱 Hafif / Rahat Mod", "light")
@@ -761,16 +811,16 @@ class HaftalikPlanDialog(QDialog):
 
         self.btnAuto = QPushButton("⚡ Otomatik Dağıt")
         self.btnAuto.setObjectName("btnAutoDistribute")
-        self.btnAuto.setFixedHeight(32)
+        self.btnAuto.setFixedHeight(34)
         self.btnAuto.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btnAuto.setToolTip("Ödevleri seçili stratejiye göre anında günlere dağıtır.")
-        self.btnAuto.setStyleSheet("padding: 4px 14px; font-weight: bold; font-size: 12px;")
+        self.btnAuto.setStyleSheet("padding: 4px 16px; font-weight: bold; font-size: 12.5px;")
 
-        self.btnUygula = QPushButton("Planı Uygula")
+        self.btnUygula = QPushButton("✔ Planı Uygula")
         self.btnUygula.setObjectName("btnSuccess")
-        self.btnUygula.setFixedHeight(32)
+        self.btnUygula.setFixedHeight(34)
         self.btnUygula.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btnUygula.setStyleSheet("padding: 4px 18px; font-weight: bold; font-size: 12.5px;")
+        self.btnUygula.setStyleSheet("padding: 4px 20px; font-weight: bold; font-size: 13px;")
 
         row_actions.addWidget(self.btnYazdir)
         row_actions.addStretch(1)
@@ -809,15 +859,57 @@ class HaftalikPlanDialog(QDialog):
         self.btnScnEdit.clicked.connect(self._open_scenario_editor)
         self.spScenarioMin.valueChanged.connect(self._scenario_min_changed)
 
-        # Günlük hedef değişince footer’ı güncelle
+        # Günlük hedef ve parametre değişim sinyalleri
         self.spGunluk.valueChanged.connect(self._on_gunluk_changed)
+        self.spMaxOdev.valueChanged.connect(lambda _v: self._on_param_changed())
+        self.spTol.valueChanged.connect(lambda _v: self._on_param_changed())
+        self.chkArdArda.toggled.connect(lambda _v: self._on_param_changed())
+
+        # Başlangıç strateji açıklaması
+        self._update_strategy_desc("balanced")
+
+    def _update_strategy_desc(self, key: str):
+        descs = {
+            "balanced": "⚖️ <b>Dengeli Dağıt:</b> Ödevleri 7 güne homojen paylaştırır. Hiçbir günü boş bırakmaz, günleri dengeli tutar.",
+            "intense": "🔥 <b>Yoğun / Derece Modu:</b> 7 günün tamamına etüt koyar. Sıfır gün bırakmadan yüksek tempoda planlar.",
+            "weekend": "📅 <b>Hafta Sonu Ağırlıklı:</b> Hafta içi hafif tutulur, ana etüt blokları Cumartesi ve Pazar'a verilir.",
+            "light": "🌱 <b>Hafif / Rahat Mod:</b> Günlük ödev sayısını az tutarak (en fazla 1-2 ödev) hafif tempoda dağıtır.",
+            "block_course": "🧱 <b>Ders Blokları:</b> Aynı dersin ödevlerini mümkün olduğunca aynı/ardışık günlerde bloklar.",
+            "block_dense": "📦 <b>Yoğun Blok Günler:</b> Ödevleri birkaç yoğun kütüphane gününe toplar, diğer günleri boş bırakır.",
+            "clear": "🧹 <b>Dağıtımı Temizle:</b> Tablodaki tüm gün işaretlerini kaldırır.",
+        }
+        if hasattr(self, "lblStrategyDesc"):
+            self.lblStrategyDesc.setText(descs.get(key, ""))
+
+    def _update_plan_summary_label(self):
+        if not hasattr(self, "lblPlanSummary"):
+            return
+        total_tasks = len(self.items) if self.items else 0
+        total_dk = sum(int(it.get("dk", 0) or 45) for it in self.items) if self.items else 0
+        avg = total_dk / 7.0 if total_dk > 0 else 0
+        
+        _, totals, counts = self._compute_day_totals()
+        assigned_tasks = sum(counts)
+        assigned_dk = sum(totals)
+        
+        self.lblPlanSummary.setText(
+            f"📋 Toplam: <b>{total_tasks} Ödev</b> ({total_dk} dk) | "
+            f"Ort.: <b>~{avg:.0f} dk/gün</b> | "
+            f"Atanan: <b>{assigned_tasks} ödev ({assigned_dk} dk)</b>"
+        )
+
+    def _on_param_changed(self):
+        if hasattr(self, "optAuto") and self.optAuto.isChecked() and self.items:
+            self._auto_distribute()
 
     def _on_btn_auto_clicked(self):
         strategy = self.cboAutoStrategy.currentData() or "balanced"
+        self._update_strategy_desc(strategy)
         self._auto_distribute(strategy)
 
     def _on_strategy_combo_changed(self, idx: int):
         strategy = self.cboAutoStrategy.currentData() or "balanced"
+        self._update_strategy_desc(strategy)
         self._auto_distribute(strategy)
 
     def _build_auto_menu(self):
@@ -950,10 +1042,19 @@ class HaftalikPlanDialog(QDialog):
         self.spGunluk.setValue(prof["minutes"])
         self.spGunluk.blockSignals(False)
 
+        self.spMaxOdev.blockSignals(True)
         self.spMaxOdev.setValue(prof["max_tasks"])
+        self.spMaxOdev.blockSignals(False)
+
+        self.chkArdArda.blockSignals(True)
         self.chkArdArda.setChecked(not prof["allow_back_to_back"])
+        self.chkArdArda.blockSignals(False)
+
         self._on_gunluk_changed(prof["minutes"])
-        self._update_load_visuals()
+        if hasattr(self, "optAuto") and self.optAuto.isChecked() and getattr(self, "items", None):
+            self._auto_distribute()
+        else:
+            self._update_load_visuals()
 
     def _scenario_min_changed(self, val: int):
         self.spGunluk.blockSignals(True)
@@ -996,10 +1097,10 @@ class HaftalikPlanDialog(QDialog):
     def _update_load_visuals(self):
         """
         Headers heatmap colorization based on load:
-        Green: 85-115% of target (ideal)
-        Blue: 40-85% of target (light)
-        Yellow: 115-135% of target (moderately heavy)
-        Red: >135% (overload)
+        Green: 70-125% of target (ideal / balanced)
+        Blue: <70% of target (light)
+        Yellow: 125-150% of target (moderately dense)
+        Red: >150% (overload)
         """
         from PyQt6.QtGui import QColor
         day_names, totals, counts = self._compute_day_totals()
@@ -1015,16 +1116,16 @@ class HaftalikPlanDialog(QDialog):
             fg = "#374151"
 
             if load > 0:
-                if 0.85 <= ratio <= 1.15:
+                if 0.70 <= ratio <= 1.25:
                     bg = "#dcfce7"  # green-100 (ideal)
                     fg = "#14532d"
-                elif 0.35 <= ratio < 0.85:
+                elif ratio < 0.70:
                     bg = "#e0f2fe"  # blue-100 (light)
                     fg = "#0369a1"
-                elif 1.15 < ratio <= 1.35:
+                elif 1.25 < ratio <= 1.50:
                     bg = "#fef9c3"  # yellow-100 (moderate)
                     fg = "#713f12"
-                else:  # > 1.35
+                else:  # > 1.50
                     bg = "#fee2e2"  # red-100 (overload)
                     fg = "#7f1d1d"
 
@@ -1037,8 +1138,13 @@ class HaftalikPlanDialog(QDialog):
             it.setForeground(QColor(fg))
             if load > 0:
                 it.setText(f"{name}\n{load} dk ({cnt} Ödev)")
+                it.setToolTip(f"{name}: Toplam {load} dk, {cnt} ödev planlandı (Günlük Hedef: {target} dk)")
             else:
                 it.setText(f"{name}\n(0 dk)")
+                it.setToolTip(f"{name}: Boş gün (0 dk planlandı)")
+
+        if hasattr(self, "_update_plan_summary_label"):
+            self._update_plan_summary_label()
 
     def _scenario_save_clicked(self):
         from PyQt6.QtWidgets import QInputDialog
@@ -1438,6 +1544,8 @@ class HaftalikPlanDialog(QDialog):
     def _mode_changed(self, manual_on: bool):
         # Manuel mod açıldığında otomatik dağıt butonunu devre dışı bırak
         self.btnAuto.setEnabled(not manual_on)
+        if not manual_on and getattr(self, "items", None):
+            self._auto_distribute()
 
     # ---------------- otomatik dağıtım MENÜSÜ ----------------
 
@@ -1657,21 +1765,19 @@ class HaftalikPlanDialog(QDialog):
 
     def _auto_distribute(self, strategy: str | None = None):
         """
-        Senaryo-kurallı dağıtım:
-
-        strategy:
-            balanced     : Dengeli (genel kullanım)
-            intense      : Yoğun / derece modu (daha agresif)
-            light        : Hafif / yeni başlayan
-            weekend      : Hafta sonu ağırlıklı
-            exam         : Deneme günü odaklı
-            block_dense  : Yoğun blok günler
-            block_course : Ders blokları
+        Gelişmiş Senaryo ve Strateji Bazlı Haftalık Dağıtım Algoritması:
+        - balanced     : 7 güne eşit ve homojen yük dağıtımı (sıfır gün bırakmaz)
+        - intense      : 7 günün tamamı aktif çalışma (yüksek tempo, derece modu)
+        - weekend      : Hafta içi hafif rutin, hafta sonu yoğun bloklar (hafta içini asla sıfırlamaz)
+        - light        : Az ödev, dinlenme aralıkları veya hafif günlük yük
+        - block_course : Aynı dersin ödevlerini bloklama
+        - block_dense  : Belirli günleri yoğun kütüphane günü yapma
+        - clear        : Dağıtımı temizleme
         """
         if self.optMan.isChecked():
             QMessageBox.information(
                 self, "Otomatik Dağıt",
-                "Manuel mod açıkken otomatik dağıtma kullanılamaz."
+                "Manuel mod açıkken otomatik dağıtma kullanılamaz. Tablodaki hücrelere çift tıklayarak ödevleri kendiniz seçebilirsiniz."
             )
             return
 
@@ -1682,209 +1788,201 @@ class HaftalikPlanDialog(QDialog):
         prof = self._active_profile()
         base_hedef = self.spGunluk.value()
         base_tol = self.spTol.value()
-        base_cap = prof["max_tasks"]
-        allow_back_to_back = prof["allow_back_to_back"]
-        weekend_prefer = prof["weekend_prefer"]
+        base_cap = self.spMaxOdev.value() if hasattr(self, "spMaxOdev") else prof.get("max_tasks", 3)
+        allow_back_to_back = not self.chkArdArda.isChecked() if hasattr(self, "chkArdArda") else prof.get("allow_back_to_back", True)
+        weekend_prefer = prof.get("weekend_prefer", False)
 
-        # --------  BLOK MODLARI ÖNCE --------
+        # Temizleme modu
+        if strategy == "clear":
+            self._clear_all_marks()
+            self._update_load_visuals()
+            if hasattr(self, "lblLastStrategy"):
+                self.lblLastStrategy.setText("Son işlem: Temizle")
+            if hasattr(self, "_update_strategy_desc"):
+                self._update_strategy_desc("clear")
+            return
+
+        # Blok modları
         if strategy == "block_dense":
             self._distribute_block_dense(base_hedef, base_tol, base_cap)
-            label = "Blok dağıt (yoğun günler)"
             if hasattr(self, "lblLastStrategy"):
-                self.lblLastStrategy.setText(f"Son strateji: {label}")
+                self.lblLastStrategy.setText("Son strateji: Blok dağıt (yoğun günler)")
+            if hasattr(self, "_update_strategy_desc"):
+                self._update_strategy_desc("block_dense")
             return
 
         if strategy == "block_course":
             self._distribute_block_by_course(base_hedef, base_tol, base_cap)
-            label = "Blok dağıt (ders blokları)"
             if hasattr(self, "lblLastStrategy"):
-                self.lblLastStrategy.setText(f"Son strateji: {label}")
+                self.lblLastStrategy.setText("Son strateji: Blok dağıt (ders blokları)")
+            if hasattr(self, "_update_strategy_desc"):
+                self._update_strategy_desc("block_course")
             return
 
-        # --------  YOĞUN / HAFİF / HAFTA SONU / DENEME AYARLARI --------
-        
-        hedef = base_hedef
-        tol = base_tol
-        cap = base_cap
-        weekend_bias = 0.0
-
-        # Strateji bazlı ayarlamalar (önce bunu yapıyoruz)
-        if strategy == "balanced":
-            weekend_bias = 0.3 if weekend_prefer else 0.0
-
-        elif strategy == "intense":
-            # Çok çalışan, kütüphane öğrencisi:
-            hedef = int(base_hedef * 1.1)  # hedefi %10 yukarı çek
-            tol = int(base_tol * 1.7)  # daha geniş tolerans
-            cap = min(base_cap + 2, 12)  # gün başına daha çok ödev
-            weekend_bias = 0.2  # hafta sonuna hafif kaydırma
-
-        elif strategy == "light":
-            # Yeni başlayan, çabuk yorulan:
-            hedef = int(base_hedef * 0.7)  # hedefi düşür
-            tol = max(5, int(base_tol * 0.5))  # daha dar tolerans
-            cap = max(1, base_cap - 1)  # daha az ödev
-            weekend_bias = 0.0
-
-        elif strategy == "weekend":
-            weekend_bias = 0.9  # hafta sonu çok avantajlı
-
-        elif strategy == "clear":
-             # Temizle modu
-             self._clear_all_marks()
-             self._update_load_visuals()
-             if hasattr(self, "lblLastStrategy"):
-                 self.lblLastStrategy.setText("Son işlem: Temizle")
-             return
-
-        elif strategy == "exam":
-            tol = int(base_tol * 1.2)  # deneme günleri için biraz esnek
-            weekend_bias = 0.0  # nötr
-
-        # Şimdi yoğunluk çarpanını uygula (HER STRATEJİ İÇİN GEÇERLİ OLSUN)
-        # Density density logic applied AFTER strategy adjustments
-        density = self.sliderDensity.value() / 100.0
-        hedef = int(hedef * density)
-        # Cap'i de ölçekle ama minimum 1
-        cap = max(1, int(cap * density))
-
-        # --------  ORTAK DAĞITIM ALGORİTMASI --------
-        self._clear_all_marks()
-
+        # Toplam ödevler ve satır süreleri
         last_data_row = self.tbl.rowCount() - 1
         if last_data_row <= 0:
             return
 
-        gun_dk = [0] * 7
-        gun_adet = [0] * 7
+        tasks = []
+        total_dk = 0
+        for r in range(last_data_row):
+            it_src = self.items[r] if r < len(self.items) else {}
+            dk = int(it_src.get("dk", 0) or 0)
+            if dk <= 0:
+                dk = getattr(self, "_varsayilan_sure", 45)
+            ders = (it_src.get("ders", "") or "").strip()
+            tasks.append((r, ders, dk))
+            total_dk += dk
+
+        N = len(tasks)
+        if N == 0:
+            return
+
+        self._clear_all_marks()
+
         gun_adi = [
             self.tbl.horizontalHeaderItem(i).text().split("\n")[0]
             if self.tbl.horizontalHeaderItem(i) else TR_GUNLER[i - 1]
             for i in range(1, 8)
         ]
-        last_ders_for_gun = [None] * 7
-
         weekend_idx = {
             i for i, name in enumerate(gun_adi)
             if name in ("Cumartesi", "Pazar")
         }
 
-        # exam modu için deneme satırlarını ayıralım
-        exam_rows = set()
-        if strategy == "exam":
-            for r in range(last_data_row):
-                t = self.tbl.item(r, 0).text().lower() if self.tbl.item(r, 0) else ""
-                if "deneme" in t or "trial" in t:
-                    exam_rows.add(r)
+        # Stratejiye göre gün ağırlıkları ve kapasite
+        density = (self.sliderDensity.value() / 100.0) if hasattr(self, "sliderDensity") else 1.0
+        weights = [1.0] * 7
+        cap = base_cap
 
-        # satırları, süre büyük olandan küçüğe sırala (büyük işler önce)
-        row_order = list(range(last_data_row))
+        if strategy == "balanced":
+            cap = max(1, int(base_cap * density))
+            if weekend_prefer:
+                for c in range(7):
+                    if c in weekend_idx:
+                        weights[c] = 1.25
 
-        def row_dk(r):
-            it_src = self.items[r] if r < len(self.items) else {}
-            return int(it_src.get("dk", 0) or 0)
+        elif strategy == "intense":
+            cap = max(base_cap, int((base_cap + 1) * density))
+            for c in range(7):
+                weights[c] = 1.0
 
-        row_order.sort(key=row_dk, reverse=True)
+        elif strategy == "weekend":
+            cap = max(1, int((base_cap + 1) * density))
+            for c in range(7):
+                weights[c] = 2.0 if c in weekend_idx else 0.85
 
-        # Karıştır modu aktifse rastgelelik ekle (ama uzun dersler yine de öncelikli kalabilir, ya da tamamen rastgele)
-        # Mevcut yapı: Uzun dersler önce dağıtılıyor.
-        # Eğer karıştır işaretliyse, aynı uzunluktaki derslerin sırasını değiştirmek için shuffle
-        # veya tamamen shuffle yapıp "best fit" algoritmasına güvenebiliriz.
-        if self.chkShuffle.isChecked():
+        elif strategy == "light":
+            cap = max(1, min(base_cap, 2))
+            for c in range(7):
+                weights[c] = 1.0 if c in {0, 2, 4, 5} else 0.7
+
+        elif strategy == "exam":
+            cap = max(1, int(base_cap * density))
+            for c in range(7):
+                weights[c] = 1.2 if 1 <= c <= 4 else 0.8
+
+        sum_w = sum(weights)
+        ideal_dk = [(w / sum_w) * total_dk for w in weights]
+        ideal_tasks = [(w / sum_w) * N for w in weights]
+
+        if hasattr(self, "chkShuffle") and self.chkShuffle.isChecked():
             import random
+            row_order = list(range(N))
             random.shuffle(row_order)
-            # Shuffle sonrası tekrar süreye göre sıralamak shuffle etkisini bozar.
-            # Ancak "büyük taşları önce koymak" algoritma başarısı için önemlidir.
-            # O yüzden: Biraz "gürültü" ekleyip sıralayalım.
-            # Row'lara rastgele +/- %20 sahte süre ekleyip ona göre sıralayalım?
-            # Ya da: Direkt shuffle yapalım, algoritma yine de en uygun günü bulmaya çalışır.
-            # Kullanıcı "Karıştır" dediyse farklı kombinasyon istiyordur.
-            pass 
+        else:
+            row_order = sorted(range(N), key=lambda i: tasks[i][2], reverse=True)
 
-        for r in row_order:
-            it_src = self.items[r] if r < len(self.items) else {}
-            ders = it_src.get("ders", "")
-            dk = int(it_src.get("dk", 0) or 0)
+        gun_dk = [0] * 7
+        gun_tasks = [[] for _ in range(7)]
+        gun_courses = [[] for _ in range(7)]
 
-            best_c, best_score = None, 10 ** 9
+        for idx in row_order:
+            r, ders, dk = tasks[idx]
+
+            best_c = None
+            best_cost = float("inf")
 
             for c in range(7):
-                # max ödev sınırı
-                if gun_adet[c] >= cap:
-                    continue
+                cur_cnt = len(gun_tasks[c])
+                cur_time = gun_dk[c]
 
-                # ardışık aynı ders kuralı
-                if (not allow_back_to_back) and last_ders_for_gun[c] == ders:
-                    continue
+                # Kapasite aşım maliyeti
+                cost_cap = 5000 * (cur_cnt - cap + 1) if cur_cnt >= cap else 0
 
-                new_total = gun_dk[c] + dk
+                # Aynı dersi yığma kontrolü
+                course_cost = 0
+                if not allow_back_to_back and ders:
+                    same_cnt = gun_courses[c].count(ders)
+                    if same_cnt > 0:
+                        course_cost = 300 * same_cnt
 
-                # temel farklar
-                base_diff = abs(new_total - hedef)
-                overflow = max(0, new_total - (hedef + tol))
-                underflow = max(0, hedef - new_total)
+                # Orantılı iş yükü maliyeti
+                ratio_task = (cur_cnt + 1) / max(0.4, ideal_tasks[c])
+                ratio_time = (cur_time + dk) / max(10, ideal_dk[c])
 
-                # stratejiye göre ceza/ödül
-                if strategy == "intense":
-                    penalty = overflow * 1.5 + underflow * 0.2
-                    day_bias = gun_dk[c] * 0.02
-                elif strategy == "light":
-                    penalty = overflow * 4.0 + underflow * 1.0
-                    day_bias = gun_dk[c] * 0.10
-                else:  # balanced / weekend / exam
-                    penalty = overflow * 3.0 + underflow * 0.5
-                    day_bias = gun_dk[c] * 0.05
+                # Sıfır gün kalmasını önleme bonusu
+                empty_bonus = 0
+                if cur_cnt == 0:
+                    if strategy in ("balanced", "intense") and N >= 7:
+                        empty_bonus = -120
+                    elif strategy == "weekend" and N >= 7:
+                        empty_bonus = -80
+                    elif N >= 4:
+                        empty_bonus = -40
 
-                score = base_diff + penalty + day_bias
+                # Günlük hedefi aşırı aşma kontrolü
+                over_target_cost = 0
+                if base_hedef > 0 and (cur_time + dk) > (base_hedef + base_tol):
+                    over_target_cost = ((cur_time + dk) - (base_hedef + base_tol)) * 0.5
 
-                # hafta sonu avantaj / dezavantaj
-                if weekend_bias > 0:
+                cost = (ratio_task * 40) + (ratio_time * 40) + cost_cap + course_cost + empty_bonus + over_target_cost
+
+                if strategy == "weekend":
                     if c in weekend_idx:
-                        score *= (1.0 - weekend_bias * 0.5)  # avantaj
+                        cost *= 0.8
                     else:
-                        score *= (1.0 + weekend_bias * 0.3)  # dezavantaj
+                        cost *= 1.15
 
-                # deneme modu özel
                 if strategy == "exam":
-                    if r in exam_rows:
-                        # denemeyi Salı–Cuma aralığına çek
+                    is_exam = "deneme" in ders.lower() or "deneme" in (self.items[r].get("konu", "") if r < len(self.items) else "").lower()
+                    if is_exam:
                         if 1 <= c <= 4:
-                            score *= 0.6
+                            cost *= 0.5
                         else:
-                            score *= 1.4
-                    else:
-                        # deneme olmayanları, deneme ile aynı güne fazla yığma
-                        # (şimdilik basit: ağır günleri dezavantajlı yapıyoruz)
-                        if gun_dk[c] > hedef + tol:
-                            score *= 1.2
+                            cost *= 1.5
 
-                if score < best_score:
-                    best_score, best_c = score, c
+                if cost < best_cost:
+                    best_cost = cost
+                    best_c = c
 
             if best_c is None:
-                # hiçbiri kurallara uymuyorsa en az ödevli günü seç
-                best_c = min(range(7), key=lambda i: gun_adet[i])
+                best_c = min(range(7), key=lambda i: len(gun_tasks[i]))
 
-            if dk <= 0:
-                dk = 45
             self._mark_cell(r, best_c + 1, dk)
+            gun_tasks[best_c].append(r)
             gun_dk[best_c] += dk
-            gun_adet[best_c] += 1
-            last_ders_for_gun[best_c] = ders
+            if ders:
+                gun_courses[best_c].append(ders)
 
-        # Visual update (Heatmap)
         self._update_load_visuals()
 
         label_map = {
             "balanced": "Dengeli dağıt (önerilen)",
             "intense": "Yoğun / Derece modu",
-            "light": "Hafif / Yeni başlayan",
+            "light": "Hafif / Rahat mod",
             "weekend": "Hafta sonu ağırlıklı",
             "exam": "Deneme günü odaklı",
+            "block_course": "Ders blokları modu",
+            "block_dense": "Yoğun blok günler",
+            "clear": "Dağıtımı temizle",
         }
         label = label_map.get(strategy, strategy)
         if hasattr(self, "lblLastStrategy"):
             self.lblLastStrategy.setText(f"Son strateji: {label}")
+        if hasattr(self, "_update_strategy_desc"):
+            self._update_strategy_desc(strategy)
 
     # ---------------- sonuç toplama ----------------
 
