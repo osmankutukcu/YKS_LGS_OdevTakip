@@ -1,0 +1,20 @@
+{
+  "CurriculumPage": {
+    "_on_lesson_changed": "cc53a249067a3f225699f8fa032856ad6ad09d22d3922339eda6a182fe8abd0a",
+    "_open_topic_editor": "8b42d4ebc276fc8e4c579a0803e5a356bd031d824d1a42c8fbd0a65f1148592c",
+    "save": "3979f6d6da291e11831dfaee2fd5c33a7fb97254239ad9077741ae68cbd2bfc0",
+    "confirm_leave": "1a73b6936c69fdd324cf2c73d8d8ee1215e9d1841c5235d4e51e0d96c96e2308"
+  },
+  "GroupMappingPage": {
+    "refresh_groups": "43ea4ae13dfbbf377b5ab589952a964218eddc40ddb484305d5fd7b03353fc4a",
+    "init_lesson_list": "a8e077927614e823c0d561ab78db7c5ba1cc100e29e872d877ae19b544a3ab42",
+    "refresh_lessons": "bd2b5acbca11b3c0d65d7012745114e5e025bf29ad9e355613a3cb5b49b48602",
+    "_load_selected": "f3882a9cfd87e6fafbc6043a682627c74d4594c45b9a9c953e87caf86975cc05",
+    "load_mapping": "0f37ed83bbd5df3bfc5a8b92401aefb1eda0d907b4012a4bbb0b1e8c5d42905e",
+    "_save": "e7259aecd68c75cf5bd18e441e097a1870fd3e840c2347cbbaddbf758c7fde7b",
+    "save_mapping": "dc463aa1f07126f2f42f89e7d961180d92fa54eb069317a6475d1c50e212c49b",
+    "save_current": "7a641b5d7043b5767976e72cf1537f42cc0097febca3ad34407ac09cd6aff6c4",
+    "confirm_leave": "ce31335cc4c720931a275e31219858be35f74cd68cdb6467dab8b716325bab36",
+    "reset_mapping": "faafeaf4946ea573ffa725aea89b524e619934e27eaade114aafca88ade69a3a"
+  }
+}

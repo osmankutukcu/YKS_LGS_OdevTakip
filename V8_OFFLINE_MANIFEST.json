@@ -1,0 +1,49 @@
+{
+  "base": "YKS_LGS_HomeworkManager_V7_Entegre_Kaynak_Veriler_Haric.zip",
+  "version": "V8",
+  "pilot": true,
+  "timestamp": "2026-10-15",
+  "changed_paths": [
+    "MOBIL_OFFLINE_V8_KALICI_KLASOR_PARÇALI_INDIRME_RAPORU.md",
+    "tests/test_mobile_sync_v3_integration.py",
+    "tests/test_offline_v6_readiness.cjs",
+    "tests/test_offline_v7_readiness.cjs",
+    "tests/test_offline_v8_folder.cjs",
+    "tests/test_offline_v8_paged.cjs",
+    "tests/test_offline_v8_pages.py",
+    "web_api/snapshot_pages_v8.py",
+    "web_api/static/js/offline_folder_v8.js",
+    "web_api/static/js/offline_health_v6.js",
+    "web_api/static/js/offline_paged_v8.js",
+    "web_api/static/js/offline_sync.js",
+    "web_api/static/sw.js",
+    "web_api/sync_engine.py",
+    "web_api/templates/index.html"
+  ],
+  "sha256": {
+    "MOBIL_OFFLINE_V8_KALICI_KLASOR_PARÇALI_INDIRME_RAPORU.md": "7994a6b430b1321928b0f36c34ee71dddeab66bc5e58b79b2fcfc6b0d5c676f0",
+    "tests/test_mobile_sync_v3_integration.py": "aac41493d2523423c2f97fdaefd2d2454c0cf963832abf7b8a3ae7c05bcb2adf",
+    "tests/test_offline_v6_readiness.cjs": "81527ff8a44655e48a33ca51a90ecdd348f5594d7c6669fbd41347df6c8234e7",
+    "tests/test_offline_v7_readiness.cjs": "49abce6b5d2612d7a60d5d893372156a02538e147e9465ac73c838ead8ad64ef",
+    "tests/test_offline_v8_folder.cjs": "4a5446bb4d1b871742939e3eb2e64c7922f9cc48b300bfba78ba046fecadd9ce",
+    "tests/test_offline_v8_paged.cjs": "5e1c3785294e96c5f3fb1aa54bf4304d6f570c51f7fab5a14c23772186cafd65",
+    "tests/test_offline_v8_pages.py": "9da671b1cd4245723d0e32701ff4eac1ca72176da633aaa34b5aa403d9ed8697",
+    "web_api/snapshot_pages_v8.py": "39545cd6b937d0fc4b192b6e6bba1a69916049e2144bfff83d00b3dcb36a67ea",
+    "web_api/static/js/offline_folder_v8.js": "8ed1ab385ebff37055bb020a475bbf628aa5983a420bac9ab691cd3bdd3e7fc9",
+    "web_api/static/js/offline_health_v6.js": "98b0f8248ea713912fe98b7666534798a082909e90fc9819900f1e6fa9123346",
+    "web_api/static/js/offline_paged_v8.js": "1757b6cd209782b72e428fa11416ce09c34e485308c2fc1b53d9da3fee7152e5",
+    "web_api/static/js/offline_sync.js": "8044417c114caf75929a59615dbf0fb4523500c7a6c4cd95f35c7b5a833e4ad9",
+    "web_api/static/sw.js": "7c37bbccb88e7a1c9142128d9b276211e5586a893dbe97d97a95689aa7340356",
+    "web_api/sync_engine.py": "fd773de3d831e3ab62a8593bfa579fba4d9a8f5a79449d185ef343ed0643ec91",
+    "web_api/templates/index.html": "67252566904c3a79f29d64b3706ea89459a74671d2e7e31b1e61d7a9f72f3e2f"
+  },
+  "protected_unchanged": [
+    "db.py",
+    "main_window.py",
+    "ui/homework_form.py",
+    "web_api/main.py",
+    "web_api/sync_transactions.py",
+    "web_api/homework_store.py"
+  ],
+  "notes": "Do not install directly over production; pilot only."
+}

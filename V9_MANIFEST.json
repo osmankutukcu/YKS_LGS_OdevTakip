@@ -1,0 +1,40 @@
+{
+  "version": "v9.0",
+  "requires": "v8.0 source baseline",
+  "files": {
+    "web_api/main.py": "f6fe7bf1fefc13a30b5311ee06e354b23c0f5733bc51814de79984c6df4853ae",
+    "web_api/survey_invites_v9.py": "bb32bd6dd8f20d54ff87609340766702f7a4c394e59b1e5c059ab0313acbd48e",
+    "services/survey_catalog_v9.json": "076afad33c62da8d84f6d31a09646ce5da7a56346d9f93c9da99902752ec5c34",
+    "services/survey_invite_writer_v9.py": "eecfcb7f709aa8c83ebfd25907d3e392b8e536c5106d202aa90de33457840a37",
+    "services/survey_review_v9.py": "9e05c63373137727e2f38c7778113de85f2dce7a1ed1f15379abed3f3f2cb950",
+    "ui/survey_manager.py": "683e4e880311675c2f4fa23751b037c7df44681e77fbe6116b661751319a5e72"
+  },
+  "accepted_sources": {
+    "web_api/main.py": [
+      "989fa32d634213539f49fb2af625264e2581790dd91d3c8d9eb2956d8dab295d"
+    ],
+    "web_api/survey_invites_v9.py": [
+      null
+    ],
+    "services/survey_catalog_v9.json": [
+      null
+    ],
+    "services/survey_invite_writer_v9.py": [
+      null
+    ],
+    "services/survey_review_v9.py": [
+      null
+    ],
+    "ui/survey_manager.py": [
+      "ea1870c572b01cbc9b37958b8fcdd2412139d2a761bde47acdc91a98dd054de0"
+    ]
+  },
+  "protected": {
+    "ui/homework_form.py": "53e6b12db96cf81fd622947e7d343b4130a1a8e42a0e30d5c5ec58e64e456314",
+    "ui/student360_panel_v16.py": "6cbf8afcf6016af595ad57dddb66c4679030dea97ca9d651dd049b1f78a49c33",
+    "main_window.py": "c2f8d2d085ee45cf1d8bf9fea199c8d9cf2985e8ebb328efcf02b976803e7b27",
+    "services/survey_integrity_v8.py": "c0720ee00439865327054cae3117947e6459d91c8c8251045dd5dc55aa4d48f2",
+    "services/survey_evidence_v7.py": "90e5cc688f4d05af2530f58805dcb3b8774c75c35dd7716e889bfa942fbf96a9",
+    "ui/coaching_manager.py": "39d93947eaba72aa1a502931bf6544c75e7a5c880150cbee666487ac5c1346cd"
+  }
+}

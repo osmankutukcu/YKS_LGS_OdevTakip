@@ -9,6 +9,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Masaüstü programının belirlediği db.DB_PATH tek veri kaynağıdır.
 # Web uygulaması kendi kendine kök klasörde deneme veritabanına geçmez.
 from web_api.auth import authorized
+from web_api.survey_invites_v9 import router as survey_v9_router
+from web_api.live_changes_v10 import router as live_v10_router
 from utils.homework_status import is_completed, mobile_status, status_counts
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 
@@ -23,6 +25,8 @@ except ImportError as e:
     print(f"Warning: Could not import db module. Details: {e}")
 
 app = FastAPI(title="YKS/LGS Manager API", version="1.0.0")
+app.include_router(survey_v9_router)
+app.include_router(live_v10_router)
 
 # CORS (Cross-Origin Resource Sharing) - Allow Frontend to access this
 # SPA ve API aynı adreste çalışıyor. Varsayılan yabancı origin erişimi kapalı.
@@ -41,8 +45,12 @@ async def protect_personal_data(request, call_next):
             and request.headers.get('access-control-request-method') in ('GET', 'POST')):
         return await call_next(request)
     # İlk HTML ekranı giriş anahtarı ister; statik dosyalarda kişisel veri yok.
-    if path == '/' or path.startswith('/static/') or path == '/sw.js' or path == '/manifest.json':
-        return await call_next(request)
+    if (path == '/' or path.startswith('/static/') or path == '/sw.js'
+            or path == '/manifest.json' or (path.startswith('/s/') and path.count('/') == 2
+                and request.method in ('GET', 'POST'))):
+        response = await call_next(request)
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response
     if not authorized(request.headers.get('x-access-key')):
         return JSONResponse({'detail': 'Giriş anahtarı gerekli veya geçersiz.'}, status_code=401,
                             headers={'Cache-Control': 'no-store'})
@@ -1024,7 +1032,7 @@ async def read_root():
     index_path = os.path.join(templates_dir, "index.html")
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
-            return f.read()
+            return HTMLResponse(content=f.read(), headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"})
     return "<h1>Mobil Panel Hazırlanıyor...</h1><p>Lütfen 'index.html' dosyasının templates klasöründe olduğundan emin olun.</p>"
 
 @app.get("/sw.js", include_in_schema=False)
@@ -1202,7 +1210,8 @@ def _load_lesson_configs():
     """Ders ayarı listelenirken kısa süreli SQLite bağlantısı kapatılır."""
     con = db.get_conn()
     try:
-        return list(db.get_lesson_config(con))
+        # get_lesson_config -> {ders_id: ders_bilgileri}; API sözleşmesi dict listesidir.
+        return list(db.get_lesson_config(con).values())
     finally:
         con.close()
 
@@ -1212,9 +1221,12 @@ def get_lessons_list(student_id: Optional[int] = Query(None)):
     lessons = []
     seen = set()
     config_names = {}
+    active_catalog = []
     if hasattr(db, 'get_lesson_config'):
         try:
-            config_names = {item['id']: item['ad'] for item in _load_lesson_configs()}
+            configs = _load_lesson_configs()
+            config_names = {item['id']: item['ad'] for item in configs}
+            active_catalog = [item['id'] for item in configs if item.get('aktif', 1)]
         except Exception:
             pass
 
@@ -1222,7 +1234,7 @@ def get_lessons_list(student_id: Optional[int] = Query(None)):
     if student_id and hasattr(db, 'get_student_curriculum'):
         try:
             student_lessons = db.get_student_curriculum(student_id)
-            if student_lessons:
+            if student_lessons is not None:
                 for tbl in student_lessons:
                     if tbl not in seen:
                         # Try to get display name from db.get_lesson_config if available, else clean_name
@@ -1234,11 +1246,13 @@ def get_lessons_list(student_id: Optional[int] = Query(None)):
                 return sorted(lessons, key=lambda x: x["name"])
         except Exception as e:
             print(f"Error getting student curriculum: {e}")
+            # Öğrenciye özel listede hata olursa herkese ait tüm derslere düşme.
+            return []
 
     # 2. Fallback: Return ALL lessons (from DB DERS_TABLOLARI if available, else hardcoded)
     all_tables = []
     if hasattr(db, 'DERS_TABLOLARI') and db.DERS_TABLOLARI:
-         all_tables = db.DERS_TABLOLARI
+         all_tables = active_catalog if config_names else db.DERS_TABLOLARI
     else:
          for grp, tables in GRUP_DERSLER.items():
             all_tables.extend(tables)

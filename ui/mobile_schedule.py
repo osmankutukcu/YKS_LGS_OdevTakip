@@ -149,7 +149,8 @@ class SmartMobileSchedulePreviewDialog(QDialog):
                 background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px;
                 padding: 6px 14px; font-weight: bold; color: #334155;
             }
-            QPushButton:hover { background-color: #e2e8f0; }
+            QPushButton:hover { background-color: #e2e8f0; 
+                color: #15191E;}
         """)
         btn_refresh.clicked.connect(self._refresh_preview)
         toolbar.addWidget(btn_refresh)
@@ -165,7 +166,8 @@ class SmartMobileSchedulePreviewDialog(QDialog):
                 border: 1px solid #cbd5e1;
                 border-radius: 8px;
                 padding: 10px;
-            }
+            
+                color: #15191E;}
         """)
         main_layout.addWidget(self.viewer, 1)
 
@@ -180,7 +182,8 @@ class SmartMobileSchedulePreviewDialog(QDialog):
                 background-color: #0891b2; color: white; font-weight: bold; font-size: 13px;
                 padding: 10px 18px; border-radius: 8px; border: none;
             }
-            QPushButton:hover { background-color: #0e7490; }
+            QPushButton:hover { background-color: #0e7490; 
+                color: #FFFFFF;}
         """)
         self.btn_browser.clicked.connect(self._open_in_browser)
         btn_layout.addWidget(self.btn_browser)
@@ -192,7 +195,8 @@ class SmartMobileSchedulePreviewDialog(QDialog):
                 background-color: #f8fafc; color: #334155; font-weight: bold; font-size: 13px;
                 padding: 10px 18px; border-radius: 8px; border: 1px solid #cbd5e1;
             }
-            QPushButton:hover { background-color: #e2e8f0; }
+            QPushButton:hover { background-color: #e2e8f0; 
+                color: #15191E;}
         """)
         self.btn_print.clicked.connect(self._print_schedule)
         btn_layout.addWidget(self.btn_print)
@@ -206,7 +210,8 @@ class SmartMobileSchedulePreviewDialog(QDialog):
                 background-color: #2563eb; color: white; font-weight: bold; font-size: 14px;
                 padding: 10px 22px; border-radius: 8px; border: none;
             }
-            QPushButton:hover { background-color: #1d4ed8; }
+            QPushButton:hover { background-color: #1d4ed8; 
+                color: #FFFFFF;}
         """)
         self.btn_pdf.clicked.connect(self._save_pdf)
         btn_layout.addWidget(self.btn_pdf)
@@ -218,7 +223,8 @@ class SmartMobileSchedulePreviewDialog(QDialog):
                 background-color: #e2e8f0; color: #475569; font-weight: bold; font-size: 13px;
                 padding: 10px 16px; border-radius: 8px; border: none;
             }
-            QPushButton:hover { background-color: #cbd5e1; }
+            QPushButton:hover { background-color: #cbd5e1; 
+                color: #15191E;}
         """)
         btn_close.clicked.connect(self.close)
         btn_layout.addWidget(btn_close)
@@ -452,7 +458,8 @@ class SmartBulkMessageDialog(QDialog):
             QTableWidget {
                 border: 1px solid #cbd5e1; border-radius: 6px; background: white;
                 gridline-color: #f1f5f9; alternate-background-color: #f8fafc;
-            }
+            
+                color: #15191E;}
             QHeaderView::section {
                 background-color: #f1f5f9; font-weight: bold; color: #334155;
                 padding: 6px; border: none; border-bottom: 1px solid #cbd5e1;
@@ -479,7 +486,8 @@ class SmartBulkMessageDialog(QDialog):
             QTextEdit {
                 border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px;
                 background: white; font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 13px; line-height: 1.4;
-            }
+            
+                color: #15191E;}
             QTextEdit:focus { border: 1px solid #10b981; }
         """)
         self.txt_message.textChanged.connect(self._on_message_text_edited)
@@ -496,7 +504,8 @@ class SmartBulkMessageDialog(QDialog):
                 background-color: #16a34a; color: white; font-weight: bold; padding: 8px 14px;
                 border-radius: 6px; border: none;
             }
-            QPushButton:hover { background-color: #15803d; }
+            QPushButton:hover { background-color: #15803d; 
+                color: #FFFFFF;}
         """)
         self.btn_send_single.clicked.connect(self._send_single_whatsapp)
         single_act.addWidget(self.btn_send_single)
@@ -508,7 +517,8 @@ class SmartBulkMessageDialog(QDialog):
                 background-color: #f1f5f9; color: #334155; font-weight: bold; padding: 8px 14px;
                 border-radius: 6px; border: 1px solid #cbd5e1;
             }
-            QPushButton:hover { background-color: #e2e8f0; }
+            QPushButton:hover { background-color: #e2e8f0; 
+                color: #15191E;}
         """)
         self.btn_copy_single.clicked.connect(self._copy_single_message)
         single_act.addWidget(self.btn_copy_single)
@@ -569,7 +579,8 @@ class SmartBulkMessageDialog(QDialog):
                 background-color: #2563eb; color: white; font-weight: bold; font-size: 13px;
                 padding: 10px 18px; border-radius: 8px; border: none;
             }
-            QPushButton:hover { background-color: #1d4ed8; }
+            QPushButton:hover { background-color: #1d4ed8; 
+                color: #FFFFFF;}
         """)
         self.btn_start_auto.clicked.connect(self._start_auto_sending)
         bottom_bar.addWidget(self.btn_start_auto)
@@ -1122,7 +1133,8 @@ class GroupBulletinDialog(QDialog):
             QTextEdit {
                 background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px;
                 padding: 12px; font-family: 'Consolas', 'Cascadia Code', monospace; font-size: 13px; line-height: 1.5;
-            }
+            
+                color: #15191E;}
         """)
         main_layout.addWidget(self.txt_bulletin, 1)
 
@@ -1143,7 +1155,8 @@ class GroupBulletinDialog(QDialog):
                 background-color: #16a34a; color: white; font-weight: bold; font-size: 14px;
                 padding: 12px 24px; border-radius: 8px; border: none;
             }
-            QPushButton:hover { background-color: #15803d; }
+            QPushButton:hover { background-color: #15803d; 
+                color: #FFFFFF;}
         """)
         self.btn_copy.clicked.connect(self._copy_bulletin)
         bottom_layout.addWidget(self.btn_copy)
@@ -1155,7 +1168,8 @@ class GroupBulletinDialog(QDialog):
                 background-color: #0891b2; color: white; font-weight: bold; font-size: 13px;
                 padding: 12px 18px; border-radius: 8px; border: none;
             }
-            QPushButton:hover { background-color: #0e7490; }
+            QPushButton:hover { background-color: #0e7490; 
+                color: #FFFFFF;}
         """)
         self.btn_wa_web.clicked.connect(self._share_whatsapp)
         bottom_layout.addWidget(self.btn_wa_web)

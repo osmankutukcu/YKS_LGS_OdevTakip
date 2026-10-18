@@ -22,6 +22,7 @@ from PyQt6.QtCore import Qt, QPoint, QSettings, QTimer, QRect, QModelIndex
 from PyQt6.QtGui import QColor, QFont
 import re, sqlite3
 import db  # mevcut db yardımcılarınızı kullanır
+from services.lesson_catalog_v39 import LessonOption, read_lesson_options, resolve_lesson_code
 
 _BADGE_RE = re.compile(r"\s*[•·]\s*\d+\s*$")  # " • 7" gibi rozet soneklerini temizler
 
@@ -509,17 +510,25 @@ class KitapDialog(QDialog):
         clean_ders = re.sub(r'\(?\s*%\s*\d+\s*\)?', '', clean_ders)
         clean_ders = re.sub(r'[^\w\s]', '', clean_ders, flags=re.UNICODE).strip().lower().replace(" ", "_")
 
-        matched_ders = None
-        for d in db.DERS_TABLOLARI:
-            if d.lower() == clean_ders or d.lower().replace("_", "") == clean_ders.replace("_", ""):
-                matched_ders = d
-                break
-        if not matched_ders:
-            for d in db.DERS_TABLOLARI:
-                if d.lower() in clean_ders or clean_ders in d.lower():
-                    matched_ders = d
-                    break
-        self.aktif_ders = matched_ders if matched_ders else (db.DERS_TABLOLARI[0] if db.DERS_TABLOLARI else clean_ders)
+        # V39: UI etiketi ile kalıcı ders kodu ayrı tutulur. Belirsiz başlıklar
+        # kesin eşleşme sayılmaz; eski ilk ders fallback'i korunur.
+        try:
+            _catalog_connection = db.get_conn()
+            try:
+                self._lesson_options = read_lesson_options(
+                    _catalog_connection, legacy=db.DERS_TABLOLARI,
+                    history_sources=('kitap', 'ogrenci_kitap'),
+                    always_include=()
+                )
+            finally:
+                _catalog_connection.close()
+        except Exception:
+            self._lesson_options = tuple(LessonOption(d, d) for d in db.DERS_TABLOLARI)
+        self.aktif_ders = (
+            resolve_lesson_code(str(aktif_ders or ''), self._lesson_options)
+            or resolve_lesson_code(clean_ders, self._lesson_options)
+            or (self._lesson_options[0].code if self._lesson_options else clean_ders)
+        )
         self.son_ders = self.aktif_ders
         self._degisiklik_oldu = False
 
@@ -556,6 +565,11 @@ class KitapDialog(QDialog):
         con = db.get_conn()
         _ensure_column(con, "ogrenci_kitap", "eklenme_tarih", "TEXT")
         _ensure_table_kitap_ozellik(con)
+
+    def _selected_lesson_id(self):
+        """Sadece veritabanı kodunu döndürür; UI metni kayıtlara asla geçmez."""
+        code = self.cmbDers.currentData()
+        return str(code) if code is not None else self.cmbDers.currentText()
 
     # ------------- Toast helper -------------
     def _toast(self, text: str, kind: str = "info", msec: int = 2400):
@@ -599,10 +613,15 @@ class KitapDialog(QDialog):
         # Ders Seçimi aynı barda sağda
         top_lay.addWidget(QLabel("<b>Ders:</b>"))
         self.cmbDers = QComboBox()
-        self.cmbDers.addItems(db.DERS_TABLOLARI)
-        self.cmbDers.setCurrentText(self.aktif_ders)
-        self.cmbDers.setMinimumWidth(160)
-        self.cmbDers.currentTextChanged.connect(self._yenile_havuz)
+        for option in self._lesson_options:
+            self.cmbDers.addItem(option.label, option.code)
+        selected_index = self.cmbDers.findData(self.aktif_ders)
+        if selected_index >= 0:
+            self.cmbDers.setCurrentIndex(selected_index)
+        self.cmbDers.setAccessibleName('Kitap yönetiminde ders seçimi')
+        self.cmbDers.setToolTip('Görünen ders adı değişebilir; kitaplar her zaman kalıcı ders koduna bağlanır.')
+        self.cmbDers.setMinimumWidth(210)
+        self.cmbDers.currentIndexChanged.connect(lambda *_: self._yenile_havuz())
         top_lay.addWidget(self.cmbDers)
 
         root.addWidget(top_bar)
@@ -890,7 +909,7 @@ class KitapDialog(QDialog):
             }
         """
         self.lstHavuz.setStyleSheet(list_qss); self.lstOgr.setStyleSheet(list_qss)
-        text_qss = "QTextEdit, QLineEdit { border:1px solid #e5e7eb; border-radius:8px; padding:6px; background:#fff; }"
+        text_qss = "QTextEdit, QLineEdit { border:1px solid #e5e7eb; border-radius:8px; padding:6px; background:#fff; color:#111827; selection-background-color:#dbeafe; selection-color:#1e3a8a; }"
         self.txtKitaplar.setStyleSheet(text_qss); self.txtOgrAra.setStyleSheet(text_qss)
         self.setStyleSheet(self.styleSheet()+"""
             QMenu { border:1px solid #e5e7eb; border-radius:8px; padding:4px; background:#fff; }
@@ -954,7 +973,7 @@ class KitapDialog(QDialog):
         if chosen is act_detail:
             kitaplar = self._selected_books_from_pool(pos)
             if not kitaplar: self._toast("Detay için en az bir kitap seçin.","warn"); return
-            con = db.get_conn(); dlg = KitapDetayDialog(con, self.cmbDers.currentText(), kitaplar, self); dlg.exec(); return
+            con = db.get_conn(); dlg = KitapDetayDialog(con, self._selected_lesson_id(), kitaplar, self); dlg.exec(); return
 
         if chosen is act_props:
             kitaplar = self._selected_books_from_pool(pos)
@@ -962,7 +981,7 @@ class KitapDialog(QDialog):
             con = db.get_conn()
             for k in kitaplar:
                 _ensure_table_kitap_ozellik(con)
-                dlg = KitapOzellikDialog(con, self.cmbDers.currentText(), k, self); dlg.exec()
+                dlg = KitapOzellikDialog(con, self._selected_lesson_id(), k, self); dlg.exec()
             return
 
         if chosen is act_check_all:
@@ -1126,7 +1145,7 @@ class KitapDialog(QDialog):
         self.right.setEnabled(self.radSecilen.isChecked())
 
     def _book_usage_map(self):
-        con = db.get_conn(); ders = self.cmbDers.currentText(); usage = {}
+        con = db.get_conn(); ders = self._selected_lesson_id(); usage = {}
         try:
             rows = con.execute("SELECT kitap_ad, COUNT(*) AS cnt FROM ogrenci_kitap WHERE ders=? GROUP BY kitap_ad",(ders,)).fetchall()
             for r in rows:
@@ -1169,7 +1188,7 @@ class KitapDialog(QDialog):
         if not hasattr(self, "lstHavuz"): return
         self.lstHavuz.clear()
         con = db.get_conn()
-        ders = self.cmbDers.currentText()
+        ders = self._selected_lesson_id()
         usage = self._book_usage_map()
         for r in db.kitap_havuzu(con, ders):
             try: ad = r["ad"]
@@ -1223,7 +1242,7 @@ class KitapDialog(QDialog):
         selected_name = chosen.text()
         con = db.get_conn()
         _ensure_table_kitap_ozellik(con)
-        KitapOzellikDialog(con, self.cmbDers.currentText(), selected_name, self).exec()
+        KitapOzellikDialog(con, self._selected_lesson_id(), selected_name, self).exec()
 
     # ---------------- İşlemler ----------------
     def _toplanan_kitaplar(self):
@@ -1270,7 +1289,7 @@ class KitapDialog(QDialog):
             pass
 
     def _ekle(self):
-        ders = self.cmbDers.currentText()
+        ders = self._selected_lesson_id()
         kitaplar = self._toplanan_kitaplar()
         if not kitaplar:
             self._toast("Eklenecek kitap adı girin veya havuzdan seçin.", "warn")
@@ -1291,7 +1310,7 @@ class KitapDialog(QDialog):
         self.accept()
 
     def _sil(self):
-        ders = self.cmbDers.currentText()
+        ders = self._selected_lesson_id()
         kitaplar = self._toplanan_kitaplar()
         if not kitaplar:
             self._toast("Silinecek kitap seçilmedi. Lütfen havuzdan veya listeden kitap seçin.", "warn")

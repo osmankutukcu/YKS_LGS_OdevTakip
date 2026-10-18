@@ -4,6 +4,89 @@ from ui import app_settings as appset
 # ==========================
 #  Küçük renk yardımcıları
 # ==========================
+import re
+import weakref
+
+# V37: opt-in listeners for already-open forms that own a local stylesheet.
+# Weak references prevent changing the lifetime of any window.
+_THEME_LISTENERS = weakref.WeakSet()
+
+def register_theme_listener(widget):
+    try:
+        _THEME_LISTENERS.add(widget)
+    except TypeError:
+        pass  # Non-weakreferenceable objects keep their existing behaviour.
+
+def _get_check_icon_path():
+    try:
+        import os
+        p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "check_white.png")
+        if os.path.exists(p):
+            return p.replace("\\", "/")
+    except Exception:
+        pass
+    return None
+
+# V36 THEME SAFETY: Shared WCAG contrast helpers; no UI/business dependencies.
+_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+_CUSTOM_COLOR_KEYS = (
+    "tema_card", "tema_alt", "tema_list_bg", "tema_list_alt", "tema_list_fg",
+    "tema_list_grid", "tema_list_hover_bg", "tema_list_hover_fg", "tema_head_bg",
+    "tema_head_fg", "tema_head_glow", "tema_tab_bg", "tema_tab_fg",
+    "tema_tab_sel_bg", "tema_tab_sel_fg", "tema_tab_hover_bg", "tema_button_bg",
+    "tema_button_fg", "tema_button_border", "tema_danger", "tema_warn", "tema_ok",
+)
+
+def _safe_color(value, default):
+    """Ignore invalid legacy/custom colors rather than emitting broken QSS."""
+    value = str(value or '').strip()
+    return value if _COLOR_RE.fullmatch(value) else default
+
+def _color_setting(key, default):
+    return _safe_color(appset.ayar_get(key, None), default)
+
+def _luminance(value):
+    rgb = _hex_to_rgb(value)
+    linear = [v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+              for v in (component / 255 for component in rgb)]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+def contrast_ratio(foreground, background):
+    l1, l2 = _luminance(foreground), _luminance(background)
+    return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
+
+def readable_text(background, preferred='#111315', other_backgrounds=()):
+    """Choose accessible text across all backgrounds when feasible (WCAG AA 4.5:1)."""
+    surfaces = (background,) + tuple(other_backgrounds)
+    preferred = _safe_color(preferred, '#111315')
+    if min(contrast_ratio(preferred, surface) for surface in surfaces) >= 4.5:
+        return preferred
+    candidates = ('#111315', '#000000', '#FFFFFF')
+    return max(candidates, key=lambda c: min(contrast_ratio(c, b) for b in surfaces))
+
+def clear_preset_color_overrides():
+    """A named preset must not silently inherit overrides from an older custom theme."""
+    for key in _CUSTOM_COLOR_KEYS:
+        if appset.ayar_get(key, None):
+            appset.ayar_set(key, '')
+
+def _safe_int(key, default, minimum, maximum):
+    try:
+        return max(minimum, min(maximum, int(appset.ayar_get(key, default) or default)))
+    except (ValueError, TypeError):
+        return default
+
+def _contrast_safe_background(background, foreground):
+    """Preserve hue where possible while keeping regular-size button text >= 4.5:1."""
+    if contrast_ratio(foreground, background) >= 4.5:
+        return background
+    target = '#FFFFFF' if _luminance(foreground) < 0.4 else '#000000'
+    for step in range(1, 21):
+        shade = _mix(background, target, step / 20)
+        if contrast_ratio(foreground, shade) >= 4.5:
+            return shade
+    return target
+
 def _clamp(v):
     return max(0, min(255, int(v)))
 
@@ -81,8 +164,11 @@ def tema_apply_preset(ad):
     p = tema_presets().get(ad)
     if not p:
         return
+    clear_preset_color_overrides()
     appset.ayar_set("tema_seti", ad)
-    appset.ayar_set("tema_mod", "koyu" if p["mode"] == "dark" else "açık")
+    mode = "koyu" if p["mode"] == "dark" else "açık"
+    appset.ayar_set("tema", mode)      # Legacy reader compatibility
+    appset.ayar_set("tema_mod", mode)  # Modern appearance reader compatibility
     appset.ayar_set("tema_primary", p["primary"])
     appset.ayar_set("tema_accent",  p["accent"])
     appset.ayar_set("tema_bg",      p["bg"])
@@ -92,7 +178,7 @@ def tema_apply_preset(ad):
 # ==========================
 def build_qss():
     # Varsayılan (Fallback) temayı 'açık' (Light) olarak değiştiriyoruz.
-    tema = (appset.ayar_get('tema', None) or appset.ayar_get('tema_mod', 'açık') or 'açık').lower()
+    tema = (appset.ayar_get('tema_mod', None) or appset.ayar_get('tema', 'açık') or 'açık').lower()
     if tema not in ('açık', 'acik', 'light', 'koyu', 'dark'):
         tema = 'açık'
     is_dark = tema in ('koyu', 'dark')
@@ -100,11 +186,11 @@ def build_qss():
     preset_ad = appset.ayar_get('tema_seti', None)
     preset = tema_presets().get(preset_ad, None)
 
-    font_px  = int(appset.ayar_get('tema_font', '12') or 12)
+    font_px = _safe_int('tema_font', 12, 9, 22)
     density  = (appset.ayar_get('tema_density', 'cozy') or 'cozy').lower()
-    radius   = int(appset.ayar_get('tema_radius', '6') or 6)
+    radius = _safe_int('tema_radius', 6, 0, 20)
     borders  = (appset.ayar_get('tema_borders', 'normal') or 'normal').lower()
-    sb_size  = int(appset.ayar_get('tema_scrollbar', '12') or 12)
+    sb_size = _safe_int('tema_scrollbar', 12, 6, 24)
 
     if density == 'compact':
         pad_y, pad_x, row_pad = 4, 8, 4
@@ -113,8 +199,8 @@ def build_qss():
     else:
         pad_y, pad_x, row_pad = 7, 12, 7
 
-    primary = (appset.ayar_get('tema_primary', None) or (preset['primary'] if preset else '#2d89ef'))
-    accent  = (appset.ayar_get('tema_accent',  None) or (preset['accent']  if preset else '#21ba45'))
+    primary = _color_setting('tema_primary', preset['primary'] if preset else '#2d89ef')
+    accent = _color_setting('tema_accent', preset['accent'] if preset else '#21ba45')
 
     # Mode uyumluluğu kontrolü: Preset, istenen modla (Koyu/Açık) uyuşuyorsa BG'sini kullan
     use_preset_bg = False
@@ -129,19 +215,20 @@ def build_qss():
     default_bg_for_mode = '#1b1c1d' if is_dark else '#ffffff'
     preset_bg = preset['bg'] if (preset and use_preset_bg) else default_bg_for_mode
     
-    bg = appset.ayar_get('tema_bg', None) or preset_bg
+    bg = _color_setting('tema_bg', preset_bg)
 
-    fg      = '#EDEDED' if is_dark else '#1b1b1b'
+    fg = readable_text(bg, '#EDEDED' if is_dark else '#1b1b1b')
 
     # Kart ve alt arka plan, kullanıcıya açıldı
     default_card = '#2A2C31' if is_dark else '#F6F7F9'
     default_alt  = '#33363C' if is_dark else '#EEF0F3'
-    card = appset.ayar_get('tema_card', default_card) or default_card
-    alt  = appset.ayar_get('tema_alt',  default_alt)  or default_alt
+    card = _color_setting('tema_card', default_card)
+    alt = _color_setting('tema_alt', default_alt)
 
     bd_mix  = 0.65 if borders == 'subtle' else (0.45 if borders == 'bold' else 0.55)
     bd      = _mix(card, bg, bd_mix)
-    dim     = _mix(fg, bg, 0.65 if is_dark else 0.45)
+    dim = readable_text(bg, _mix(fg, bg, 0.45))
+    card_fg = readable_text(card, fg)
 
     # Listeler – moda göre varsayılan
     default_list_bg = '#1b1c1d' if is_dark else '#FFFFFF'
@@ -152,37 +239,48 @@ def build_qss():
     default_head_bg = '#2A2C31' if is_dark else '#FFFFFF'
     default_head_fg = '#EAF2FF' if is_dark else '#2B2F33'
 
-    list_bg   = appset.ayar_get('tema_list_bg',   default_list_bg) or default_list_bg
-    list_fg   = appset.ayar_get('tema_list_fg',   default_list_fg) or default_list_fg
-    list_alt  = appset.ayar_get('tema_list_alt',  default_list_alt) or default_list_alt
-    grid_c    = appset.ayar_get('tema_list_grid', default_grid_c) or default_grid_c
+    list_bg = _color_setting('tema_list_bg', default_list_bg)
+    list_fg = _color_setting('tema_list_fg', default_list_fg)
+    list_alt = _color_setting('tema_list_alt', default_list_alt)
+    list_fg = readable_text(list_bg, list_fg, (list_alt,))
+    grid_c = _color_setting('tema_list_grid', default_grid_c)
     
-    head_bg   = appset.ayar_get('tema_head_bg',   default_head_bg) or default_head_bg
-    head_fg   = appset.ayar_get('tema_head_fg',   default_head_fg) or default_head_fg
-    head_glow = appset.ayar_get('tema_head_glow', _mix(primary, '#FFFFFF', 0.92))
+    head_bg = _color_setting('tema_head_bg', default_head_bg)
+    head_fg = readable_text(head_bg, _color_setting('tema_head_fg', default_head_fg))
+    head_glow = _color_setting('tema_head_glow', _mix(primary, '#FFFFFF', 0.92))
 
     # Liste hover renkleri
     default_list_hover_bg = _mix(primary, list_bg, 0.06)
-    list_hover_bg = appset.ayar_get('tema_list_hover_bg', default_list_hover_bg) or default_list_hover_bg
-    list_hover_fg = appset.ayar_get('tema_list_hover_fg', list_fg) or list_fg
+    list_hover_bg = _color_setting('tema_list_hover_bg', default_list_hover_bg)
+    list_hover_fg = readable_text(list_hover_bg, _color_setting('tema_list_hover_fg', list_fg))
 
-    danger = appset.ayar_get('tema_danger', '#D32F2F') or '#D32F2F'
-    warn   = appset.ayar_get('tema_warn',   '#F6A721') or '#F6A721'
-    ok     = appset.ayar_get('tema_ok',     accent)    or accent
+    danger = _color_setting('tema_danger', '#D32F2F')
+    warn = _color_setting('tema_warn', '#F6A721')
+    ok = _color_setting('tema_ok', accent)
 
     # Buton renkleri
-    button_bg     = appset.ayar_get('tema_button_bg',     primary) or primary
-    button_fg     = appset.ayar_get('tema_button_fg',     '#ffffff') or '#ffffff'
-    button_border = appset.ayar_get('tema_button_border', primary) or primary
+    button_bg = _color_setting('tema_button_bg', primary)
+    button_fg = _color_setting('tema_button_fg', '#ffffff')
+    button_border = _color_setting('tema_button_border', primary)
 
     primary_hover   = _shade(button_bg, 0.9  if is_dark else 1.08)
     primary_pressed = _shade(button_bg, 0.80 if is_dark else 0.95)
+    button_fg = readable_text(button_bg, button_fg)
+    primary_hover = _contrast_safe_background(primary_hover, button_fg)
+    primary_pressed = _contrast_safe_background(primary_pressed, button_fg)
+    danger_fg = readable_text(danger, '#FFFFFF')
+    danger_hover = _contrast_safe_background(_shade(danger, 0.9), danger_fg)
     sel_bg_dark     = _mix(primary, '#000000', 0.22)
     sel_bg_light    = _mix(primary, '#FFFFFF', 0.88)
     sel_bg          = sel_bg_dark if is_dark else sel_bg_light
-    sel_fg          = '#FFFFFF' if is_dark else '#0F1113'
+    sel_fg = readable_text(sel_bg, '#FFFFFF' if is_dark else '#0F1113')
 
-    popup_bg, popup_fg, popup_sel = '#FFFFFF', '#111315', _mix(primary, '#FFFFFF', 0.85)
+    popup_bg = card  # V41: combo/dropdown uses the same card surface as menus/tooltips.
+    popup_fg = readable_text(popup_bg, '#EDEDED' if is_dark else '#111315')
+    popup_sel = _mix(primary, popup_bg, 0.82)
+    popup_sel_fg = readable_text(popup_sel, popup_fg)
+    input_bg = '#292C32' if is_dark else '#FFFFFF'
+    input_fg = readable_text(input_bg, '#EDEDED' if is_dark else '#111315')
 
     # Başlık 3B hissi + spor aksan çizgisi
     if is_dark:
@@ -200,11 +298,15 @@ def build_qss():
     default_tab_sel_fg   = fg
     default_tab_hover_bg = _mix(default_tab_bg, primary, 0.08)
 
-    tab_bg       = appset.ayar_get('tema_tab_bg',       default_tab_bg)       or default_tab_bg
-    tab_fg       = appset.ayar_get('tema_tab_fg',       default_tab_fg)       or default_tab_fg
-    tab_sel_bg   = appset.ayar_get('tema_tab_sel_bg',   default_tab_sel_bg)   or default_tab_sel_bg
-    tab_sel_fg   = appset.ayar_get('tema_tab_sel_fg',   default_tab_sel_fg)   or default_tab_sel_fg
-    tab_hover_bg = appset.ayar_get('tema_tab_hover_bg', default_tab_hover_bg) or default_tab_hover_bg
+    tab_bg = _color_setting('tema_tab_bg', default_tab_bg)
+    tab_fg = readable_text(tab_bg, _color_setting('tema_tab_fg', default_tab_fg))
+    tab_sel_bg = _color_setting('tema_tab_sel_bg', default_tab_sel_bg)
+    tab_sel_fg = readable_text(tab_sel_bg, _color_setting('tema_tab_sel_fg', default_tab_sel_fg))
+    tab_hover_bg = _color_setting('tema_tab_hover_bg', default_tab_hover_bg)
+
+    # V41: derive scroll colours from the same card/main surface family.
+    from ui.theme_scrollbar_v41 import scrollbar_qss
+    scrollbar_css = scrollbar_qss(_mix(card, bg, 0.65), card_fg, primary, sb_size)
 
     # Araç çubuğu butonları için icon-only modu
     icon_only_raw = str(appset.ayar_get('tema_button_icon_only', '0')).lower()
@@ -240,6 +342,13 @@ def build_qss():
     }}
     """
 
+    _chk_icon = _get_check_icon_path()
+    if _chk_icon:
+        _chk_img_prop = f'image:url("{_chk_icon}");'
+    else:
+        _chk_img_prop = "image:url(\"data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' viewBox=\'0 0 16 16\'><path fill=\'none\' stroke=\'white\' stroke-width=\'2.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\' d=\'M3.2 8.2l3.4 3.4L13 4.2\'/></svg>\");"
+
+
     return f"""
     /* ====== Temel ====== */
     * {{
@@ -248,8 +357,23 @@ def build_qss():
     }}
     QWidget {{ background:{bg}; }}
 
-    QLabel {{ background:transparent; color:{('#F2F4F8' if is_dark else '#1b1b1b')}; }}
+    QLabel {{ background:transparent; color:{fg}; }}
     QLabel#inverse {{ background:#000; color:#EAF2FF; padding:2px 4px; border-radius:4px; }}
+
+    /* V36: shell elements shared by every theme; fixed-color subviews remain intact. */
+    QWidget#Sidebar {{ background:{card}; border-right:1px solid {bd}; }}
+    QLabel#ThemeSidebarBrand {{ background:transparent; color:{card_fg}; }}
+    QPushButton#ThemeSidebarAction {{
+        text-align:left; padding:10px 15px; border:none; border-radius:8px;
+        background:transparent; color:{card_fg}; font-size:14px; font-weight:600;
+    }}
+    QPushButton#ThemeSidebarAction:hover {{
+        background:{_mix(primary,card,0.13)}; color:{readable_text(_mix(primary,card,0.13),card_fg)};
+    }}
+    QPushButton#ThemeSidebarAction:pressed {{
+        background:{_mix(primary,card,0.25)}; color:{readable_text(_mix(primary,card,0.25),card_fg)};
+    }}
+    QWidget#ThemeContentHost {{ background:{bg}; }}
 
     /* ====== Butonlar ====== */
     QPushButton {{
@@ -264,7 +388,7 @@ def build_qss():
     QPushButton:pressed {{ background:{primary_pressed}; }}
     QPushButton:disabled {{
         background:{_mix(button_bg,bg,0.2)};
-        color:{_mix(button_fg,bg,0.5)};
+        color:{readable_text(_mix(button_bg,bg,0.2), _mix(button_fg,bg,0.5))};
         border-color:{_mix(button_border,bg,0.2)};
     }}
     QPushButton#btnSecondary {{
@@ -276,15 +400,15 @@ def build_qss():
         background:{_mix(primary,bg,0.08)};
         border-color:{primary};
     }}
-    QPushButton#btnDanger {{ background:{danger}; border-color:{danger}; }}
-    QPushButton#btnDanger:hover {{ background:{_shade(danger,0.9)}; }}
+    QPushButton#btnDanger {{ background:{danger}; border-color:{danger}; color:{danger_fg}; }}
+    QPushButton#btnDanger:hover {{ background:{danger_hover}; }}
 
     {toolbutton_block}
 
     /* ====== Metin & Girdi ====== */
     QLineEdit {{
-        background:#FFFFFF;
-        color:#111315;
+        background:{input_bg};
+        color:{input_fg};
         border:1px solid {bd};
         border-radius:{radius}px;
         padding:6px 8px;
@@ -293,21 +417,21 @@ def build_qss():
     }}
     QLineEdit:focus {{ border:1px solid {primary}; }}
 
-    QPlainTextEdit, QTextEdit {{
+    QPlainTextEdit, QTextEdit, QTextBrowser {{
         background:{card};
-        color:{('#111315' if not is_dark else '#EDEDED')};
+        color:{card_fg};
         border:1px solid {bd};
         border-radius:{radius}px;
         padding:6px 8px;
         selection-background-color:{sel_bg};
         selection-color:{sel_fg};
     }}
-    QPlainTextEdit:focus, QTextEdit:focus {{ border:1px solid {primary}; }}
+    QPlainTextEdit:focus, QTextEdit:focus, QTextBrowser:focus {{ border:1px solid {primary}; }}
 
     /* Tarih/Saat edit ve takvimler okunur */
     QDateEdit, QTimeEdit, QDateTimeEdit {{
-        background:#FFFFFF;
-        color:#111315;
+        background:{input_bg};
+        color:{input_fg};
         border:1px solid {bd};
         border-radius:{radius}px;
         padding:6px 8px;
@@ -316,26 +440,26 @@ def build_qss():
     }}
     QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus {{ border:1px solid {primary}; }}
     QCalendarWidget {{
-        background:#FFFFFF;
-        color:#111315;
+        background:{input_bg};
+        color:{input_fg};
         border:1px solid {grid_c};
         border-radius:{radius}px;
     }}
     QCalendarWidget QToolButton {{
         background:transparent;
-        color:#111315;
+        color:{input_fg};
         border:none;
         font-weight:600;
         padding:4px 6px;
     }}
     QCalendarWidget QToolButton:hover {{ background:{popup_sel}; }}
-    QCalendarWidget QMenu {{ background:#FFFFFF; color:#111315; }}
-    QCalendarWidget QSpinBox {{ background:#FFFFFF; color:#111315; border:1px solid {grid_c}; }}
+    QCalendarWidget QMenu {{ background:{popup_bg}; color:{popup_fg}; }}
+    QCalendarWidget QSpinBox {{ background:{input_bg}; color:{input_fg}; border:1px solid {grid_c}; }}
 
     /* ComboBox (içerik her zaman görünür) */
     QComboBox {{
-        color:#111315;
-        background:#FFFFFF;
+        color:{input_fg};
+        background:{input_bg};
         border:1px solid {bd};
         border-radius:{radius}px;
         padding:6px 8px;
@@ -343,13 +467,13 @@ def build_qss():
         selection-color:{sel_fg};
     }}
     QComboBox:focus {{ border:1px solid {primary}; }}
-    QComboBox:editable QLineEdit {{ color:#111315; background:#FFFFFF; border:none; }}
+    QComboBox:editable QLineEdit {{ color:{input_fg}; background:{input_bg}; border:none; }}
     QComboBox QAbstractItemView {{
         background:{popup_bg};
         color:{popup_fg};
         border:1px solid {grid_c};
         selection-background-color:{popup_sel};
-        selection-color:#0F1113;
+        selection-color:{popup_sel_fg};
         outline:none;
     }}
     QComboBox QAbstractItemView::item {{ padding:6px 10px; }}
@@ -358,7 +482,7 @@ def build_qss():
         subcontrol-position:top right;
         width:28px;
         border-left:1px solid {bd};
-        background:{_mix(primary, '#FFFFFF', 0.15)};
+        background:{_mix(primary, input_bg, 0.12)};
         border-top-right-radius:{radius}px;
         border-bottom-right-radius:{radius}px;
         margin:0;
@@ -367,7 +491,11 @@ def build_qss():
 
     /* Spin buttons */
     QSpinBox, QDoubleSpinBox {{
-        padding-right: 20px;
+        background:{input_bg};
+        color:{input_fg};
+        border:1px solid {bd};
+        border-radius:{radius}px;
+        padding:6px 20px 6px 8px;
     }}
     QSpinBox::up-button, QDoubleSpinBox::up-button {{
         subcontrol-origin:border;
@@ -433,7 +561,7 @@ def build_qss():
     QTreeWidget::indicator:checked, QTreeView::indicator:checked {{
         background:{accent};
         border:1.5px solid {_shade(accent,0.85)};
-        image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><path fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M3.2 8.2l3.4 3.4L13 4.2'/></svg>");
+        {_chk_img_prop}
     }}
     QCheckBox::indicator:disabled,
     QTableWidget::indicator:disabled, QTableView::indicator:disabled,
@@ -481,6 +609,7 @@ def build_qss():
     }}
     QTabBar::tab:hover {{
         background:{tab_hover_bg};
+        color:{readable_text(tab_hover_bg, tab_fg)};
     }}
 
     /* Başlıklar — yumuşak 3B + spor ince alt çizgi */
@@ -494,7 +623,7 @@ def build_qss():
     }}
 
     /* Listeler — daima açık ve okunur */
-    QTableView, QTableWidget, QListView, QTreeView {{
+    QTableView, QTableWidget, QListView, QListWidget, QTreeView, QTreeWidget, QColumnView {{
         background:{list_bg};
         color:{list_fg};
         gridline-color:{grid_c};
@@ -503,14 +632,15 @@ def build_qss():
         alternate-background-color:{list_alt};
         outline:none;
     }}
-    QTableView::item, QTableWidget::item, QListView::item, QTreeView::item {{
+    QTableView::item, QTableWidget::item, QListView::item, QListWidget::item,
+    QTreeView::item, QTreeWidget::item {{
         padding:{row_pad}px 8px;
     }}
     /* Hücre hover */
     QTableView::item:hover,
     QTableWidget::item:hover,
-    QListView::item:hover,
-    QTreeView::item:hover {{
+    QListView::item:hover, QListWidget::item:hover,
+    QTreeView::item:hover, QTreeWidget::item:hover {{
         background:{list_hover_bg};
         color:{list_hover_fg};
     }}
@@ -518,9 +648,12 @@ def build_qss():
     /* Menü & Toolbar */
     QMenu {{
         background:{card};
+        color:{card_fg};
         border:1px solid {bd};
     }}
     QMenu::item {{ padding:6px 12px; }}
+    QMenu::item:selected {{ background:{sel_bg}; color:{sel_fg}; }}
+    QMenu::item:disabled {{ color:{readable_text(card, _mix(card_fg,card,0.28))}; }}
     QToolBar {{
         background:{_mix(card,bg,0.9)};
         border-bottom:1px solid {bd};
@@ -543,65 +676,11 @@ def build_qss():
     /* StatusBar */
     QStatusBar {{
         background:{_mix(card,bg,0.9)};
-        color:{dim};
+        color:{readable_text(_mix(card,bg,0.9), dim)};
     }}
 
-    /* Scrollbars */
-    /* Scrollbars - Ultra Modern (Subtle & Thin) */
-    QScrollBar:vertical {{
-        background: transparent;
-        width: {sb_size}px;
-        margin: 0;
-    }}
-    QScrollBar::handle:vertical {{
-        background: {_mix(fg, bg, 0.80)};
-        min-height: 40px;
-        border-radius: {sb_size//2}px;
-        border: 4px solid transparent;
-        background-clip: content-box;
-    }}
-    QScrollBar::handle:vertical:hover {{
-        background: {_mix(fg, bg, 0.60)};
-    }}
-    QScrollBar::handle:vertical:pressed {{
-        background: {primary};
-    }}
-    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-        height: 0;
-        background: transparent;
-    }}
-    QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
-        background: transparent;
-    }}
-
-    QScrollBar:horizontal {{
-        background: transparent;
-        height: {sb_size}px;
-        margin: 0;
-    }}
-    QScrollBar::handle:horizontal {{
-        background: {_mix(fg, bg, 0.80)};
-        min-width: 40px;
-        border-radius: {sb_size//2}px;
-        border: 4px solid transparent;
-        background-clip: content-box;
-    }}
-    QScrollBar::handle:horizontal:hover {{
-        background: {_mix(fg, bg, 0.60)};
-    }}
-    QScrollBar::handle:horizontal:pressed {{
-        background: {primary};
-    }}
-    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
-        width: 0;
-        background: transparent;
-    }}
-    QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
-        background: transparent;
-    }}
-    QScrollBar::corner {{
-        background: transparent;
-    }}
+    /* V41 shared scrollbar palette: both orientations, all interaction states. */
+    {scrollbar_css}
 
     /* Link & muted label */
     QLabel#link, QLabel[textInteractionFlags~="LinksAccessibleByMouse"] {{ color:{primary}; }}
@@ -622,9 +701,12 @@ def build_qss():
     }}
 
     /* MessageBox */
-    QMessageBox {{ background:{card}; }}
-    QMessageBox QLabel {{ color:{fg}; }}
+    QMessageBox {{ background:{card}; color:{card_fg}; }}
+    QMessageBox QLabel {{ background:transparent; color:{card_fg}; }}
     QMessageBox QPushButton {{ min-width:88px; }}
+    QInputDialog, QProgressDialog {{ background:{card}; color:{card_fg}; }}
+    QInputDialog QLabel, QProgressDialog QLabel {{ background:transparent; color:{card_fg}; }}
+    QToolTip {{ background:{card}; color:{card_fg}; border:1px solid {bd}; }}
     """
 
 # ==========================
@@ -633,5 +715,32 @@ def build_qss():
 def apply(app):
     try:
         app.setStyleSheet(build_qss())
+        # V38: existing and newly-created standard Qt notification dialogs.
+        # Kept independent so a missing GUI plugin cannot block theme changes.
+        try:
+            from ui.theme_popup_runtime_v38 import install_notification_guard
+            install_notification_guard(app)
+        except Exception:
+            pass
+        # V39: native QMenu popups (context menus, toolbar menus) are themed on
+        # opening and on live theme changes; QAction behavior is not modified.
+        try:
+            from ui.theme_popup_runtime_v39 import install_popup_menu_guard
+            install_popup_menu_guard(app)
+        except Exception:
+            pass
+        # Disabled by default; explicit QA-only flag, no database/UI side effects.
+        import os
+        if os.environ.get('YKS_THEME_AUDIT') == '1':
+            from ui.theme_runtime_audit_v37 import install_dev_theme_audit
+            install_dev_theme_audit(app)
+        for widget in tuple(_THEME_LISTENERS):
+            # A stale/closed form must never interrupt the other windows.
+            try:
+                if hasattr(widget, '_on_theme_changed'):
+                    widget._on_theme_changed()
+            except Exception:
+                # A presentation refresh cannot be allowed to interrupt other forms.
+                continue
     except Exception:
         pass

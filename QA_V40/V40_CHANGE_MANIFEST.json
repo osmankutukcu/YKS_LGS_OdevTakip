@@ -1,0 +1,22 @@
+{
+  "base": "V39 Güvenli Pilot",
+  "release": "V40 pilot",
+  "changed_files": [
+    "ui/adaptive_coaching_center_v26.py",
+    "ui/adaptive_followup_v11.py",
+    "ui/dashboard_widget.py",
+    "ui/gamification_widget.py",
+    "ui/today_priority_strip_v4.py"
+  ],
+  "new_files": [
+    "QA_V40/README.md",
+    "QA_V40/test_v40_critical_panels.py",
+    "V40_OZEL_KART_VE_HTML_TEMA_GUVENLI_PILOT_OKU.md",
+    "YKS_LGS_Tema_V40_Teknik_Rapor.md",
+    "ui/theme_report_canvas_v40.py",
+    "ui/theme_visual_tokens_v40.py"
+  ],
+  "removed_files": [],
+  "unchanged_database_files": 20,
+  "validation": "AST; QA V36–V40 headless; no native Mac/Windows GUI tests"
+}

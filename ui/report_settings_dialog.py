@@ -40,18 +40,22 @@ class ReportSettingsDialog(QDialog):
             QRadioButton, QCheckBox { spacing: 8px; color: #374151; font-weight: 500; }
             QRadioButton::indicator, QCheckBox::indicator { width: 16px; height: 16px; }
             
-            QSpinBox { border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; background: white; min-height: 24px; }
+            QSpinBox { border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; background: white; min-height: 24px; 
+                color: #15191E;}
             QSpinBox:focus { border: 2px solid #3b82f6; }
             
             /* Buttons */
             QPushButton { border-radius: 6px; padding: 6px 16px; font-weight: 600; background: white; border: 1px solid #d1d5db; color: #374151; }
-            QPushButton:hover { background: #f3f4f6; border-color: #9ca3af; }
+            QPushButton:hover { background: #f3f4f6; border-color: #9ca3af; 
+                color: #15191E;}
             
             QPushButton#btnPrimary { background-color: #2563eb; color: white; border: 1px solid #2563eb; }
-            QPushButton#btnPrimary:hover { background-color: #1d4ed8; border-color: #1d4ed8; }
+            QPushButton#btnPrimary:hover { background-color: #1d4ed8; border-color: #1d4ed8; 
+                color: #FFFFFF;}
             
             QPushButton#btnCancel { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-            QPushButton#btnCancel:hover { background-color: #fecaca; }
+            QPushButton#btnCancel:hover { background-color: #fecaca; 
+                color: #15191E;}
         """)
 
     # ----------------- UI -----------------

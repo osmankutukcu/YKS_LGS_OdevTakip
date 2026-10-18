@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
     QTextEdit, QColorDialog, QButtonGroup, QCheckBox
 )
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
-from PyQt6.QtCore import Qt, QDate, QMarginsF
+from PyQt6.QtCore import Qt, QDate, QMarginsF, QTimer
 from PyQt6.QtGui import QColor, QIcon, QFont, QAction, QCursor, QTextDocument, QPageLayout, QPageSize
 from PyQt6.QtPrintSupport import QPrinter
 
@@ -40,6 +40,10 @@ from ui.survey_manager import SurveyManager # Yeni Anket Sistemi
 from ui.schedule_settings import ScheduleSettingsDialog
 from ui.coach_dialog import CoachDetailDialog
 from ui.smart_report_dialog import SmartReportDialog
+from services.coaching_safety_v244 import (
+    CoachingDataError, CoachingConflict, upsert_week_plan, get_or_create_week,
+    save_progress as safe_coaching_progress, append_note, note_history,
+)
 
 # Ekstra Gelişmiş Koçluk Sabitleri ve Yardımcıları
 TRACK_SUBJECTS_CONFIG = {
@@ -565,7 +569,46 @@ class CoachingManager(QWidget):
         self._setup_ui()
         self._load_students()
         self._update_exam_countdown()
-    
+        # V24.1: Only refresh visible evidence summaries after external DB commits.
+        from ui.live_change_bridge_v241 import install_live_updates
+        install_live_updates(self, self._on_committed_change_v241,
+                             student_attr="current_student_id", course_attr="_live_course_v243")
+        # V24.5: Overview also listens student-wide; unrelated course edits can
+        # change the cross-subject totals while topic panel remains course-scoped.
+        install_live_updates(self, self._schedule_overview_refresh_v245,
+                             student_attr="current_student_id")
+
+    def _coach_subject_key_v41(self):
+        """Legacy name or immutable custom-course ID; never the decorated label."""
+        if not hasattr(self, 'cmb_topic_subject'):
+            return ''
+        data = self.cmb_topic_subject.currentData()
+        return str(data) if data is not None else self.cmb_topic_subject.currentText()
+
+    def _coach_topics_v41(self, subject):
+        mapping = getattr(self, '_student_coach_topics_v41', {})
+        return mapping[subject] if subject in mapping else TOPIC_LIST.get(subject, [])
+
+    def _refresh_coach_catalog_v41(self):
+        """Refresh from the current student's curriculum; without any DB writes."""
+        self._update_topic_subjects_for_student()
+
+    def _live_course_v243(self):
+        # Only the topic tab has a course-specific read-only evidence summary.
+        # Other tabs have no selective refresh callback in this bridge.
+        try:
+            return self._coach_subject_key_v41()
+        except (AttributeError,RuntimeError):
+            return None
+
+    def _on_committed_change_v241(self):
+        self._schedule_overview_refresh_v245()
+        if (type(self.current_student_id) is int and self.current_student_id > 0
+                and getattr(self, 'tabs', None) is not None
+                and getattr(self, 'tab_topics', None) is self.tabs.currentWidget()
+                and hasattr(self, '_shared_topic_timer_v1')):
+            self._shared_topic_timer_v1.start()
+
     def _ensure_schema(self):
         """Koçluk tablolarını ve eksik kolonları kontrol et ve oluştur (Lazy Migration)"""
         try:
@@ -851,6 +894,8 @@ class CoachingManager(QWidget):
                 color: #1e293b;
             }
         """)
+        # V24.5: Yedi sekmenin önünde sabit, salt-okunur özet; yeni sekme yok.
+        self._init_coaching_overview_v245(r_lay)
         r_lay.addWidget(self.tabs)
 
         # TAB 1: Takip (Mevcut Görünüm)
@@ -895,24 +940,156 @@ class CoachingManager(QWidget):
 
         main_layout.addWidget(splitter)
 
+    # V24.5 — Öğretmen için her sekmede görünen, veri değiştirmeyen özet (Seçenek A - Minimalist).
+    def _init_coaching_overview_v245(self, parent_layout):
+        self.overview_frame_v245 = QFrame()
+        self.overview_frame_v245.setObjectName('coachingOverviewV245')
+        self.overview_frame_v245.setStyleSheet('''
+            QFrame#coachingOverviewV245 {
+                background: #f8fafc;
+                border: 1px solid #cbd5e1;
+                border-radius: 8px;
+            }
+            QFrame#coachingOverviewV245 QLabel {
+                border: 0;
+                background: transparent;
+                color: #334155;
+            }
+        ''')
+        wrap = QVBoxLayout(self.overview_frame_v245)
+        wrap.setContentsMargins(10, 6, 10, 6)
+        wrap.setSpacing(2)
+
+        bar = QHBoxLayout()
+        bar.setSpacing(8)
+        self.lbl_overview_title_v245 = QLabel('📌 Koçluk Özeti · Öğrenci seçin')
+        self.lbl_overview_title_v245.setStyleSheet('font-weight: 700; font-size: 11px; color: #0f172a;')
+        bar.addWidget(self.lbl_overview_title_v245)
+        bar.addStretch()
+
+        self.btn_overview_action_v245 = QPushButton('İlgili bölümü aç ›')
+        self.btn_overview_action_v245.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_overview_action_v245.setStyleSheet('''
+            QPushButton {
+                font-size: 11px;
+                font-weight: 600;
+                padding: 3px 10px;
+                background: #eff6ff;
+                color: #1d4ed8;
+                border: 1px solid #bfdbfe;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background: #dbeafe;
+            }
+            QPushButton:disabled {
+                background: #f1f5f9;
+                color: #94a3b8;
+                border-color: #e2e8f0;
+            }
+        ''')
+        self.btn_overview_action_v245.setEnabled(False)
+        self.btn_overview_action_v245.clicked.connect(self._overview_action_v245)
+        bar.addWidget(self.btn_overview_action_v245)
+        wrap.addLayout(bar)
+
+        self.lbl_overview_line1_v245 = QLabel('Haftalık plan · Ana ödev · Program')
+        self.lbl_overview_line2_v245 = QLabel('Deneme · Konu · Anket · Görüşme notları')
+        self.lbl_overview_action_v245 = QLabel('Bilgi görüntülemek için soldan öğrenci seçin.')
+        for label in (self.lbl_overview_line1_v245, self.lbl_overview_line2_v245, self.lbl_overview_action_v245):
+            label.setWordWrap(True)
+            label.setStyleSheet('font-size: 10px;')
+            wrap.addWidget(label)
+
+        self._overview_target_v245 = None
+        self._overview_timer_v245 = QTimer(self)
+        self._overview_timer_v245.setSingleShot(True)
+        self._overview_timer_v245.setInterval(150)
+        self._overview_timer_v245.timeout.connect(self._refresh_overview_v245)
+        parent_layout.addWidget(self.overview_frame_v245)
+
+    def _schedule_overview_refresh_v245(self):
+        if hasattr(self, '_overview_timer_v245'):
+            self._overview_timer_v245.start()
+
+    def _overview_action_v245(self):
+        target = self._overview_target_v245
+        mapping = {'plan':'tab_plan', 'schedule':'tab_schedule',
+                   'analysis':'tab_analysis', 'student360':'tab_student360',
+                   'notes':'tab_notes', 'topics':'tab_topics', 'survey':'tab_survey'}
+        name = mapping.get(target)
+        widget = getattr(self, name, None) if name else None
+        if widget is not None and hasattr(self, 'tabs'):
+            self.tabs.setCurrentWidget(widget)
+
+    def _refresh_overview_v245(self):
+        sid = self.current_student_id
+        if type(sid) is not int or sid <= 0 or not hasattr(self, 'dt_week'):
+            self._overview_target_v245 = None
+            if hasattr(self, 'btn_overview_action_v245'):
+                self.btn_overview_action_v245.setEnabled(False)
+            return
+        week = self._get_week_start().toString('yyyy-MM-dd')
+        try:
+            from pathlib import Path
+            from services.coaching_overview_v245 import read_coaching_overview
+            # Read-only independent snapshot; never use db.get_conn() write-capable connection.
+            uri = Path(db.DB_PATH).resolve().as_uri() + '?mode=ro'
+            con = sqlite3.connect(uri, uri=True, timeout=3)
+            try:
+                con.row_factory = sqlite3.Row
+                con.execute('PRAGMA query_only=ON')
+                snap = read_coaching_overview(con, sid, week)
+            finally:
+                con.close()
+            if sid != self.current_student_id or week != self._get_week_start().toString('yyyy-MM-dd'):
+                return
+            self.lbl_overview_title_v245.setText('📌 ' + snap.heading)
+            self.lbl_overview_line1_v245.setText(snap.line_one)
+            self.lbl_overview_line2_v245.setText(snap.line_two)
+            msg = snap.recommendation
+            if snap.alerts:
+                msg += '  ·  ⚠️ ' + snap.alerts[0]
+            self.lbl_overview_action_v245.setText('Öneri: ' + msg)
+            self.lbl_overview_action_v245.setToolTip('\n'.join(snap.alerts))
+            self.lbl_overview_line1_v245.setToolTip(snap.provenance)
+            self.lbl_overview_line2_v245.setToolTip(snap.provenance)
+            self._overview_target_v245 = snap.target_tab
+            self.btn_overview_action_v245.setText({
+                'plan':'Hedefleri aç ›', 'schedule':'Programı aç ›',
+                'student360':'Ödevleri incele ›', 'analysis':'Analizi aç ›',
+            }.get(snap.target_tab, 'İlgili bölümü aç ›'))
+            self.btn_overview_action_v245.setEnabled(bool(snap.target_tab))
+        except (sqlite3.Error, ValueError, OSError, ImportError, KeyError, TypeError) as exc:
+            # Do not leave an old student's information visible after an error.
+            self._overview_target_v245 = None
+            if hasattr(self, 'lbl_overview_title_v245'):
+                self.lbl_overview_title_v245.setText('📌 Koçluk Özeti · Veri kontrolü gerekli')
+                self.lbl_overview_line1_v245.setText('Özet geçici olarak alınamadı; mevcut yedi sekme kullanılabilir.')
+                self.lbl_overview_line2_v245.setText('Bu durumda boş veya sıfır değer varsayılmadı.')
+                self.lbl_overview_action_v245.setText('Öneri: Seçili öğrencinin kayıtlarını kontrol edin.')
+                self.lbl_overview_action_v245.setToolTip(type(exc).__name__)
+                self.btn_overview_action_v245.setEnabled(False)
+
     # --- TAB KURULUMLARI ---
     def _init_tab_plan(self, parent):
         lay = QVBoxLayout(parent)
-        lay.setSpacing(12)
-        lay.setContentsMargins(12, 12, 12, 12)
+        lay.setSpacing(8)
+        lay.setContentsMargins(10, 8, 10, 8)
 
-        # --- ÜST BAŞLIK ve TARİH ---
+        # --- ÜST BAŞLIK ve TARİH (Kompakt & Minimalist) ---
         header_widget = QWidget()
+        header_widget.setFixedHeight(34)
         header_layout = QHBoxLayout(header_widget)
         header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(12)
+        header_layout.setSpacing(8)
 
         v_title = QVBoxLayout()
-        v_title.setSpacing(2)
-        title = QLabel("🎓 Profesyonel Öğrenci Koçluğu")
-        title.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e3a8a; letter-spacing: -0.5px;") 
-        subtitle = QLabel("Haftalık soru hedefleri, görüşme planı ve yapay zeka destekli performans analizi")
-        subtitle.setStyleSheet("font-size: 11px; color: #64748b;")
+        v_title.setSpacing(1)
+        title = QLabel("🎓 <b>Profesyonel Öğrenci Koçluğu</b>")
+        title.setStyleSheet("font-size: 14px; font-weight: 800; color: #1e3a8a;") 
+        subtitle = QLabel("Haftalık soru hedefleri, görüşme planı ve performans takibi")
+        subtitle.setStyleSheet("font-size: 10px; color: #64748b;")
         v_title.addWidget(title)
         v_title.addWidget(subtitle)
         header_layout.addLayout(v_title)
@@ -921,335 +1098,315 @@ class CoachingManager(QWidget):
 
         # Sayaç (Countdown Pill)
         self.cnt_cont = QFrame()
+        self.cnt_cont.setObjectName("cntCont")
+        self.cnt_cont.setFixedHeight(28)
         self.cnt_cont.setStyleSheet("""
-            QFrame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #eff6ff, stop:1 #e0e7ff);
+            QFrame#cntCont {
+                background: #eff6ff;
                 border: 1px solid #bfdbfe;
-                border-radius: 18px;
+                border-radius: 6px;
+            }
+            QFrame#cntCont QLabel {
+                border: none;
+                background: transparent;
             }
         """)
         cl = QHBoxLayout(self.cnt_cont)
-        cl.setContentsMargins(12, 6, 12, 6)
-        cl.setSpacing(6)
+        cl.setContentsMargins(8, 2, 8, 2)
+        cl.setSpacing(4)
 
         self.lbl_icon = QLabel("🎯")
-        self.lbl_icon.setStyleSheet("font-size: 16px; border:none; background:transparent;")
+        self.lbl_icon.setStyleSheet("font-size: 13px; border:none; background:transparent;")
         self.lbl_count = QLabel("YKS 2027: 282 Gün Kaldı")
-        self.lbl_count.setStyleSheet("color: #1e40af; font-weight: 700; font-size: 12px; border:none; background:transparent;")
+        self.lbl_count.setStyleSheet("color: #1e40af; font-weight: 700; font-size: 11px; border:none; background:transparent;")
         cl.addWidget(self.lbl_icon)
         cl.addWidget(self.lbl_count)
         header_layout.addWidget(self.cnt_cont)
 
-        btn_set_date = QPushButton("⚙️ Tarih Belirle")
+        btn_set_date = QPushButton("⚙️ Tarih")
         btn_set_date.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_set_date.setFixedHeight(26)
         btn_set_date.setToolTip("Hedef sınav tarihini özelleştirin veya hazır YKS/LGS takvimini seçin")
         btn_set_date.setStyleSheet("""
             QPushButton {
                 background: #f8fafc;
                 border: 1px solid #cbd5e1;
-                border-radius: 8px;
-                padding: 6px 12px;
+                border-radius: 5px;
+                padding: 2px 8px;
                 font-size: 11px;
                 font-weight: 600;
                 color: #334155;
             }
-            QPushButton:hover {
-                background: #f1f5f9;
-                border-color: #94a3b8;
-                color: #0f172a;
-            }
+            QPushButton:hover { background: #f1f5f9; color: #0f172a; }
         """)
         btn_set_date.clicked.connect(self._set_exam_date)
         header_layout.addWidget(btn_set_date)
 
         lay.addWidget(header_widget)
 
-        # --- ÖĞRENCİ ve HAFTA SEÇİMİ / GÖRÜŞME KARTI ---
+        # --- ÖĞRENCİ, HAFTA SEÇİMİ ve GÖRÜŞME KARTI (Kompakt Tek Satır Şerit) ---
         week_bar = QFrame()
+        week_bar.setObjectName("weekBar")
+        week_bar.setFixedHeight(34)
         week_bar.setStyleSheet("""
-            .QFrame {
-                background: #f8fafc;
-                border-radius: 10px;
+            QFrame#weekBar {
+                background: #ffffff;
+                border-radius: 6px;
                 border: 1px solid #e2e8f0;
             }
         """)
-        wb_lay = QVBoxLayout(week_bar)
-        wb_lay.setContentsMargins(14, 10, 14, 10)
+        wb_lay = QHBoxLayout(week_bar)
+        wb_lay.setContentsMargins(10, 0, 10, 0)
         wb_lay.setSpacing(8)
+        wb_lay.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        # Üst Satır: Öğrenci Profili ve Görüşme Zamanı
-        row1 = QHBoxLayout()
-        row1.setSpacing(12)
-
-        # Öğrenci Profil Bilgisi
+        # 1. Öğrenci Profil Bilgisi
         self.lbl_student_chip = QLabel("👤 Henüz Öğrenci Seçilmedi")
-        self.lbl_student_chip.setStyleSheet("font-size: 14px; font-weight: 700; color: #1e293b; border:none; background:transparent;")
-        row1.addWidget(self.lbl_student_chip)
+        self.lbl_student_chip.setFixedHeight(22)
+        self.lbl_student_chip.setStyleSheet("font-size: 12px; font-weight: 700; color: #1e293b; border:none; background:transparent;")
+        wb_lay.addWidget(self.lbl_student_chip)
 
         self.lbl_student_badge = QLabel("Genel")
+        self.lbl_student_badge.setFixedHeight(20)
         self.lbl_student_badge.setStyleSheet("""
             QLabel {
                 background: #dbeafe;
                 color: #1e40af;
                 font-size: 10px;
                 font-weight: 700;
-                padding: 2px 8px;
+                padding: 1px 8px;
                 border-radius: 10px;
                 border: none;
             }
         """)
         self.lbl_student_badge.setVisible(False)
-        row1.addWidget(self.lbl_student_badge)
+        wb_lay.addWidget(self.lbl_student_badge)
 
-        # For backwards compatibility with other methods
         self.lbl_student_name = QLabel("Seçili Öğrenci: Yok")
         self.lbl_student_name.setVisible(False)
-        row1.addWidget(self.lbl_student_name)
+        wb_lay.addWidget(self.lbl_student_name)
 
-        row1.addStretch()
+        wb_lay.addSpacing(2)
+        sep1 = QFrame()
+        sep1.setFrameShape(QFrame.Shape.VLine)
+        sep1.setFixedHeight(18)
+        sep1.setStyleSheet("color: #cbd5e1;")
+        wb_lay.addWidget(sep1)
+        wb_lay.addSpacing(2)
 
-        # Görüşme Zamanı Ayarı Grubu
-        lbl_koc_time_title = QLabel("📅 Haftalık Görüşme:")
-        lbl_koc_time_title.setStyleSheet("font-size: 12px; font-weight: 600; color: #475569; border:none; background:transparent;")
-        row1.addWidget(lbl_koc_time_title)
+        # 2. Hafta Seçimi ve Plan Oluşturma
+        lbl_week_nav = QLabel("<b style='color:#475569; font-size:11px;'>Hafta:</b>")
+        wb_lay.addWidget(lbl_week_nav)
+
+        btn_prev_week = QPushButton("◀")
+        btn_prev_week.setToolTip("Bir önceki haftaya git")
+        btn_prev_week.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_prev_week.setFixedHeight(26)
+        btn_prev_week.setFixedWidth(24)
+        btn_prev_week.setStyleSheet("""
+            QPushButton { background: white; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 10px; color: #334155; }
+            QPushButton:hover { background: #f1f5f9; }
+        """)
+        btn_prev_week.clicked.connect(lambda: self.dt_week.setDate(self.dt_week.date().addDays(-7)))
+        wb_lay.addWidget(btn_prev_week)
+
+        self.dt_week = QDateEdit(QDate.currentDate())
+        self.dt_week.setDisplayFormat("dd.MM.yyyy")
+        self.dt_week.setCalendarPopup(True)
+        self.dt_week.setFixedWidth(95)
+        self.dt_week.setFixedHeight(26)
+        self.dt_week.setStyleSheet("""
+            QDateEdit {
+                background: white;
+                border: 1px solid #cbd5e1;
+                border-radius: 4px;
+                padding: 2px 4px;
+                font-size: 11px;
+                font-weight: 600;
+                color: #1e293b;
+            }
+        """)
+        self.dt_week.dateChanged.connect(self._load_plan)
+        wb_lay.addWidget(self.dt_week)
+
+        btn_next_week = QPushButton("▶")
+        btn_next_week.setToolTip("Bir sonraki haftaya git")
+        btn_next_week.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_next_week.setFixedHeight(26)
+        btn_next_week.setFixedWidth(24)
+        btn_next_week.setStyleSheet("""
+            QPushButton { background: white; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 10px; color: #334155; }
+            QPushButton:hover { background: #f1f5f9; }
+        """)
+        btn_next_week.clicked.connect(lambda: self.dt_week.setDate(self.dt_week.date().addDays(7)))
+        wb_lay.addWidget(btn_next_week)
+
+        self.btn_create_plan = QPushButton("✨ Yeni Plan")
+        self.btn_create_plan.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_create_plan.setFixedHeight(26)
+        self.btn_create_plan.setStyleSheet("""
+            QPushButton {
+                background-color: #2563eb;
+                color: white;
+                font-weight: 700;
+                font-size: 11px;
+                border-radius: 4px;
+                padding: 0 10px;
+                border: none;
+            }
+            QPushButton:hover { background-color: #1d4ed8; }
+        """)
+        self.btn_create_plan.clicked.connect(self._create_plan)
+        wb_lay.addWidget(self.btn_create_plan)
+
+        wb_lay.addStretch()
+
+        # 3. Görüşme Zamanı Grubu
+        lbl_koc_time_title = QLabel("<b style='color:#475569; font-size:11px;'>📅 Görüşme:</b>")
+        wb_lay.addWidget(lbl_koc_time_title)
 
         self.cb_koc_gun = QComboBox()
         self.cb_koc_gun.addItems(["", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"])
-        self.cb_koc_gun.setFixedWidth(115)
+        self.cb_koc_gun.setFixedWidth(100)
+        self.cb_koc_gun.setFixedHeight(26)
         self.cb_koc_gun.setStyleSheet("""
             QComboBox {
                 background: white;
                 border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 4px 8px;
-                font-size: 12px;
+                border-radius: 4px;
+                padding: 2px 6px;
+                font-size: 11px;
                 color: #1e293b;
             }
         """)
-        row1.addWidget(self.cb_koc_gun)
+        wb_lay.addWidget(self.cb_koc_gun)
 
         from PyQt6.QtWidgets import QTimeEdit
         self.te_koc_saat = QTimeEdit()
         self.te_koc_saat.setDisplayFormat("HH:mm")
-        self.te_koc_saat.setFixedWidth(80)
+        self.te_koc_saat.setFixedWidth(70)
+        self.te_koc_saat.setFixedHeight(26)
         self.te_koc_saat.setStyleSheet("""
             QTimeEdit {
                 background: white;
                 border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 4px 6px;
-                font-size: 12px;
+                border-radius: 4px;
+                padding: 2px 4px;
+                font-size: 11px;
                 color: #1e293b;
             }
         """)
-        row1.addWidget(self.te_koc_saat)
+        wb_lay.addWidget(self.te_koc_saat)
 
-        self.btn_save_koc_time = QPushButton("💾 Kaydet")
+        self.btn_save_koc_time = QPushButton("💾")
         self.btn_save_koc_time.setToolTip("Öğrencinin haftalık koçluk görüşme gün ve saatini kaydet")
         self.btn_save_koc_time.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_save_koc_time.setFixedHeight(26)
+        self.btn_save_koc_time.setFixedWidth(28)
         self.btn_save_koc_time.setStyleSheet("""
             QPushButton {
                 background-color: #0284c7;
                 color: white;
                 font-weight: 600;
                 font-size: 11px;
-                border-radius: 6px;
-                padding: 5px 12px;
+                border-radius: 4px;
                 border: none;
             }
-            QPushButton:hover {
-                background-color: #0369a1;
-            }
+            QPushButton:hover { background-color: #0369a1; }
         """)
         self.btn_save_koc_time.clicked.connect(self._save_student_koc_info)
-        row1.addWidget(self.btn_save_koc_time)
+        wb_lay.addWidget(self.btn_save_koc_time)
 
-        wb_lay.addLayout(row1)
-
-        # Alt Satır: Hafta Seçimi ve Plan Oluşturma
-        row2 = QHBoxLayout()
-        row2.setSpacing(10)
-
-        lbl_week_nav = QLabel("🗓️ Takip Haftası:")
-        lbl_week_nav.setStyleSheet("font-size: 12px; font-weight: 600; color: #475569; border:none; background:transparent;")
-        row2.addWidget(lbl_week_nav)
-
-        btn_prev_week = QPushButton("◀ Önceki")
-        btn_prev_week.setToolTip("Bir önceki haftaya git")
-        btn_prev_week.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_prev_week.setStyleSheet("""
-            QPushButton {
-                background: white;
-                border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 4px 8px;
-                font-size: 11px;
-                font-weight: 600;
-                color: #334155;
-            }
-            QPushButton:hover { background: #f1f5f9; }
-        """)
-        btn_prev_week.clicked.connect(lambda: self.dt_week.setDate(self.dt_week.date().addDays(-7)))
-        row2.addWidget(btn_prev_week)
-
-        self.dt_week = QDateEdit(QDate.currentDate())
-        self.dt_week.setDisplayFormat("dd.MM.yyyy")
-        self.dt_week.setCalendarPopup(True)
-        self.dt_week.setFixedWidth(110)
-        self.dt_week.setStyleSheet("""
-            QDateEdit {
-                background: white;
-                border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 4px 6px;
-                font-size: 12px;
-                font-weight: 600;
-                color: #1e293b;
-            }
-        """)
-        self.dt_week.dateChanged.connect(self._load_plan)
-        row2.addWidget(self.dt_week)
-
-        btn_next_week = QPushButton("Sonraki ▶")
-        btn_next_week.setToolTip("Bir sonraki haftaya git")
-        btn_next_week.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_next_week.setStyleSheet("""
-            QPushButton {
-                background: white;
-                border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 4px 8px;
-                font-size: 11px;
-                font-weight: 600;
-                color: #334155;
-            }
-            QPushButton:hover { background: #f1f5f9; }
-        """)
-        btn_next_week.clicked.connect(lambda: self.dt_week.setDate(self.dt_week.date().addDays(7)))
-        row2.addWidget(btn_next_week)
-
-        row2.addStretch()
-
-        self.btn_create_plan = QPushButton("✨ Bu Hafta İçin Yeni Plan Oluştur")
-        self.btn_create_plan.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_create_plan.setStyleSheet("""
-            QPushButton {
-                background-color: #2563eb;
-                color: white;
-                font-weight: 700;
-                font-size: 12px;
-                border-radius: 6px;
-                padding: 6px 16px;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #1d4ed8;
-            }
-        """)
-        self.btn_create_plan.clicked.connect(self._create_plan)
-        row2.addWidget(self.btn_create_plan)
-
-        wb_lay.addLayout(row2)
         lay.addWidget(week_bar)
 
-        # --- MODERN DASHBOARD METRİK KARTLARI ---
+        # --- DASHBOARD METRİK KARTLARI (Kompakt 44px Minimalist) ---
         summary_layout = QHBoxLayout()
-        summary_layout.setSpacing(12)
+        summary_layout.setSpacing(8)
 
-        def create_card(icon, title, subtitle, obj_name, accent_color, bg_tint):
+        def create_plan_kpi_card(obj_name, icon, title, accent_color):
             frm = QFrame()
+            frm.setObjectName(obj_name)
+            frm.setFixedHeight(44)
             frm.setStyleSheet(f"""
-                .QFrame {{
-                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:1 {bg_tint});
+                QFrame#{obj_name} {{
+                    background: #ffffff;
                     border: 1px solid #e2e8f0;
-                    border-top: 4px solid {accent_color};
-                    border-radius: 10px;
+                    border-left: 4px solid {accent_color};
+                    border-radius: 6px;
+                }}
+                QFrame#{obj_name} QLabel {{
+                    border: none;
+                    background: transparent;
                 }}
             """)
             l = QHBoxLayout(frm)
-            l.setContentsMargins(16, 12, 16, 12)
-            l.setSpacing(12)
+            l.setContentsMargins(10, 4, 10, 4)
+            l.setSpacing(8)
 
-            lbl_ico = QLabel(icon)
-            lbl_ico.setFixedSize(40, 40)
-            lbl_ico.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl_ico.setStyleSheet(f"""
-                font-size: 20px;
-                background-color: {accent_color}18;
-                border-radius: 20px;
-                border: 1px solid {accent_color}33;
-            """)
-
-            v = QVBoxLayout()
-            v.setSpacing(2)
-            lbl_tit = QLabel(title)
-            lbl_tit.setStyleSheet("color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border:none; background:transparent;")
+            lbl_tit = QLabel(f"<span style='font-size:10px; font-weight:bold; color:#64748b;'>{icon} {title.upper()}</span>")
             lbl_val = QLabel("-")
-            lbl_val.setObjectName(obj_name)
-            lbl_val.setStyleSheet("color: #0f172a; font-size: 24px; font-weight: 800; border:none; background:transparent;")
-            lbl_sub = QLabel(subtitle)
-            lbl_sub.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: 500; border:none; background:transparent;")
+            lbl_val.setStyleSheet(f"color: {accent_color}; font-size: 16px; font-weight: 800;")
+            lbl_val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            
+            lbl_sub = QLabel("")
+            lbl_sub.hide()
 
-            v.addWidget(lbl_tit)
-            v.addWidget(lbl_val)
-            v.addWidget(lbl_sub)
-
-            l.addWidget(lbl_ico)
-            l.addLayout(v)
+            l.addWidget(lbl_tit)
             l.addStretch()
+            l.addWidget(lbl_val)
             return frm, lbl_val, lbl_sub
 
-        card1, self.lbl_total_target, self.lbl_target_sub = create_card("🎯", "Haftalık Soru Hedefi", "Belirlenen toplam hedef", "lblT", "#3b82f6", "#eff6ff")
-        card2, self.lbl_total_solved, self.lbl_solved_sub = create_card("✅", "Çözülen Soru", "Öğrencinin çözdüğü soru", "lblS", "#10b981", "#ecfdf5")
-        card3, self.lbl_completion_rate, self.lbl_completion_sub = create_card("🏆", "Başarı Oranı", "Genel tamamlama seviyesi", "lblR", "#f59e0b", "#fffbeb")
+        card1, self.lbl_total_target, self.lbl_target_sub = create_plan_kpi_card("plan_kpi1", "🎯", "Haftalık Soru Hedefi", "#3b82f6")
+        card2, self.lbl_total_solved, self.lbl_solved_sub = create_plan_kpi_card("plan_kpi2", "✅", "Çözülen Soru", "#10b981")
+        card3, self.lbl_completion_rate, self.lbl_completion_sub = create_plan_kpi_card("plan_kpi3", "🏆", "Başarı Oranı", "#f59e0b")
 
         summary_layout.addWidget(card1)
         summary_layout.addWidget(card2)
         summary_layout.addWidget(card3)
         lay.addLayout(summary_layout)
 
-        # --- YAPAY ZEKA KOÇ YORUMU ---
+        # --- YAPAY ZEKA KOÇ YORUMU (Kompakt) ---
         self.frm_ai = QFrame()
         self.frm_ai.setStyleSheet("""
-            .QFrame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #f0fdf4, stop:1 #ecfdf5);
-                border: 1px solid #a7f3d0;
-                border-radius: 10px;
+            QFrame {
+                background: #f0fdf4;
+                border: 1px solid #bbf7d0;
+                border-radius: 6px;
             }
         """)
         ai_lay = QHBoxLayout(self.frm_ai)
-        ai_lay.setContentsMargins(14, 10, 14, 10)
-        ai_lay.setSpacing(10)
+        ai_lay.setContentsMargins(10, 4, 10, 4)
+        ai_lay.setSpacing(6)
 
         lbl_ai_icon = QLabel("✨")
-        lbl_ai_icon.setStyleSheet("font-size: 18px; border:none; background:transparent;")
+        lbl_ai_icon.setStyleSheet("font-size: 14px; border:none; background:transparent;")
         ai_lay.addWidget(lbl_ai_icon)
 
-        lbl_ai_tit = QLabel("<b>YAPAY ZEKA KOÇ DEĞERLENDİRMESİ:</b>")
-        lbl_ai_tit.setStyleSheet("font-size: 11px; color: #065f46; letter-spacing: 0.5px; border:none; background:transparent;")
+        lbl_ai_tit = QLabel("<b style='font-size: 10px; color: #166534;'>YAPAY ZEKA KOÇ DEĞERLENDİRMESİ:</b>")
+        lbl_ai_tit.setStyleSheet("border:none; background:transparent;")
         ai_lay.addWidget(lbl_ai_tit)
 
         self.lbl_ai_comment = QLabel("Veri bekleniyor...")
-        self.lbl_ai_comment.setStyleSheet("color: #047857; font-size: 12px; font-weight: 600; border:none; background:transparent;")
+        self.lbl_ai_comment.setStyleSheet("color: #047857; font-size: 11px; font-weight: 600; border:none; background:transparent;")
         ai_lay.addWidget(self.lbl_ai_comment)
         ai_lay.addStretch()
         lay.addWidget(self.frm_ai)
 
         # -- Hedef Tablosu Bildirimi (Plan Yoksa) --
-        self.lbl_no_plan_notice = QLabel("📋 Bu hafta için henüz bir hedef planı oluşturulmadı. Yukarıdaki '<b>✨ Bu Hafta İçin Yeni Plan Oluştur</b>' butonuna tıklayarak haftalık ders hedeflerini belirleyebilirsiniz.")
+        self.lbl_no_plan_notice = QLabel("📋 Bu hafta için henüz bir hedef planı oluşturulmadı. Yukarıdaki '<b>✨ Yeni Plan</b>' butonuna tıklayarak haftalık ders hedeflerini belirleyebilirsiniz.")
         self.lbl_no_plan_notice.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_no_plan_notice.setStyleSheet("""
             QLabel {
                 background: #f8fafc;
                 border: 1.5px dashed #cbd5e1;
                 border-radius: 8px;
-                padding: 24px;
-                font-size: 13px;
+                padding: 16px;
+                font-size: 12px;
                 color: #64748b;
             }
         """)
         self.lbl_no_plan_notice.setVisible(False)
-        lay.addWidget(self.lbl_no_plan_notice)
+        lay.addWidget(self.lbl_no_plan_notice, 1)
 
         # -- Hedef Tablosu --
         self.table_goals = QTableWidget()
@@ -1258,36 +1415,36 @@ class CoachingManager(QWidget):
         self.table_goals.setHorizontalHeaderLabels(cols)
         self.table_goals.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table_goals.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
-        self.table_goals.verticalHeader().setDefaultSectionSize(42)
+        self.table_goals.verticalHeader().setDefaultSectionSize(36)
         self.table_goals.setAlternatingRowColors(True)
         self.table_goals.setStyleSheet("""
             QTableWidget {
                 background-color: #ffffff;
                 border: 1px solid #e2e8f0;
-                border-radius: 8px;
+                border-radius: 6px;
                 gridline-color: #f1f5f9;
                 selection-background-color: #eff6ff;
                 selection-color: #1e3a8a;
             }
             QTableWidget::item {
-                padding: 6px 10px;
+                padding: 4px 8px;
                 border-bottom: 1px solid #f1f5f9;
             }
             QHeaderView::section {
                 background-color: #f8fafc;
                 color: #334155;
                 font-weight: 700;
-                font-size: 12px;
+                font-size: 11px;
                 border: none;
                 border-bottom: 2px solid #cbd5e1;
-                padding: 8px 10px;
+                padding: 6px 8px;
             }
         """)
-        lay.addWidget(self.table_goals)
+        lay.addWidget(self.table_goals, 1)
 
-        # -- Alt Butonlar --
+        # -- Alt Butonlar (Kompakt 30px) --
         bot_bar = QHBoxLayout()
-        bot_bar.setSpacing(10)
+        bot_bar.setSpacing(8)
 
         lbl_tip = QLabel("💡 <b>İpucu:</b> Çözülen soru sayılarını girdikten sonra 'İlerlemeyi Kaydet'e basınız.")
         lbl_tip.setStyleSheet("font-size: 11px; color: #64748b;")
@@ -1295,60 +1452,54 @@ class CoachingManager(QWidget):
         bot_bar.addStretch()
 
         self.btn_smart_report = QPushButton("📊 Akıllı Koçluk Raporu")
-        self.btn_smart_report.setMinimumHeight(40)
+        self.btn_smart_report.setFixedHeight(30)
         self.btn_smart_report.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_smart_report.setStyleSheet("""
             QPushButton {
                 background-color: #7c3aed;
                 color: white;
                 font-weight: 700;
-                font-size: 12px;
-                border-radius: 8px;
-                padding: 8px 16px;
+                font-size: 11px;
+                border-radius: 6px;
+                padding: 0 12px;
                 border: none;
             }
-            QPushButton:hover {
-                background-color: #6d28d9;
-            }
+            QPushButton:hover { background-color: #6d28d9; }
         """)
         self.btn_smart_report.clicked.connect(self._open_smart_report)
         bot_bar.addWidget(self.btn_smart_report)
 
-        self.btn_whatsapp = QPushButton("📱 Veliye WhatsApp Gönder")
-        self.btn_whatsapp.setMinimumHeight(40)
+        self.btn_whatsapp = QPushButton("📱 Veliye WhatsApp")
+        self.btn_whatsapp.setFixedHeight(30)
         self.btn_whatsapp.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_whatsapp.setStyleSheet("""
             QPushButton {
                 background-color: #25D366;
                 color: white;
                 font-weight: 700;
-                font-size: 12px;
-                border-radius: 8px;
-                padding: 8px 16px;
+                font-size: 11px;
+                border-radius: 6px;
+                padding: 0 12px;
                 border: none;
             }
-            QPushButton:hover {
-                background-color: #1ebd5b;
-            }
-            QPushButton:disabled {
-                background-color: #94a3b8;
-            }
+            QPushButton:hover { background-color: #1ebd5b; }
+            QPushButton:disabled { background-color: #94a3b8; }
         """)
         self.btn_whatsapp.clicked.connect(self._send_whatsapp)
         self.btn_whatsapp.setEnabled(False)
         bot_bar.addWidget(self.btn_whatsapp)
 
         self.btn_save = QPushButton("💾 İlerlemeyi Kaydet")
-        self.btn_save.setMinimumHeight(40)
+        self.btn_save.setFixedHeight(30)
         self.btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_save.setStyleSheet("""
             QPushButton {
                 background-color: #059669;
                 color: white;
                 font-weight: 700;
-                font-size: 12px;
-                border-radius: 8px;
-                padding: 8px 20px;
+                font-size: 11px;
+                border-radius: 6px;
+                padding: 0 14px;
                 border: none;
             }
             QPushButton:hover {
@@ -1491,6 +1642,30 @@ class CoachingManager(QWidget):
         self.txt_notes = QTextEdit()
         self.txt_notes.setPlaceholderText("Tüm görüşme notlarının birleşik metni...")
         self.tabs_notes_inner.addTab(self.txt_notes, "📝 Birleşik Not Metni")
+
+        # V6: isteğe bağlı dört aşamalı SRL/GROW rehberi (salt-okunur,
+        # mevcut görüşme notlarını sadece öğretmen seçerse düzenler).
+        # Ödev hücreleri, DB şeması ve mevcut kaydetme/WhatsApp işleyişi değişmez.
+        from ui.srl_grow_guide_v6 import SrlGrowGuideV6
+        self.btn_srl_grow_v6 = QPushButton("🧭 4 Adım Koçluk Rehberi  ▾")
+        self.btn_srl_grow_v6.setToolTip("Görüşme soruları; ödev veya not kaydını otomatik değiştirmez.")
+        self.btn_srl_grow_v6.setStyleSheet("padding: 5px 9px; color: #1e40af; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 5px;")
+        self._srl_guide_v6 = SrlGrowGuideV6(
+            student_selected=lambda: bool(self.current_student_id),
+            agenda=self.txt_note_agenda,
+            actions=self.txt_note_actions,
+            parent=right_box,
+        )
+        self._srl_guide_v6.setVisible(False)
+        def _toggle_v6_guide():
+            next_visible = not self._srl_guide_v6.isVisible()
+            self._srl_guide_v6.setVisible(next_visible)
+            self.btn_srl_grow_v6.setText(
+                "🧭 4 Adım Koçluk Rehberi  ▴" if next_visible
+                else "🧭 4 Adım Koçluk Rehberi  ▾")
+        self.btn_srl_grow_v6.clicked.connect(_toggle_v6_guide)
+        rb_lay.addWidget(self.btn_srl_grow_v6)
+        rb_lay.addWidget(self._srl_guide_v6)
 
         rb_lay.addWidget(self.tabs_notes_inner, 1)
 
@@ -1652,60 +1827,12 @@ class CoachingManager(QWidget):
         h_pal_top.addWidget(self.lbl_active_brush)
         pc_lay.addLayout(h_pal_top)
 
-        # Çipler
-        h_chips = QHBoxLayout()
-        h_chips.setSpacing(6)
+        # Çipler Konteyneri
+        self.h_chips = QHBoxLayout()
+        self.h_chips.setSpacing(6)
         self._active_brush_data = None
-
-        chips = [
-            ("📐 Matematik", "#dbeafe", "#1e40af"),
-            ("⚡ Fizik", "#f3e8ff", "#6b21a8"),
-            ("🧪 Kimya", "#fef3c7", "#92400e"),
-            ("🧬 Biyoloji", "#dcfce7", "#166534"),
-            ("📖 Türkçe", "#ffe4e6", "#9f1239"),
-            ("🏛️ Sosyal", "#ffedd5", "#9a3412"),
-            ("🏫 Okul", "#f1f5f9", "#334155"),
-            ("📝 Deneme", "#e0e7ff", "#3730a3"),
-            ("☕ Mola", "#ecfdf5", "#065f46"),
-            ("🧹 Sil", "#ffffff", "#dc2626")
-        ]
-
-        for text, bg, fg in chips:
-            btn_c = QPushButton(text)
-            btn_c.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {bg};
-                    color: {fg};
-                    border: 1px solid #cbd5e1;
-                    border-radius: 6px;
-                    padding: 4px 8px;
-                    font-weight: 700;
-                    font-size: 11px;
-                }}
-                QPushButton:hover {{
-                    border-color: #2563eb;
-                }}
-            """)
-            btn_c.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn_c.clicked.connect(lambda _, t=text, b=bg, f=fg: self._set_schedule_brush(t, b, f))
-            h_chips.addWidget(btn_c)
-
-        h_chips.addStretch()
-
-        # Hazır Şablonlar Butonu
-        self.cmb_prog_templates = QComboBox()
-        self.cmb_prog_templates.addItems([
-            "📋 Hazır Program Şablonu...",
-            "🏫 Okul + Akşam Etüt Rutini",
-            "🎓 Mezun Yoğun Kamp Rutini",
-            "🎒 LGS Dengeli Hazırlık",
-            "🧹 Tüm Programı Temizle"
-        ])
-        self.cmb_prog_templates.setStyleSheet("font-size: 11px; padding: 4px 8px;")
-        self.cmb_prog_templates.currentIndexChanged.connect(self._apply_schedule_template)
-        h_chips.addWidget(self.cmb_prog_templates)
-
-        pc_lay.addLayout(h_chips)
+        self._render_schedule_chips()
+        pc_lay.addLayout(self.h_chips)
         l.addWidget(palette_card)
 
         # 2. Haftalık Çizelge Tablosu
@@ -1743,13 +1870,121 @@ class CoachingManager(QWidget):
         l.addLayout(bot_sched)
         self._rebuild_schedule_table()
 
+    def _render_schedule_chips(self):
+        while self.h_chips.count():
+            item = self.h_chips.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+                
+        base_chips = [
+            ("📐 Matematik", "#dbeafe", "#1e40af"),
+            ("⚡ Fizik", "#f3e8ff", "#6b21a8"),
+            ("🧪 Kimya", "#fef3c7", "#92400e"),
+            ("🧬 Biyoloji", "#dcfce7", "#166534"),
+            ("📖 Türkçe", "#ffe4e6", "#9f1239"),
+            ("🏛️ Sosyal", "#ffedd5", "#9a3412"),
+            ("🏫 Okul", "#f1f5f9", "#334155"),
+            ("📝 Deneme", "#e0e7ff", "#3730a3"),
+            ("☕ Mola", "#ecfdf5", "#065f46"),
+            ("🧹 Sil", "#ffffff", "#dc2626")
+        ]
+        
+        custom_chips_raw = appset.ayar_get("schedule_custom_chips", "[]")
+        try:
+            custom_chips = json.loads(custom_chips_raw) if custom_chips_raw else []
+        except Exception:
+            custom_chips = []
+            
+        all_chips = base_chips + [tuple(c) for c in custom_chips]
+        
+        for text, bg, fg in all_chips:
+            btn_c = QPushButton(text)
+            btn_c.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {bg};
+                    color: {fg};
+                    border: 1px solid #cbd5e1;
+                    border-radius: 6px;
+                    padding: 4px 8px;
+                    font-weight: 700;
+                    font-size: 11px;
+                }}
+                QPushButton:hover {{
+                    border-color: #2563eb;
+                }}
+            """)
+            btn_c.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_c.clicked.connect(lambda _, t=text, b=bg, f=fg: self._set_schedule_brush(t, b, f))
+            self.h_chips.addWidget(btn_c)
+            
+        btn_add_chip = QPushButton("➕ Ders Ekle")
+        btn_add_chip.setToolTip("Program paletine yeni ders, etüt veya özel aktivite ekleyin")
+        btn_add_chip.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_add_chip.setStyleSheet("""
+            QPushButton {
+                background: #f0fdf4;
+                color: #15803d;
+                border: 1px dashed #86efac;
+                border-radius: 6px;
+                padding: 4px 10px;
+                font-weight: 700;
+                font-size: 11px;
+            }
+            QPushButton:hover { background: #dcfce7; border-color: #22c55e; }
+        """)
+        btn_add_chip.clicked.connect(self._add_custom_schedule_chip)
+        self.h_chips.addWidget(btn_add_chip)
+        
+        self.h_chips.addStretch()
+        
+        self.cmb_prog_templates = QComboBox()
+        self.cmb_prog_templates.addItems([
+            "📋 Hazır Program Şablonu...",
+            "🏫 Okul + Akşam Etüt Rutini",
+            "🎓 Mezun Yoğun Kamp Rutini",
+            "🎒 LGS Dengeli Hazırlık",
+            "🧹 Tüm Programı Temizle"
+        ])
+        self.cmb_prog_templates.setStyleSheet("font-size: 11px; padding: 4px 8px;")
+        self.cmb_prog_templates.currentIndexChanged.connect(self._apply_schedule_template)
+        self.h_chips.addWidget(self.cmb_prog_templates)
+
+    def _add_custom_schedule_chip(self):
+        text, ok = QInputDialog.getText(
+            self, "Yeni Ders / Aktivite Ekle",
+            "Ders veya Aktivite Adı (Örn: Geometri, Tarih, Paragraf, Spor, Etüt):"
+        )
+        if ok and text.strip():
+            name = text.strip()
+            palette_colors = [
+                ("#e0f2fe", "#0369a1"),
+                ("#fce7f3", "#be185d"),
+                ("#fef3c7", "#b45309"),
+                ("#ede9fe", "#6d28d9"),
+                ("#ccfbf1", "#0f766e"),
+                ("#fae8ff", "#86198f"),
+                ("#f3f4f6", "#1f2937")
+            ]
+            import random
+            bg, fg = random.choice(palette_colors)
+            
+            custom_chips_raw = appset.ayar_get("schedule_custom_chips", "[]")
+            try:
+                custom_chips = json.loads(custom_chips_raw) if custom_chips_raw else []
+            except Exception:
+                custom_chips = []
+                
+            custom_chips = [c for c in custom_chips if c[0] != name]
+            custom_chips.append((name, bg, fg))
+            appset.ayar_set("schedule_custom_chips", json.dumps(custom_chips))
+            
+            self._render_schedule_chips()
+            QMessageBox.information(self, "Başarılı", f"'{name}' hızlı boyama paletine eklendi ve kaydedildi!")
 
     def _show_schedule_settings(self):
         dlg = ScheduleSettingsDialog(self)
         if dlg.exec():
             self._rebuild_schedule_table()
-            # Varsa mevcut program verilerini tekrar yüklemeyi deneyebiliriz ama şu anlık tablo yapısı değiştiği için
-            # kullanıcıya "Yeniden yükle" demesi daha sağlıklı olabilir veya otomatik yükleriz.
             if self.current_plan_id:
                 con = db.get_conn()
                 try:
@@ -1758,14 +1993,17 @@ class CoachingManager(QWidget):
                     con.close()
 
     def _rebuild_schedule_table(self):
-        try:
-            start_h = int(appset.ayar_get("schedule_start_hour", 9))
-            end_h = int(appset.ayar_get("schedule_end_hour", 21))
-        except ValueError:
-            start_h = 9
-            end_h = 21
-        
-        hours = [f"{h:02d}:00" for h in range(start_h, end_h + 1)] # Bitiş dahil
+        custom_slots = appset.ayar_get("schedule_custom_slots", "")
+        if custom_slots and custom_slots.strip():
+            hours = [s.strip() for s in custom_slots.splitlines() if s.strip()]
+        else:
+            try:
+                start_h = int(appset.ayar_get("schedule_start_hour", 9))
+                end_h = int(appset.ayar_get("schedule_end_hour", 21))
+            except (ValueError, TypeError):
+                start_h = 9
+                end_h = 21
+            hours = [f"{h:02d}:00" for h in range(start_h, end_h + 1)]
         
         self.table_schedule.clear()
         self.table_schedule.setRowCount(len(hours))
@@ -1947,214 +2185,219 @@ class CoachingManager(QWidget):
 
     def _init_tab_topics(self, parent):
         l = QVBoxLayout(parent)
-        l.setContentsMargins(10, 10, 10, 10)
-        l.setSpacing(10)
+        l.setContentsMargins(8, 8, 8, 8)
+        l.setSpacing(6)
         
-        # 1. KPI Gösterge Kartları Paneli (Müfredat Hakimiyeti Özeti)
+        # 1. Kompakt KPI Gösterge Şeridi (Minimalist & Yer Tasarruflu)
         kpi_frame = QFrame()
         kpi_frame.setStyleSheet("QFrame { background: transparent; }")
         kpi_layout = QHBoxLayout(kpi_frame)
-        kpi_layout.setContentsMargins(0, 0, 0, 4)
-        kpi_layout.setSpacing(12)
+        kpi_layout.setContentsMargins(0, 0, 0, 0)
+        kpi_layout.setSpacing(8)
+
+        def make_kpi_card(obj_name, accent_color):
+            card = QFrame()
+            card.setObjectName(obj_name)
+            card.setFixedHeight(44)
+            card.setStyleSheet(f"""
+                QFrame#{obj_name} {{
+                    background: #ffffff;
+                    border: 1px solid #e2e8f0;
+                    border-left: 4px solid {accent_color};
+                    border-radius: 6px;
+                }}
+                QFrame#{obj_name} QLabel {{
+                    border: none;
+                    background: transparent;
+                }}
+            """)
+            return card
 
         # Kart 1: Müfredat İlerlemesi
-        c1 = QFrame()
-        c1.setStyleSheet("""
-            QFrame {
-                background: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-top: 3px solid #3b82f6;
-                border-radius: 8px;
-                padding: 10px;
-            }
-        """)
-        c1_lay = QVBoxLayout(c1)
-        c1_lay.setContentsMargins(4, 4, 4, 4)
-        c1_lay.setSpacing(4)
-        c1_lay.addWidget(QLabel("<span style='font-size: 11px; font-weight: bold; color: #64748b;'>🎯 MÜFREDAT HAKİMİYETİ</span>"))
-        self.lbl_topic_kpi_progress = QLabel("%0")
-        self.lbl_topic_kpi_progress.setStyleSheet("font-size: 22px; font-weight: bold; color: #1e3a8a;")
-        c1_lay.addWidget(self.lbl_topic_kpi_progress)
+        c1 = make_kpi_card("kpi_card1", "#3b82f6")
+        c1_lay = QHBoxLayout(c1)
+        c1_lay.setContentsMargins(10, 4, 10, 4)
+        c1_lay.setSpacing(8)
+        c1_left = QVBoxLayout()
+        c1_left.setSpacing(2)
+        c1_left.addWidget(QLabel("<span style='font-size: 10px; font-weight: bold; color: #64748b;'>🎯 MÜFREDAT HAKİMİYETİ</span>"))
         self.pbar_topic_mastery = QProgressBar()
         self.pbar_topic_mastery.setRange(0, 100)
         self.pbar_topic_mastery.setValue(0)
-        self.pbar_topic_mastery.setFixedHeight(6)
+        self.pbar_topic_mastery.setFixedHeight(5)
+        self.pbar_topic_mastery.setFixedWidth(100)
         self.pbar_topic_mastery.setTextVisible(False)
-        self.pbar_topic_mastery.setStyleSheet("QProgressBar { background: #f1f5f9; border-radius: 3px; } QProgressBar::chunk { background: #3b82f6; border-radius: 3px; }")
-        c1_lay.addWidget(self.pbar_topic_mastery)
+        self.pbar_topic_mastery.setStyleSheet("QProgressBar { background: #f1f5f9; border-radius: 2px; border: none; } QProgressBar::chunk { background: #3b82f6; border-radius: 2px; }")
+        c1_left.addWidget(self.pbar_topic_mastery)
+        c1_lay.addLayout(c1_left)
+        self.lbl_topic_kpi_progress = QLabel("%0")
+        self.lbl_topic_kpi_progress.setStyleSheet("font-size: 18px; font-weight: bold; color: #1e3a8a;")
+        self.lbl_topic_kpi_progress.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        c1_lay.addWidget(self.lbl_topic_kpi_progress)
         kpi_layout.addWidget(c1)
 
         # Kart 2: Tamamlanan / Sınava Hazır Konular
-        c2 = QFrame()
-        c2.setStyleSheet("""
-            QFrame {
-                background: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-top: 3px solid #10b981;
-                border-radius: 8px;
-                padding: 10px;
-            }
-        """)
-        c2_lay = QVBoxLayout(c2)
-        c2_lay.setContentsMargins(4, 4, 4, 4)
-        c2_lay.setSpacing(4)
-        c2_lay.addWidget(QLabel("<span style='font-size: 11px; font-weight: bold; color: #64748b;'>🏆 TAM HAKİMİYET</span>"))
+        c2 = make_kpi_card("kpi_card2", "#10b981")
+        c2.setToolTip("Öğretmen işaretiyle tam hâkimiyet belirtilen konular (Sınav kanıtı değil)")
+        c2_lay = QHBoxLayout(c2)
+        c2_lay.setContentsMargins(10, 4, 10, 4)
+        c2_lay.setSpacing(6)
+        c2_lay.addWidget(QLabel("<span style='font-size: 10px; font-weight: bold; color: #64748b;'>🏆 TAM HAKİMİYET</span>"))
         self.lbl_topic_kpi_mastered = QLabel("0 / 0 Konu")
-        self.lbl_topic_kpi_mastered.setStyleSheet("font-size: 22px; font-weight: bold; color: #065f46;")
+        self.lbl_topic_kpi_mastered.setStyleSheet("font-size: 13px; font-weight: bold; color: #065f46;")
+        self.lbl_topic_kpi_mastered.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         c2_lay.addWidget(self.lbl_topic_kpi_mastered)
-        self.lbl_topic_kpi_sub_mastered = QLabel("Sınava hazır seviye")
-        self.lbl_topic_kpi_sub_mastered.setStyleSheet("font-size: 11px; color: #059669;")
-        c2_lay.addWidget(self.lbl_topic_kpi_sub_mastered)
+        self.lbl_topic_kpi_sub_mastered = QLabel("")
+        self.lbl_topic_kpi_sub_mastered.hide()
         kpi_layout.addWidget(c2)
 
         # Kart 3: Tekrar ve Pekiştirme Bekleyenler
-        c3 = QFrame()
-        c3.setStyleSheet("""
-            QFrame {
-                background: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-top: 3px solid #f59e0b;
-                border-radius: 8px;
-                padding: 10px;
-            }
-        """)
-        c3_lay = QVBoxLayout(c3)
-        c3_lay.setContentsMargins(4, 4, 4, 4)
-        c3_lay.setSpacing(4)
-        c3_lay.addWidget(QLabel("<span style='font-size: 11px; font-weight: bold; color: #64748b;'>🔄 TEKRAR & PEKİŞTİRME</span>"))
+        c3 = make_kpi_card("kpi_card3", "#f59e0b")
+        c3.setToolTip("Aralıklı tekrar veya pekiştirme bekleyen konular")
+        c3_lay = QHBoxLayout(c3)
+        c3_lay.setContentsMargins(10, 4, 10, 4)
+        c3_lay.setSpacing(6)
+        c3_lay.addWidget(QLabel("<span style='font-size: 10px; font-weight: bold; color: #64748b;'>🔄 TEKRAR & PEKİŞTİRME</span>"))
         self.lbl_topic_kpi_review = QLabel("0 Konu")
-        self.lbl_topic_kpi_review.setStyleSheet("font-size: 22px; font-weight: bold; color: #92400e;")
+        self.lbl_topic_kpi_review.setStyleSheet("font-size: 13px; font-weight: bold; color: #92400e;")
+        self.lbl_topic_kpi_review.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         c3_lay.addWidget(self.lbl_topic_kpi_review)
-        self.lbl_topic_kpi_sub_review = QLabel("Aralıklı tekrar bekleyen")
-        self.lbl_topic_kpi_sub_review.setStyleSheet("font-size: 11px; color: #d97706;")
-        c3_lay.addWidget(self.lbl_topic_kpi_sub_review)
+        self.lbl_topic_kpi_sub_review = QLabel("")
+        self.lbl_topic_kpi_sub_review.hide()
         kpi_layout.addWidget(c3)
 
         # Kart 4: Kritik Sınav Konuları (ÖSYM/MEB)
-        c4 = QFrame()
-        c4.setStyleSheet("""
-            QFrame {
-                background: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-top: 3px solid #ef4444;
-                border-radius: 8px;
-                padding: 10px;
-            }
-        """)
-        c4_lay = QVBoxLayout(c4)
-        c4_lay.setContentsMargins(4, 4, 4, 4)
-        c4_lay.setSpacing(4)
-        c4_lay.addWidget(QLabel("<span style='font-size: 11px; font-weight: bold; color: #64748b;'>🔥 KRİTİK SINAV KONULARI</span>"))
+        c4 = make_kpi_card("kpi_card4", "#ef4444")
+        c4.setToolTip("ÖSYM ve yerel içerikte öncelikli işaretlenen konular")
+        c4_lay = QHBoxLayout(c4)
+        c4_lay.setContentsMargins(10, 4, 10, 4)
+        c4_lay.setSpacing(6)
+        c4_lay.addWidget(QLabel("<span style='font-size: 10px; font-weight: bold; color: #64748b;'>🔥 KRİTİK KONULAR</span>"))
         self.lbl_topic_kpi_critical = QLabel("0 / 0 Hazır")
-        self.lbl_topic_kpi_critical.setStyleSheet("font-size: 22px; font-weight: bold; color: #991b1b;")
+        self.lbl_topic_kpi_critical.setStyleSheet("font-size: 13px; font-weight: bold; color: #991b1b;")
+        self.lbl_topic_kpi_critical.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         c4_lay.addWidget(self.lbl_topic_kpi_critical)
-        self.lbl_topic_kpi_sub_critical = QLabel("ÖSYM'de çok soru çıkanlar")
-        self.lbl_topic_kpi_sub_critical.setStyleSheet("font-size: 11px; color: #dc2626;")
-        c4_lay.addWidget(self.lbl_topic_kpi_sub_critical)
+        self.lbl_topic_kpi_sub_critical = QLabel("")
+        self.lbl_topic_kpi_sub_critical.hide()
         kpi_layout.addWidget(c4)
 
         l.addWidget(kpi_frame)
 
-        # 2. Modern Filtre ve Kontrol Araç Çubuğu
+        # V1: Ortak kanıt özeti, salt okunur. Ana ödev/koçluk yazımlarına dokunmaz.
+        self.lbl_shared_topic_v1 = QLabel('Ortak konu kanıtları yükleniyor…')
+        self.lbl_shared_topic_v1.setWordWrap(True)
+        self.lbl_shared_topic_v1.setStyleSheet(
+            'QLabel { background: #f8fafc; color: #334155; padding: 4px 8px; '
+            'border: 1px solid #e2e8f0; border-radius: 6px; font-size: 11px; }')
+        self.lbl_shared_topic_v1.setToolTip(
+            'Ana ödev ve Konu Haritası ödevleri ayrı kaynaklardır. Koçluk işareti ölçme sonucu değildir.')
+        l.addWidget(self.lbl_shared_topic_v1)
+        # Kelime aramasında arka arkaya sorgu yapıp tabloyu yavaşlatma.
+        self._shared_topic_timer_v1 = QTimer(self)
+        self._shared_topic_timer_v1.setSingleShot(True)
+        self._shared_topic_timer_v1.setInterval(350)
+        self._shared_topic_timer_v1.timeout.connect(self._refresh_shared_topic_v1)
+
+        # 2. Modern Kompakt Tek Satır Filtre ve Kontrol Çubuğu
         ctrl_card = QFrame()
         ctrl_card.setStyleSheet("""
             QFrame {
                 background: #ffffff;
                 border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                padding: 8px;
+                border-radius: 6px;
+                padding: 2px 4px;
             }
         """)
-        ctrl_lay = QVBoxLayout(ctrl_card)
-        ctrl_lay.setContentsMargins(6, 6, 6, 6)
-        ctrl_lay.setSpacing(8)
+        r1 = QHBoxLayout(ctrl_card)
+        r1.setContentsMargins(4, 2, 4, 2)
+        r1.setSpacing(6)
 
-        # 1. Satır: Ders, Kaynak, Kitap Ekle, Arama, Filtre
-        r1 = QHBoxLayout()
-        r1.setSpacing(10)
-
-        r1.addWidget(QLabel("<b>Ders:</b>"))
+        r1.addWidget(QLabel("<b style='font-size: 11px; color: #475569;'>Ders:</b>"))
         self.cmb_topic_subject = QComboBox()
-        self.cmb_topic_subject.setMinimumWidth(180)
+        self.cmb_topic_subject.setMinimumWidth(150)
+        self.cmb_topic_subject.setFixedHeight(28)
         self.cmb_topic_subject.setStyleSheet("""
             QComboBox {
                 background: white;
                 border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 5px 10px;
-                font-size: 12px;
+                border-radius: 5px;
+                padding: 2px 6px;
+                font-size: 11px;
                 font-weight: 500;
                 color: #1e293b;
             }
             QComboBox::drop-down {
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
-                width: 24px;
+                width: 20px;
                 border-left: 1px solid #e2e8f0;
-                border-top-right-radius: 6px;
-                border-bottom-right-radius: 6px;
+                border-top-right-radius: 5px;
+                border-bottom-right-radius: 5px;
                 background: transparent;
             }
-            QComboBox::drop-down:hover {
-                background: #f1f5f9;
-            }
+            QComboBox::drop-down:hover { background: #f1f5f9; }
             QComboBox::down-arrow {
                 image: none;
                 border-left: 4px solid transparent;
                 border-right: 4px solid transparent;
-                border-top: 5px solid #64748b;
+                border-top: 4px solid #64748b;
             }
         """)
         self.cmb_topic_subject.addItems(list(TOPIC_LIST.keys()))
+        self.cmb_topic_subject.setToolTip(
+            "Dersler seçilen öğrencinin grubuna göre yenilenir. Özel derslerin "
+            "görünen adı değişse de kayıt kimliği korunur. Gri geçmiş kayıtları silinmez.")
         self.cmb_topic_subject.currentTextChanged.connect(self._load_topics)
         r1.addWidget(self.cmb_topic_subject)
 
-        r1.addWidget(QLabel("<b>Kaynak/Kitap:</b>"))
+        r1.addWidget(QLabel("<b style='font-size: 11px; color: #475569;'>Kaynak:</b>"))
         self.cmb_topic_book = QComboBox()
-        self.cmb_topic_book.setMinimumWidth(170)
+        self.cmb_topic_book.setToolTip(
+            "Genel Takip yalnızca kitaptan bağımsız öğretmen kayıtlarını gösterir. "
+            "Tüm kitapların birleşimi değildir; ortak kanıt özeti yukarıdadır.")
+        self.cmb_topic_book.setMinimumWidth(140)
+        self.cmb_topic_book.setFixedHeight(28)
         self.cmb_topic_book.setStyleSheet("""
             QComboBox {
                 background: white;
                 border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 5px 10px;
-                font-size: 12px;
+                border-radius: 5px;
+                padding: 2px 6px;
+                font-size: 11px;
                 color: #1e293b;
             }
             QComboBox::drop-down {
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
-                width: 24px;
+                width: 20px;
                 border-left: 1px solid #e2e8f0;
-                border-top-right-radius: 6px;
-                border-bottom-right-radius: 6px;
+                border-top-right-radius: 5px;
+                border-bottom-right-radius: 5px;
                 background: transparent;
             }
-            QComboBox::drop-down:hover {
-                background: #f1f5f9;
-            }
+            QComboBox::drop-down:hover { background: #f1f5f9; }
             QComboBox::down-arrow {
                 image: none;
                 border-left: 4px solid transparent;
                 border-right: 4px solid transparent;
-                border-top: 5px solid #64748b;
+                border-top: 4px solid #64748b;
             }
         """)
         self.cmb_topic_book.currentTextChanged.connect(self._on_book_changed)
         r1.addWidget(self.cmb_topic_book)
 
-        btn_add_book = QPushButton("➕ Kitap Ekle")
+        btn_add_book = QPushButton("➕ Kitap")
         btn_add_book.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_add_book.setFixedHeight(32)
-        btn_add_book.setToolTip("Öğrencinin çözdüğü soru bankası veya fasikülü ekleyin (Örn: 345 TYT Matematik, Bilgi Sarmal, Apotemi vb.)")
+        btn_add_book.setFixedHeight(28)
+        btn_add_book.setToolTip("Öğrencinin çözdüğü soru bankası veya fasikülü ekleyin")
         btn_add_book.setStyleSheet("""
             QPushButton {
                 background-color: #16a34a; 
                 color: white; 
                 font-weight: bold; 
                 font-size: 11px;
-                border-radius: 6px;
-                padding: 0 12px;
+                border-radius: 5px;
+                padding: 0 8px;
                 border: none;
             }
             QPushButton:hover { background-color: #15803d; }
@@ -2164,16 +2407,16 @@ class CoachingManager(QWidget):
 
         self.btn_del_book = QPushButton("🗑️")
         self.btn_del_book.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_del_book.setFixedHeight(32)
-        self.btn_del_book.setFixedWidth(32)
+        self.btn_del_book.setFixedHeight(28)
+        self.btn_del_book.setFixedWidth(28)
         self.btn_del_book.setToolTip("Seçili kitabı ve bu kitaba ait takipleri sil")
         self.btn_del_book.setStyleSheet("""
             QPushButton {
                 background-color: #fee2e2; 
                 color: #b91c1c; 
                 font-weight: bold; 
-                font-size: 12px;
-                border-radius: 6px;
+                font-size: 11px;
+                border-radius: 5px;
                 border: 1px solid #fca5a5;
             }
             QPushButton:hover { background-color: #fecaca; }
@@ -2183,20 +2426,19 @@ class CoachingManager(QWidget):
         self.btn_del_book.clicked.connect(self._delete_current_book)
         r1.addWidget(self.btn_del_book)
 
-        r1.addSpacing(10)
-
         # Canlı Arama
         from PyQt6.QtWidgets import QLineEdit
         self.txt_topic_search = QLineEdit()
         self.txt_topic_search.setPlaceholderText("🔍 Konu ara...")
-        self.txt_topic_search.setFixedWidth(160)
+        self.txt_topic_search.setFixedWidth(120)
+        self.txt_topic_search.setFixedHeight(28)
         self.txt_topic_search.setStyleSheet("""
             QLineEdit {
                 background: white;
                 border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 5px 8px;
-                font-size: 12px;
+                border-radius: 5px;
+                padding: 2px 6px;
+                font-size: 11px;
             }
             QLineEdit:focus { border-color: #3b82f6; }
         """)
@@ -2204,35 +2446,34 @@ class CoachingManager(QWidget):
         r1.addWidget(self.txt_topic_search)
 
         # Durum Filtresi
-        r1.addWidget(QLabel("<b>Filtre:</b>"))
+        r1.addWidget(QLabel("<b style='font-size: 11px; color: #475569;'>Filtre:</b>"))
         self.cmb_topic_filter = QComboBox()
-        self.cmb_topic_filter.setFixedWidth(170)
+        self.cmb_topic_filter.setFixedWidth(135)
+        self.cmb_topic_filter.setFixedHeight(28)
         self.cmb_topic_filter.setStyleSheet("""
             QComboBox {
                 background: white;
                 border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 5px 8px;
-                font-size: 12px;
+                border-radius: 5px;
+                padding: 2px 6px;
+                font-size: 11px;
                 color: #1e293b;
             }
             QComboBox::drop-down {
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
-                width: 24px;
+                width: 20px;
                 border-left: 1px solid #e2e8f0;
-                border-top-right-radius: 6px;
-                border-bottom-right-radius: 6px;
+                border-top-right-radius: 5px;
+                border-bottom-right-radius: 5px;
                 background: transparent;
             }
-            QComboBox::drop-down:hover {
-                background: #f1f5f9;
-            }
+            QComboBox::drop-down:hover { background: #f1f5f9; }
             QComboBox::down-arrow {
                 image: none;
                 border-left: 4px solid transparent;
                 border-right: 4px solid transparent;
-                border-top: 5px solid #64748b;
+                border-top: 4px solid #64748b;
             }
         """)
         self.cmb_topic_filter.addItems([
@@ -2241,74 +2482,89 @@ class CoachingManager(QWidget):
             "Çalışılıyor / Pekiştirme",
             "Tam Hakimiyet (Bitenler)",
             "Tekrar Bekleyenler",
-            "🔥 Kritik Sınav Konuları"
+            "🔥 Kritik Konular"
         ])
         self.cmb_topic_filter.currentTextChanged.connect(self._load_topics)
         r1.addWidget(self.cmb_topic_filter)
 
         r1.addStretch()
-        ctrl_lay.addLayout(r1)
 
-        # 2. Satır: Eylem Butonları
-        r2 = QHBoxLayout()
-        r2.setSpacing(10)
-
-        btn_curriculum_rep = QPushButton("📊 Müfredat Hakimiyet Raporu")
-        btn_curriculum_rep.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_curriculum_rep.setFixedHeight(30)
-        btn_curriculum_rep.setStyleSheet("""
-            QPushButton {
-                background: #eff6ff;
-                color: #1d4ed8;
-                font-weight: bold;
-                font-size: 11px;
-                border-radius: 6px;
-                padding: 0 14px;
-                border: 1px solid #93c5fd;
-            }
-            QPushButton:hover { background: #dbeafe; }
-        """)
-        btn_curriculum_rep.clicked.connect(self._open_curriculum_report)
-        r2.addWidget(btn_curriculum_rep)
-
-        btn_transfer_weekly = QPushButton("🎯 Eksikleri Bu Haftaki Plana Aktar")
+        # Eylem Butonları (Tek Satırın Sağ Tarafında)
+        btn_transfer_weekly = QPushButton("🎯 Eksikleri Plana Aktar")
         btn_transfer_weekly.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_transfer_weekly.setFixedHeight(30)
+        btn_transfer_weekly.setFixedHeight(28)
         btn_transfer_weekly.setStyleSheet("""
             QPushButton {
                 background: #f0fdf4;
                 color: #15803d;
                 font-weight: bold;
                 font-size: 11px;
-                border-radius: 6px;
-                padding: 0 14px;
+                border-radius: 5px;
+                padding: 0 10px;
                 border: 1px solid #86efac;
             }
             QPushButton:hover { background: #dcfce7; }
         """)
         btn_transfer_weekly.clicked.connect(self._transfer_to_weekly_plan)
-        r2.addWidget(btn_transfer_weekly)
+        r1.addWidget(btn_transfer_weekly)
 
-        btn_refresh_topics = QPushButton("🔄 Yenile")
+        btn_curriculum_rep = QPushButton("📊 Rapor")
+        btn_curriculum_rep.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_curriculum_rep.setFixedHeight(28)
+        btn_curriculum_rep.setStyleSheet("""
+            QPushButton {
+                background: #eff6ff;
+                color: #1d4ed8;
+                font-weight: bold;
+                font-size: 11px;
+                border-radius: 5px;
+                padding: 0 10px;
+                border: 1px solid #93c5fd;
+            }
+            QPushButton:hover { background: #dbeafe; }
+        """)
+        btn_curriculum_rep.clicked.connect(self._open_curriculum_report)
+        r1.addWidget(btn_curriculum_rep)
+
+        btn_info = QPushButton("ℹ️")
+        btn_info.setToolTip("Konu Takibi & Entegrasyon Rehberi: Bu ekran nasıl çalışır ve Ödev Takip ile ilişkisi nedir?")
+        btn_info.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_info.setFixedHeight(28)
+        btn_info.setFixedWidth(28)
+        btn_info.setStyleSheet("""
+            QPushButton {
+                background: #eff6ff;
+                color: #2563eb;
+                font-weight: bold;
+                font-size: 13px;
+                border-radius: 5px;
+                border: 1px solid #bfdbfe;
+            }
+            QPushButton:hover { background: #dbeafe; border-color: #3b82f6; }
+        """)
+        btn_info.clicked.connect(self._show_topic_guide_dialog)
+        r1.addWidget(btn_info)
+
+        btn_refresh_topics = QPushButton("🔄")
+        btn_refresh_topics.setToolTip(
+            "Öğrencinin güncel ders ve konu listesini yeniden oku. "
+            "Önceki koçluk, kitap ve ödev kayıtlarına dokunmaz.")
         btn_refresh_topics.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_refresh_topics.setFixedHeight(30)
+        btn_refresh_topics.setFixedHeight(28)
+        btn_refresh_topics.setFixedWidth(28)
         btn_refresh_topics.setStyleSheet("""
             QPushButton {
                 background: #f8fafc;
                 color: #475569;
                 font-weight: bold;
-                font-size: 11px;
-                border-radius: 6px;
-                padding: 0 12px;
+                font-size: 12px;
+                border-radius: 5px;
                 border: 1px solid #cbd5e1;
             }
             QPushButton:hover { background: #f1f5f9; }
         """)
-        btn_refresh_topics.clicked.connect(self._load_topics)
-        r2.addWidget(btn_refresh_topics)
-
-        r2.addStretch()
-        ctrl_lay.addLayout(r2)
+        btn_refresh_topics.clicked.connect(self._refresh_coach_catalog_v41)
+        r1.addWidget(btn_refresh_topics)
 
         l.addWidget(ctrl_card)
         
@@ -2342,7 +2598,9 @@ class CoachingManager(QWidget):
         self.table_topics.setColumnWidth(6, 110)
         
         self.table_topics.verticalHeader().setVisible(False)
-        self.table_topics.verticalHeader().setDefaultSectionSize(62)
+        self.table_topics.verticalHeader().setDefaultSectionSize(44)
+        self.table_topics.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.table_topics.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.table_topics.setAlternatingRowColors(True)
         self.table_topics.setStyleSheet("""
             QTableWidget {
@@ -2439,12 +2697,232 @@ class CoachingManager(QWidget):
             
         self._load_plan()
         self._load_student_koc_info() # Görüşme saatini yükle
+        self._update_topic_subjects_for_student()
         if hasattr(self, 'tab_student360'):
             self.tab_student360.set_student(self.current_student_id)
+
+    def _update_topic_subjects_for_student(self):
+        """Keep existing saved labels; dynamically add student-assigned custom courses."""
+        if not hasattr(self, 'cmb_topic_subject'):
+            return
+        previously = self._coach_subject_key_v41()
+        self._student_coach_topics_v41 = {}
+        options = []
+        if self.current_student_id:
+            try:
+                from pathlib import Path
+                from contextlib import closing
+                from services.coaching_curriculum_bridge_v41 import read_student_coach_subjects
+                # Coaching catalog reads should not initialise or mutate the live DB.
+                path = Path(db.DB_PATH).expanduser().resolve()
+                with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=5)) as con:
+                    con.execute('PRAGMA query_only=ON')
+                    con.execute('BEGIN')
+                    row = con.execute(
+                        'SELECT ana_grup,alt_grup FROM ogrenci WHERE id=?',
+                        (self.current_student_id,)).fetchone()
+                    if row:
+                        labels = {}
+                        for lesson_code in db.DERS_TABLOLARI:
+                            text = lesson_code.replace('_', ' ').title()
+                            for token in ('Tyt', 'Ayt', 'Lgs'):
+                                text = text.replace(token, '(' + token.upper() + ')')
+                            labels[lesson_code] = text
+                        options = read_student_coach_subjects(
+                            con, student_id=int(self.current_student_id),
+                            main_group=str(row[0] or ''), sub_group=str(row[1] or ''),
+                            legacy_topics=TOPIC_LIST, legacy_code_labels=labels,
+                            default_group_lessons=db.DEFAULT_GRUP_DERSLER)
+            except (sqlite3.Error, OSError, ImportError, ValueError) as exc:
+                print('Koçluk müfredatı güncellenemedi, eski liste kullanılacak:', exc)
+        if not options:
+            # Old behavior remains available when an old schema is used offline.
+            g = (self.current_student_group or '').lower()
+            is_lgs = ('lgs' in g or '8.' in g or '8.sınıf' in g or 'ortaokul' in g)
+            names = [n for n in TOPIC_LIST if (('(LGS)' in n or 'lgs' in n.lower()) == is_lgs)]
+            if not names:
+                names = list(TOPIC_LIST)
+            records = [(n, n, tuple(TOPIC_LIST[n])) for n in names]
+        else:
+            records = [(o.title, o.storage_key, o.topics) for o in options]
+        self.cmb_topic_subject.blockSignals(True)
+        self.cmb_topic_subject.clear()
+        for title, key, topics in records:
+            self.cmb_topic_subject.addItem(title, key)
+            index = self.cmb_topic_subject.count() - 1
+            self.cmb_topic_subject.setItemData(
+                index, f"Ders kaydı: {key}\nKonular: {len(topics)}\nEski kayıtlar korunur.",
+                Qt.ItemDataRole.ToolTipRole)
+            self._student_coach_topics_v41[key] = list(topics)
+        pos = self.cmb_topic_subject.findData(previously)
+        self.cmb_topic_subject.setCurrentIndex(pos if pos >= 0 else (0 if records else -1))
+        self.cmb_topic_subject.blockSignals(False)
+        self._load_topics()
+
+    def _show_topic_guide_dialog(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("ℹ️ Konu Takibi & Entegrasyon Rehberi")
+        dlg.resize(680, 580)
+        dlg.setStyleSheet("""
+            QDialog {
+                background-color: #f8fafc;
+                font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            }
+        """)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(18, 18, 18, 18)
+        lay.setSpacing(12)
+
+        hdr = QFrame()
+        hdr.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1e3a8a, stop:1 #2563eb);
+                border-radius: 10px;
+                padding: 12px 16px;
+            }
+        """)
+        h_lay = QHBoxLayout(hdr)
+        h_icon = QLabel("💡")
+        h_icon.setStyleSheet("font-size: 28px; background: transparent;")
+        h_lay.addWidget(h_icon)
+        
+        v_titles = QVBoxLayout()
+        lbl_h1 = QLabel("<b style='color: white; font-size: 15px;'>Konu Takibi ve Müfredat Yönetim Sistemi</b>")
+        lbl_h2 = QLabel("<span style='color: #bfdbfe; font-size: 11px;'>Ödev Takip Formu ile çift yönlü entegrasyon ve akıllı koçluk rehberi</span>")
+        v_titles.addWidget(lbl_h1)
+        v_titles.addWidget(lbl_h2)
+        h_lay.addLayout(v_titles, 1)
+        lay.addWidget(hdr)
+
+        from PyQt6.QtWidgets import QScrollArea
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: 1px solid #e2e8f0; border-radius: 8px; background: white; }")
+        
+        content = QWidget()
+        c_lay = QVBoxLayout(content)
+        c_lay.setContentsMargins(16, 16, 16, 16)
+        c_lay.setSpacing(14)
+
+        def make_section(title, icon, body_html, bg_color="#f8fafc", border_color="#e2e8f0"):
+            sec = QFrame()
+            sec.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {bg_color};
+                    border: 1px solid {border_color};
+                    border-radius: 8px;
+                    padding: 10px 12px;
+                }}
+            """)
+            s_lay = QVBoxLayout(sec)
+            s_lay.setSpacing(6)
+            s_tit = QLabel(f"<b>{icon} {title}</b>")
+            s_tit.setStyleSheet("font-size: 12px; color: #1e293b; border: none; background: transparent;")
+            s_body = QLabel(body_html)
+            s_body.setWordWrap(True)
+            s_body.setStyleSheet("font-size: 11px; color: #475569; line-height: 1.5; border: none; background: transparent;")
+            s_lay.addWidget(s_tit)
+            s_lay.addWidget(s_body)
+            return sec
+
+        c_lay.addWidget(make_section(
+            "1. Bu Ekranın Amacı Nedir?", "🎯",
+            "Öğrencinin hedef sınav müfredatındaki (LGS veya YKS) tüm ders ve konuları adım adım takip etmenizi sağlar. "
+            "Her konunun <b>Hâkimiyet Düzeyini</b>, <b>Kavrama Oranını</b>, <b>Çözülen Soru Sayısını</b> ve "
+            "<b>Aralıklı Tekrar Döngüsünü</b> tek ekranda görmenizi mümkün kılar."
+        ))
+
+        c_lay.addWidget(make_section(
+            "2. Ödev Takip Formu ile İlişkisi Nasıl Kurulur?", "🔗",
+            "<b>Ödev Takip Formu</b>: Günlük ve haftalık verilen soru hedeflerini, test kontrollerini ve mikro ödevleri yürüttüğünüz operasyonel merkezdir.<br><br>"
+            "<b>Konu Takibi (Bu Ekran)</b>: Öğrencinin tüm müfredattaki makro hâkimiyetini yöneten stratejik koçluk merkezidir.<br><br>"
+            "<b>Sistem Nasıl Haberleşir? (V24 Entegrasyonu):</b><br>"
+            "• <b>Ortak Kayıt Özeti:</b> Ekranın üstündeki şerit; hem Ödev Takip'teki ana soru ödevlerini hem de buradaki konu değerlendirmelerini aynı anda okur. "
+            "Öğretmenin girdiği koçluk notu ile ödev formundaki soru sayıları birbirini tamamlar.<br>"
+            "• <b>🎯 Eksikleri Plana Aktar:</b> Aşağıdaki konu listesinde 'Eksik' veya 'Tekrar Bekliyor' olarak işaretlediğiniz konular, tek tıkla Koçluk Planı'nın haftalık soru listesine aktarılır. "
+            "Böylece öğrenciye doğrudan o eksik konudan ödev yazabilirsiniz.<br>"
+            "• <b>Öğrenci 360° Entegrasyonu:</b> Ödev formunda çözülen sorular ve buradaki konu ilerlemesi, 'Öğrenci 360°' ve 'Adaptif Koçluk' ekranlarında ortak kanıt olarak değerlendirilir.",
+            bg_color="#eff6ff", border_color="#bfdbfe"
+        ))
+
+        c_lay.addWidget(make_section(
+            "3. Öğrenci Grubuna Göre Akıllı Ders Filtreleme", "🎒",
+            "Öğrencinin grubu sistem tarafından otomatik algılanır:<br>"
+            "• <b>LGS Öğrencileri:</b> Yalnızca LGS müfredatındaki dersleri ((LGS) Matematik, (LGS) Fen, vb.) görür; YKS/TYT/AYT dersleri otomatik olarak gizlenir.<br>"
+            "• <b>YKS Öğrencileri:</b> YKS/TYT/AYT derslerini görür; LGS dersleri elenir.<br>"
+            "Böylece yanlış derse ödev veya takip girme riski tamamen ortadan kalkar."
+        ))
+
+        c_lay.addWidget(make_section(
+            "4. Kaynak & Kitap Bazlı İlerleme", "📚",
+            "• <b>Genel Takip (Özet):</b> Öğrencinin kitaptan bağımsız genel konu durumunu gösterir.<br>"
+            "• <b>➕ Kitap Ekle:</b> Öğrencinin çözdüğü özel bir soru bankasını (örn: 'Orijinal TYT', 'Karakök AYT', 'MEB LGS Kazanım') sisteme ekleyebilirsiniz. "
+            "Böylece her kitabın hangi konusunun bitirildiğini ayrı ayrı takip edebilirsiniz."
+        ))
+
+        c_lay.addWidget(make_section(
+            "5. Gösterge Kartları Ne Anlatır?", "📊",
+            "• <b>🎯 Müfredat Hâkimiyeti:</b> Seçili dersin konularının genel tamamlanma yüzdesidir.<br>"
+            "• <b>🏆 Tam Hâkimiyet:</b> Öğrencinin 'Tam Hâkimiyet' düzeyine ulaştığı konu sayısıdır.<br>"
+            "• <b>🔄 Tekrar & Pekiştirme:</b> Aralıklı tekrar döngüsünde zamanı gelmiş konular.<br>"
+            "• <b>🔥 Kritik Konular:</b> ÖSYM ve MEB sınavlarında her yıl banko soru çıkan öncelikli konular."
+        ))
+
+        scroll.setWidget(content)
+        lay.addWidget(scroll, 1)
+
+        btn_close = QPushButton("Anladım, Kapat")
+        btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_close.setFixedHeight(34)
+        btn_close.setStyleSheet("""
+            QPushButton {
+                background: #2563eb;
+                color: white;
+                font-weight: bold;
+                font-size: 12px;
+                border-radius: 6px;
+                border: none;
+            }
+            QPushButton:hover { background: #1d4ed8; }
+        """)
+        btn_close.clicked.connect(dlg.accept)
+        lay.addWidget(btn_close)
+
+        dlg.exec()
 
     def _refresh_student360_v16(self, index):
         if getattr(self, 'tab_student360', None) is not None and self.tabs.widget(index) is self.tab_student360:
             self.tab_student360.refresh()
+        if getattr(self, 'tab_topics', None) is self.tabs.widget(index) and hasattr(self, '_shared_topic_timer_v1'):
+            self._shared_topic_timer_v1.start()
+            self._refresh_coach_catalog_v41()
+
+    def _refresh_shared_topic_v1(self):
+        """Use existing V18 evidence, do not alter any historical record."""
+        if not hasattr(self, 'lbl_shared_topic_v1'):
+            return
+        sid = self.current_student_id
+        subject = self._coach_subject_key_v41()
+        if type(sid) is not int or sid <= 0 or not subject:
+            self.lbl_shared_topic_v1.setText('Öğrenci ve ders seçildiğinde ortak kayıtlar gösterilir.')
+            return
+        try:
+            from services.coach_shared_topic_v1 import read_shared_topic_summary
+            con = db.get_conn()
+            try:
+                con.execute('PRAGMA query_only=ON')
+                snap = read_shared_topic_summary(con, sid, subject)
+            finally:
+                con.close()
+            # Kontrol ederken öğrenci değiştiyse eski öğrencinin özeti gösterilmez.
+            if sid != self.current_student_id or subject != self._coach_subject_key_v41():
+                return
+            a, b = snap.lines()
+            self.lbl_shared_topic_v1.setText(
+                f'🔗 Ortak kayıt özeti — {subject} | {snap.student_name}\n{a}\n{b}\n{snap.note()}')
+        except (ValueError, sqlite3.Error, ImportError, OSError) as exc:
+            self.lbl_shared_topic_v1.setText('Ortak kayıt özeti şu an okunamadı; eski takip kayıtları korunuyor.')
+            print('shared topic summary:', exc)
 
     def _load_student_koc_info(self):
         if not self.current_student_id: return
@@ -2572,6 +3050,7 @@ class CoachingManager(QWidget):
             self._load_topics()
         finally:
             con.close()
+            self._schedule_overview_refresh_v245()
 
     def _clear_schedule_grid(self):
         rows = self.table_schedule.rowCount()
@@ -2595,6 +3074,10 @@ class CoachingManager(QWidget):
             # 0: Ders
             it_ders = QTableWidgetItem(r["ders_adi"])
             it_ders.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+            it_ders.setData(Qt.ItemDataRole.UserRole, int(r["id"]))
+            it_ders.setData(int(Qt.ItemDataRole.UserRole) + 1,
+                            (r["hedef_soru"], r["cozulen_soru"],
+                             r.get("hedef_saat", 0) or 0, r.get("calisilan_saat", 0) or 0))
             self.table_goals.setItem(i, 0, it_ders)
             
             # 1: Hedef (Soru)
@@ -2699,99 +3182,104 @@ class CoachingManager(QWidget):
 
     def _create_plan(self):
         if not self.current_student_id:
-            QMessageBox.warning(self, "Uyarı", "Lütfen önce sol listeden bir öğrenci seçin.")
+            QMessageBox.warning(self, "Uyarı", "Önce öğrenci seçiniz.")
             return
-
-        student_name = ""
-        group_str = ""
+        # Never close the plan-dialog over unsaved teacher progress edits.
+        if self.current_plan_id and self.table_goals.rowCount():
+            for row_idx in range(self.table_goals.rowCount()):
+                it = self.table_goals.item(row_idx, 0)
+                previous = it.data(int(Qt.ItemDataRole.UserRole) + 1) if it else None
+                if previous is None:
+                    QMessageBox.warning(self, "Önce kaydedin", "Plan yüklemesini yenileyip tekrar deneyin.")
+                    return
+                values = [self.table_goals.item(row_idx, col) for col in (1, 2, 3, 4)]
+                if any(v is None for v in values) or any(
+                    v.text().strip().replace(',', '.') != str(prev).strip().replace(',', '.')
+                    for v, prev in zip(values, previous)
+                ):
+                    QMessageBox.warning(self, "Kaydedilmemiş ilerleme", "Önce 'İlerlemeyi Kaydet' düğmesine basınız; düzenlenmemiş veriler korunacak.")
+                    return
+        selected_student_id = int(self.current_student_id)
         con = db.get_conn()
         try:
-            r = con.execute("SELECT ad, soyad, ana_grup FROM ogrenci WHERE id=?", (self.current_student_id,)).fetchone()
-            if r:
-                student_name = f"{r['ad']} {r['soyad']}".strip()
-                group_str = str(r["ana_grup"] or "")
+            r = con.execute("SELECT ad, soyad, ana_grup FROM ogrenci WHERE id=?", (selected_student_id,)).fetchone()
+            if not r:
+                QMessageBox.warning(self, "Uyarı", "Öğrenci artık kayıtlı değil.")
+                return
+            student_name = f"{r['ad']} {r['soyad']}".strip()
+            group_str = str(r["ana_grup"] or "")
         finally:
             con.close()
-
         start_date = self._get_week_start()
+        week = start_date.toString("yyyy-MM-dd")
+        end = start_date.addDays(6).toString("yyyy-MM-dd")
         dlg = WeeklyPlanCreateDialog(student_name, group_str, start_date, self)
-        if dlg.exec():
-            selected_goals = dlg.get_selected_goals()
-            if not selected_goals:
-                QMessageBox.warning(self, "Uyarı", "Lütfen en az bir ders seçin.")
-                return
-
-            end_date = start_date.addDays(6)
-            con = db.get_conn()
-            try:
-                # Var olan bir plan var mı kontrol et
-                existing = con.execute("""
-                    SELECT id FROM koc_plan WHERE ogrenci_id=? AND baslangic_tarihi=?
-                """, (self.current_student_id, start_date.toString("yyyy-MM-dd"))).fetchone()
-
-                if existing:
-                    plan_id = existing["id"]
-                    con.execute("DELETE FROM koc_hedef WHERE plan_id=?", (plan_id,))
-                else:
-                    cur = con.execute("""
-                        INSERT INTO koc_plan (ogrenci_id, baslangic_tarihi, bitis_tarihi)
-                        VALUES (?, ?, ?)
-                    """, (self.current_student_id, start_date.toString("yyyy-MM-dd"), end_date.toString("yyyy-MM-dd")))
-                    plan_id = cur.lastrowid
-
-                for ders_adi, hedef_soru in selected_goals:
-                    con.execute("""
-                        INSERT INTO koc_hedef (plan_id, ders_adi, hedef_soru, cozulen_soru, hedef_saat, calisilan_saat)
-                        VALUES (?, ?, ?, 0, 0, 0)
-                    """, (plan_id, ders_adi, hedef_soru))
-
-                con.commit()
-                self._load_plan()
-                QMessageBox.information(
-                    self,
-                    "Plan Oluşturuldu ✨",
-                    f"<b>{student_name}</b> için <b>{len(selected_goals)}</b> ders içeren haftalık hedef planı başarıyla oluşturuldu!<br><br>"
-                    "Artık hedefleri takip edebilir ve çözülen soruları kaydedebilirsiniz."
-                )
-            finally:
-                con.close()
+        if not dlg.exec():
+            return
+        selected_goals = dlg.get_selected_goals()
+        if selected_student_id != self.current_student_id or self._get_week_start().toString("yyyy-MM-dd") != week:
+            QMessageBox.warning(self, "Bağlam değişti", "Öğrenci veya hafta değişti. Yanlış kaydı önlemek için tekrar açınız.")
+            return
+        con = db.get_conn()
+        try:
+            con.execute("BEGIN IMMEDIATE")
+            result = upsert_week_plan(con, selected_student_id, week, end, selected_goals)
+            con.commit()
+        except (CoachingDataError, sqlite3.Error) as exc:
+            con.rollback()
+            QMessageBox.warning(self, "Plan değişmedi", str(exc))
+            return
+        finally:
+            con.close()
+        self._load_plan()
+        info = (f"{student_name} için plan güvenle kaydedildi. "
+                f"{result['updated']} mevcut dersin soru hedefi güncellendi; "
+                f"{result['added']} ders eklendi.\n\n"
+                "Çözülen sorular, saatler, koçluk notları ve mevcut kayıt kimlikleri korundu.")
+        if result['retained']:
+            info += (f"\n\nSeçilmeyen {result['retained']} eski ders silinmedi; "
+                     "ilerleme kaybını önlemek için planda korundu.")
+        QMessageBox.information(self, "Plan güvenle güncellendi", info)
 
     def _save_progress(self):
-        if not self.current_plan_id: return
-        
-        con = db.get_conn()
+        if not self.current_plan_id or not self.current_student_id:
+            return
+        plan_id = int(self.current_plan_id)
+        student_id = int(self.current_student_id)
         try:
-            rows = self.table_goals.rowCount()
-            for r in range(rows):
-                subject = self.table_goals.item(r, 0).text()
-                
-                # Sütun indeksleri kaydı:
-                # 0:Ders, 1:HedefSoru, 2:Çözülen, 3:HedefSaat, 4:Çalışılan, 5:Bar
-                
-                # Hedef Soru (Güncelleme imkanı tanıyalım)
-                try: h_soru = int(self.table_goals.item(r, 1).text())
-                except: h_soru = 0
-                
-                try: c_soru = int(self.table_goals.item(r, 2).text())
-                except: c_soru = 0
-                
-                try: h_saat = float(self.table_goals.item(r, 3).text())
-                except: h_saat = 0.0
-                
-                try: c_saat = float(self.table_goals.item(r, 4).text())
-                except: c_saat = 0.0
-                
-                con.execute("""
-                    UPDATE koc_hedef 
-                    SET hedef_soru=?, cozulen_soru=?, hedef_saat=?, calisilan_saat=?
-                    WHERE plan_id=? AND ders_adi=?
-                """, (h_soru, c_soru, h_saat, c_saat, self.current_plan_id, subject))
-            
-            con.commit()
-            QMessageBox.information(self, "Kaydedildi", "İlerlemeler güncellendi.")
-            self._load_plan() # Progress barları güncelle
-        finally:
-            con.close()
+            rows = []
+            for r in range(self.table_goals.rowCount()):
+                subject_item = self.table_goals.item(r, 0)
+                if subject_item is None:
+                    raise CoachingDataError(f"{r+1}. satır için ders bilgisi yok.")
+                values = []
+                for col in (1,2,3,4):
+                    cell = self.table_goals.item(r, col)
+                    if cell is None:
+                        raise CoachingDataError(f"{r+1}. satırın {col+1}. alanı eksik.")
+                    values.append(cell.text())
+                rows.append({'id':subject_item.data(Qt.ItemDataRole.UserRole),
+                             'expected':subject_item.data(int(Qt.ItemDataRole.UserRole) + 1),
+                             'target':values[0], 'solved':values[1],
+                             'target_hours':values[2], 'worked_hours':values[3]})
+            con = db.get_conn()
+            try:
+                con.execute("BEGIN IMMEDIATE")
+                count = safe_coaching_progress(con, student_id, plan_id, rows)
+                # Prevent saving under an asynchronously changed selected student/week.
+                if student_id != self.current_student_id or plan_id != self.current_plan_id:
+                    raise CoachingConflict("Öğrenci veya hafta değişti; işlem iptal edildi.")
+                con.commit()
+            except Exception:
+                con.rollback()
+                raise
+            finally:
+                con.close()
+        except (CoachingDataError, sqlite3.Error) as exc:
+            QMessageBox.warning(self, "İlerleme kaydedilmedi", f"{exc}\n\nHiçbir satır kısmen kaydedilmedi.")
+            return
+        self._load_plan()
+        QMessageBox.information(self, "Kaydedildi", f"{count} dersin ilerlemesi güvenle güncellendi.")
 
     def _send_whatsapp(self):
         if not self.current_plan_id or not self.current_student_id: return
@@ -3325,20 +3813,26 @@ class CoachingManager(QWidget):
             con.close()
 
     def _auto_create_plan(self):
+        if not self.current_student_id:
+            QMessageBox.warning(self, "Uyarı", "Önce öğrenci seçiniz.")
+            return
         start_date = self._get_week_start()
-        end_date = start_date.addDays(6)
-        
         con = db.get_conn()
         try:
-            cur = con.execute("""
-                INSERT INTO koc_plan (ogrenci_id, baslangic_tarihi, bitis_tarihi)
-                VALUES (?, ?, ?)
-            """, (self.current_student_id, start_date.toString("yyyy-MM-dd"), end_date.toString("yyyy-MM-dd")))
-            self.current_plan_id = cur.lastrowid
+            con.execute("BEGIN IMMEDIATE")
+            plan_id, created = get_or_create_week(
+                con, int(self.current_student_id),
+                start_date.toString("yyyy-MM-dd"),
+                start_date.addDays(6).toString("yyyy-MM-dd"))
             con.commit()
-            self._load_plan()
+            self.current_plan_id = plan_id
+        except (CoachingDataError, sqlite3.Error) as exc:
+            con.rollback()
+            QMessageBox.warning(self, "Plan oluşturulmadı", str(exc))
+            return
         finally:
             con.close()
+        self._load_plan()
 
     def _load_schedule_data(self, con):
         rows_count = self.table_schedule.rowCount()
@@ -3632,42 +4126,37 @@ class CoachingManager(QWidget):
         self._compose_notes_text()
 
     def _generate_auto_comment(self):
-        student_name = ""
-        if self.current_student_id:
-            con = db.get_conn()
-            try:
-                r = con.execute("SELECT ad, soyad FROM ogrenci WHERE id=?", (self.current_student_id,)).fetchone()
-                if r: student_name = f"{r['ad']} {r['soyad']}".strip()
-            finally:
-                con.close()
-
-        raw_rate = self.lbl_completion_rate.text().replace("%", "").strip()
-        try: rate = int(raw_rate)
-        except: rate = 0
+        """Öğretmen taslağı: kayıtlı hedef gerçekleşmesi ≠ yapılmış görüşme."""
+        try:
+            rate = int(self.lbl_completion_rate.text().replace("%", "").strip())
+        except (TypeError, ValueError):
+            rate = 0
         solved = self.lbl_total_solved.text()
         target = self.lbl_total_target.text()
-
-        agenda = f"• {student_name} ile haftalık periyodik koçluk görüşmesi gerçekleştirildi.\n"
-        agenda += f"• Bu haftaki toplam hedef: {target} soru, çözülen: {solved} soru (%{rate} tamamlama oranı).\n"
-
+        agenda = ("TASLAK — öğretmen kontrolü gerektirir. Henüz görüşme yapıldığı anlamına gelmez.\n"
+                  f"Kayıtlı haftalık soru hedefi: {target}; kaydedilen çözülen soru: {solved}; "
+                  f"hedef tamamlama: %{rate}.\n"
+                  "Öğrenciyle görüşmede derslere göre gerçekleşme ve kayıtların doğruluğu sorulabilir.")
         if rate >= 85:
-            agenda += "• Öğrenci hedeflerine tam sadakat gösterdi, çalışma temposu ve motivasyonu üst düzeyde."
-            actions = "1. Mevcut yüksek disiplin korunacak, zorluk derecesi yüksek yeni nesil sorulara geçilecek.\n2. Haftalık branş denemesi sıklığı artırılacak."
-            parent = f"Değerli Velimiz, öğrencimiz {student_name} bu hafta belirlediğimiz hedeflerin %{rate}'ini başarıyla tamamlayarak ({solved} soru) mükemmel bir gayret göstermiştir. Bu disiplinin devamını diliyoruz."
+            actions = "Öneri: Sonuçları öğrenciyle doğrulayın; bir sonraki hafta hedeflerini birlikte belirleyin."
+            parent = ("Değerli Velimiz,\n"
+                      f"Bu hafta sisteme kaydedilen hedeflerin %{rate}'i tamamlandı ({solved}/{target} soru). "
+                      "Görüşmede teyit edilen durum ve yeni hedefler ayrıca paylaşılacaktır.")
         elif rate >= 60:
-            agenda += "• Öğrenci hedeflerin önemli bir kısmını tamamladı, ancak belirli derslerde aksamalar görüldü."
-            actions = "1. Eksik kalan branşlardan günlük ekstra 30 soru telafi programı uygulanacak.\n2. Hafta ortası kısa ara kontrol yapılacak."
-            parent = f"Değerli Velimiz, öğrencimiz {student_name} bu hafta %{rate} başarı oranıyla {solved} soru tamamlamıştır. Önümüzdeki hafta eksikleri kapatmak üzere çalışma planını yoğunlaştırdık."
+            actions = "Öneri: Hedefte geride kalan dersleri öğrenciyle inceleyin; gerekirse telafi planı ekleyin."
+            parent = ("Değerli Velimiz,\n"
+                      f"Bu hafta sisteme kaydedilen hedef tamamlama oranı %{rate} seviyesindedir ({solved}/{target} soru). "
+                      "Eksik kalan alanlar için öğrenciyle birlikte çalışma planı gözden geçirilecektir.")
         else:
-            agenda += "• Bu hafta hedeflerin gerisinde kalındı. Süreçteki motivasyon kaybı veya zamanlama problemleri masaya yatırıldı."
-            actions = "1. Günlük soru hedefleri daha erişilebilir seviyeye çekilip kademeli artırılacak.\n2. Akşam çalışma takibi sıklaştırılacak."
-            parent = f"Değerli Velimiz, öğrencimiz {student_name} ile yaptığımız haftalık görüşmede hedeflerin gerisinde kaldığımızı tespit ettik (%{rate}). Önümüzdeki hafta çalışma temposunu yeniden yükseltmek için özel bir takip planı devreye aldık."
-
+            actions = "Öneri: Ulaşılamayan hedeflerin olası nedenlerini öğrenciye sorun; bir sonraki hafta için daha dengeli hedefler belirleyin."
+            parent = ("Değerli Velimiz,\n"
+                      f"Bu hafta sisteme kaydedilen hedef tamamlama oranı %{rate}. "
+                      "Verilerin doğruluğu ve yapılacak çalışmalar öğretmen tarafından değerlendirilecektir.")
         self.txt_note_agenda.setPlainText(agenda)
         self.txt_note_actions.setPlainText(actions)
         self.txt_note_parent.setPlainText(parent)
         self._compose_notes_text()
-        QMessageBox.information(self, "Yorum Üretildi", "Akıllı koçluk analizi ve değerlendirme metinleri alanlara başarıyla dolduruldu! ✨")
+        QMessageBox.information(self, "Taslak hazırlandı", "Kayıtlı verilere dayalı taslak oluşturuldu. Görüşme yapılmış sayılmaz; metni kontrol ederek kaydediniz.")
 
     def _compose_notes_text(self):
         dt = self.date_notes.date().toString("dd.MM.yyyy") if hasattr(self, 'date_notes') else ""
@@ -3728,8 +4217,8 @@ class CoachingManager(QWidget):
         if hasattr(self, 'txt_notes'): self.txt_notes.setPlainText(raw_notlar)
 
     def _save_notes(self):
-        if not self.current_plan_id:
-            QMessageBox.warning(self, "Uyarı", "Not kaydetmek için önce mevcut bir hafta planı seçili olmalıdır.")
+        if not self.current_plan_id or not self.current_student_id:
+            QMessageBox.warning(self, "Uyarı", "Önce mevcut bir öğrenci ve hafta planı seçiniz.")
             return
 
         import json
@@ -3740,18 +4229,23 @@ class CoachingManager(QWidget):
             "agenda": self.txt_note_agenda.toPlainText().strip() if hasattr(self, 'txt_note_agenda') else "",
             "actions": self.txt_note_actions.toPlainText().strip() if hasattr(self, 'txt_note_actions') else "",
             "parent": self.txt_note_parent.toPlainText().strip() if hasattr(self, 'txt_note_parent') else "",
-            "composed": self._compose_notes_text()
+            "composed": self._compose_notes_text(),
         }
-        json_str = json.dumps(note_data, ensure_ascii=False)
+        text = json.dumps(note_data, ensure_ascii=False)
 
         con = db.get_conn()
         try:
-            con.execute("UPDATE koc_plan SET notlar=? WHERE id=?", (json_str, self.current_plan_id))
+            con.execute("BEGIN IMMEDIATE")
+            changed = append_note(con, int(self.current_student_id), int(self.current_plan_id), text)
             con.commit()
             self._load_past_notes_list(con)
-            QMessageBox.information(self, "Kaydedildi", "Haftalık koçluk görüşme notları ve aksiyon maddeleri başarıyla kaydedildi! 💾")
+        except (CoachingDataError, sqlite3.Error) as exc:
+            con.rollback()
+            QMessageBox.warning(self, "Not kaydedilemedi", str(exc))
+            return
         finally:
             con.close()
+        QMessageBox.information(self, "Not korundu", "Görüşme notu geçmişe eklendi; önceki görüşme kayıtları korunuyor." if changed else "Aynı görüşme notu zaten kayıtlı; yinelenmedi.")
 
     def _send_notes_whatsapp(self):
         parent_text = self.txt_note_parent.toPlainText().strip() if hasattr(self, 'txt_note_parent') else ""
@@ -3805,49 +4299,52 @@ class CoachingManager(QWidget):
         if not hasattr(self, 'list_past_notes') or not self.current_student_id:
             return
         self.list_past_notes.clear()
-        rows = con.execute("""
-            SELECT id, baslangic_tarihi, bitis_tarihi, notlar
-            FROM koc_plan
-            WHERE ogrenci_id=?
-            ORDER BY baslangic_tarihi DESC
-        """, (self.current_student_id,)).fetchall()
-
         import json
-        for r in rows:
-            b_tar = r["baslangic_tarihi"] or ""
-            raw_not = r["notlar"] or ""
-            
-            preview = "Not girilmedi"
-            m_type = "Görüşme"
-            if raw_not:
-                try:
-                    d = json.loads(raw_not)
-                    m_type = d.get("type", "Görüşme")
-                    preview = (d.get("agenda", "") or d.get("composed", "") or "Görüşme kaydı").replace("\n", " ")[:38]
-                except:
-                    preview = raw_not.replace("\n", " ")[:38]
-
-            it = QListWidgetItem(f"📅 {b_tar} ({m_type})\n   └ {preview}...")
-            it.setData(Qt.ItemDataRole.UserRole, r["id"])
-            if r["id"] == self.current_plan_id:
-                it.setBackground(QColor("#eff6ff"))
-                it.setForeground(QColor("#1d4ed8"))
+        for record in note_history(con, int(self.current_student_id)):
+            raw = record['notes'] or ''
+            try:
+                d = json.loads(raw)
+                kind = d.get('type', 'Görüşme') if isinstance(d, dict) else 'Görüşme'
+                excerpt = (d.get('agenda') or d.get('composed') or 'Görüşme kaydı') if isinstance(d, dict) else raw
+            except (ValueError, TypeError):
+                kind = 'Görüşme'
+                excerpt = raw
+            excerpt = str(excerpt).replace('\n', ' ')[:45]
+            mark = ' • önceki kayıt' if record['source'] == 'legacy' else ''
+            it = QListWidgetItem(f"📅 {record['date']} ({kind}){mark}\n   └ {excerpt}...")
+            it.setData(Qt.ItemDataRole.UserRole,
+                       (record['kind'], record['id'], record['plan_id']))
             self.list_past_notes.addItem(it)
 
     def _on_past_note_selected(self, item):
-        plan_id = item.data(Qt.ItemDataRole.UserRole)
-        if not plan_id:
+        info = item.data(Qt.ItemDataRole.UserRole)
+        if not info:
             return
+        if isinstance(info, tuple) and len(info) == 3:
+            kind, history_id, plan_id = info
+        else:
+            kind, history_id, plan_id = 'weekly', None, info
+        student_id = self.current_student_id
         con = db.get_conn()
         try:
-            r = con.execute("SELECT id, baslangic_tarihi, notlar FROM koc_plan WHERE id=?", (plan_id,)).fetchone()
-            if r:
-                b_date = QDate.fromString(r["baslangic_tarihi"], "yyyy-MM-dd")
-                if b_date.isValid():
-                    if hasattr(self, 'dt_week'):
-                        self.dt_week.setDate(b_date)
-                    else:
-                        self._load_plan()
+            row = con.execute('SELECT id, baslangic_tarihi, notlar FROM koc_plan WHERE id=? AND ogrenci_id=?',
+                            (plan_id, student_id)).fetchone()
+            if not row:
+                QMessageBox.warning(self, 'Kayıt bulunamadı', 'Görüşme başka bir öğrenciye ait veya silinmiş.')
+                return
+            raw = row['notlar'] or ''
+            if kind == 'history':
+                old = con.execute('SELECT notlar FROM koc_gorusme_gecmis_v244 WHERE id=? AND plan_id=? AND ogrenci_id=?',
+                                (history_id, plan_id, student_id)).fetchone()
+                if not old:
+                    return
+                raw = old[0]
+            date = QDate.fromString(row['baslangic_tarihi'], 'yyyy-MM-dd')
+            if date.isValid() and hasattr(self, 'dt_week'):
+                self.dt_week.setDate(date)
+            # restore the selected revision AFTER the week reloaded its latest note
+            if student_id == self.current_student_id:
+                self._populate_notes_fields(raw)
         finally:
             con.close()
 
@@ -3862,7 +4359,7 @@ class CoachingManager(QWidget):
         if not self.current_student_id:
             QMessageBox.warning(self, "Uyarı", "Lütfen önce sol listeden bir öğrenci seçin.")
             return
-        subject = self.cmb_topic_subject.currentText()
+        subject = self._coach_subject_key_v41()
         if not subject:
             QMessageBox.warning(self, "Uyarı", "Lütfen önce bir ders seçin.")
             return
@@ -3916,9 +4413,11 @@ class CoachingManager(QWidget):
                 con.close()
 
     def _load_topics(self):
+        if hasattr(self, '_shared_topic_timer_v1'):
+            self._shared_topic_timer_v1.start()
         if not self.current_student_id: return
         
-        subject = self.cmb_topic_subject.currentText()
+        subject = self._coach_subject_key_v41()
         if not subject: return
         
         curr_book = self.cmb_topic_book.currentText()
@@ -3959,7 +4458,7 @@ class CoachingManager(QWidget):
             self.cmb_topic_book.blockSignals(False)
             
             # 2. Tüm Konuları ve Veritabanı Kayıtlarını Çek
-            all_topics = TOPIC_LIST.get(subject, [])
+            all_topics = self._coach_topics_v41(subject)
             
             sql = """
                 SELECT id, konu_adi, durum, hakimiyet_puani, cozulen_soru, hedef_soru, 
@@ -4036,6 +4535,7 @@ class CoachingManager(QWidget):
                 filtered_topics.append(topic)
                 
             # 5. Tabloyu Doldur
+            self.table_topics.clearContents()
             self.table_topics.setRowCount(len(filtered_topics))
             
             for i, topic in enumerate(filtered_topics):
@@ -4049,29 +4549,29 @@ class CoachingManager(QWidget):
                 koc_notu = str(rec.get("koc_notu", "") or "").strip()
                 c_data = CURRICULUM_DATA.get("topics", {}).get(topic, {})
                 
-                # --- KOLON 0: Konu Adı + Sınav Ağırlığı Rozeti (Geniş & Üst Üste Gelmeyen) ---
+                # --- KOLON 0: Konu Adı + Sınav Ağırlığı Rozeti (Kompakt & Net) ---
                 w_topic = QWidget()
                 w_topic_lay = QVBoxLayout(w_topic)
-                w_topic_lay.setContentsMargins(10, 6, 10, 6)
-                w_topic_lay.setSpacing(4)
+                w_topic_lay.setContentsMargins(8, 2, 8, 2)
+                w_topic_lay.setSpacing(1)
                 
                 lbl_tname = QLabel(f"<b>{topic}</b>")
-                lbl_tname.setStyleSheet("font-size: 13px; font-weight: 700; color: #0f172a;")
-                lbl_tname.setMinimumHeight(18)
+                lbl_tname.setStyleSheet("font-size: 12px; font-weight: 700; color: #0f172a;")
+                lbl_tname.setMinimumHeight(16)
                 w_topic_lay.addWidget(lbl_tname)
                 
                 imp = str(c_data.get("importance", "")).strip()
                 qs = str(c_data.get("questions", "")).strip()
                 
                 if "yüksek" in imp.lower() or "5/5" in imp.lower():
-                    badge_txt = f"<span style='background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;'>🔥 Yüksek Önem ({qs if qs else '1-3 Soru'})</span>"
+                    badge_txt = f"<span style='background:#fee2e2; color:#991b1b; padding:1px 6px; border-radius:3px; font-size:9px; font-weight:bold;'>🔥 Yüksek Önem ({qs if qs else '1-3 Soru'})</span>"
                 elif "orta" in imp.lower() or "3/5" in imp.lower() or "4/5" in imp.lower():
-                    badge_txt = f"<span style='background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;'>⭐ Orta Önem ({qs if qs else '1-2 Soru'})</span>"
+                    badge_txt = f"<span style='background:#e0f2fe; color:#0369a1; padding:1px 6px; border-radius:3px; font-size:9px; font-weight:bold;'>⭐ Orta Önem ({qs if qs else '1-2 Soru'})</span>"
                 else:
-                    badge_txt = f"<span style='background:#f1f5f9; color:#64748b; padding:2px 8px; border-radius:4px; font-size:10px;'>📌 Temel Konu ({qs if qs else '1 Soru'})</span>"
+                    badge_txt = f"<span style='background:#f1f5f9; color:#64748b; padding:1px 6px; border-radius:3px; font-size:9px;'>📌 Temel Konu ({qs if qs else '1 Soru'})</span>"
                     
                 lbl_badge = QLabel(badge_txt)
-                lbl_badge.setFixedHeight(20)
+                lbl_badge.setFixedHeight(16)
                 w_topic_lay.addWidget(lbl_badge)
                 self.table_topics.setCellWidget(i, 0, w_topic)
                 
@@ -4505,7 +5005,7 @@ class CoachingManager(QWidget):
             QMessageBox.warning(self, "Uyarı", "Lütfen önce bir öğrenci seçiniz.")
             return
             
-        subject = self.cmb_topic_subject.currentText()
+        subject = self._coach_subject_key_v41()
         std_name = self.current_student_name or "Öğrenci"
         
         con = db.get_conn()
@@ -4519,7 +5019,7 @@ class CoachingManager(QWidget):
         finally:
             con.close()
             
-        topics = TOPIC_LIST.get(subject, [])
+        topics = self._coach_topics_v41(subject)
         durum_labels = {
             0: "⚪ Başlanmadı", 1: "📖 Konu Anlatımı", 2: "✏️ 1. Kaynak Testi",
             3: "🔄 Pekiştirme/Tekrar", 4: "🏆 Tam Hakimiyet", 5: "⚠️ Zorlanıyor/Eksik"
@@ -4633,8 +5133,8 @@ class CoachingManager(QWidget):
             QMessageBox.warning(self, "Uyarı", "Lütfen önce bir öğrenci seçiniz.")
             return
             
-        subject = self.cmb_topic_subject.currentText()
-        all_topics = TOPIC_LIST.get(subject, [])
+        subject = self._coach_subject_key_v41()
+        all_topics = self._coach_topics_v41(subject)
         
         con = db.get_conn()
         try:

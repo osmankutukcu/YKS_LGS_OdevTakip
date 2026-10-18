@@ -1,0 +1,317 @@
+{
+  "vark_learning": {
+    "title": "1. Öğrenme Tercihleri Formu",
+    "questions": [
+      {
+        "key": "v_1",
+        "text": "Ders çalışırken renkli şemalar, zihin haritaları, grafikler veya infografikler kullanmak konuyu çok daha hızlı anlamamı sağlar."
+      },
+      {
+        "key": "v_2",
+        "text": "Önemli formülleri, özetleri odamın duvarına veya mantar panoma asıp görsel olarak görmek bana güven verir."
+      },
+      {
+        "key": "v_3",
+        "text": "Bir geometri veya problem sorusunu çözerken şekil çizmeden veya gözümde canlandırmadan çözmekte zorlanırım."
+      },
+      {
+        "key": "a_1",
+        "text": "Bir konuyu öğretmen veya videodaki eğitmen anlatırken dinlediğimde, kitaptan tek başıma okumaktan çok daha iyi kavrarım."
+      },
+      {
+        "key": "a_2",
+        "text": "Zor bir konuyu veya soru çözümünü kendi kendime sesli tekrar etmek ya da bir başkasına anlatmak aklımda kalmasını sağlar."
+      },
+      {
+        "key": "a_3",
+        "text": "Soru çözerken veya formül hatırlarken zihnimde öğretmenimin sınıfta o konuyu anlatırken kullandığı ses tonunu hatırlarım."
+      },
+      {
+        "key": "r_1",
+        "text": "Bir konuyu en iyi kendi cümlelerimle detaylı yazılı not çıkararak ve konu anlatım kitabını satır satır okuyarak öğrenirim."
+      },
+      {
+        "key": "r_2",
+        "text": "Çözümlü soru bankalarındaki açıklamalı çözümleri ve konu özetlerini dikkatle okumak bana büyük katkı sağlar."
+      },
+      {
+        "key": "r_3",
+        "text": "Ezberlemem gereken kavramları ve kuralları maddeler halinde listeleyip tekrar tekrar okuyarak çalışmayı tercih ederim."
+      },
+      {
+        "key": "k_1",
+        "text": "Sadece dinlemek veya okumak beni çabuk sıkar; konuyu ancak hemen arkasından bizzat çok sayıda soru çözüp uygulayarak öğrenebilirim."
+      },
+      {
+        "key": "k_2",
+        "text": "Ders çalışırken masada sabit oturmak yerine yürümek, elimde kalemle hareket etmek veya kısa molalarla hareketlenmek odaklanmamı artırır."
+      },
+      {
+        "key": "k_3",
+        "text": "Soyut teorik anlatımlar yerine somut, günlük hayatla ve gerçek deneylerle bağlantılı örneklerle çalışmak beni motive eder."
+      }
+    ]
+  },
+  "procrastination": {
+    "title": "2. Akademik Erteleme ve Zaman Hırsızları Ölçeği",
+    "questions": [
+      {
+        "key": "p_1",
+        "text": "Zorlandığım veya sevmediğim derslerin başına oturmayı sürekli 'birazdan başlarım' diyerek ertelerim."
+      },
+      {
+        "key": "p_2",
+        "text": "Bir konuya başlamadan önce masanın, odanın veya şartların 'kusursuz' olmasını beklerim (Mükemmeliyetçi felç)."
+      },
+      {
+        "key": "p_3",
+        "text": "Çalışmaya oturacakken 'önce şu videoyu bitireyim' veya 'sosyal medyaya bakayım' derken saatlerin geçtiğini fark ederim."
+      },
+      {
+        "key": "p_4",
+        "text": "Yapacağım çalışma gözümde çok büyüdüğü için nereden başlayacağımı bilemeyip tamamen bırakırım."
+      },
+      {
+        "key": "p_5",
+        "text": "Ödevlerimi veya deneme hedeflerimi genellikle teslim/kontrol gününden önceki son geceye bırakırım."
+      },
+      {
+        "key": "p_6",
+        "text": "Başarısız olmaktan veya soruyu çözememekten korktuğum için o konuyu çalışmaktan bilinçaltında kaçınırım."
+      },
+      {
+        "key": "p_7",
+        "text": "Günde yapmam gereken işleri net bir sıraya koyup ertelemeden zamanında bitiririm."
+      },
+      {
+        "key": "p_8",
+        "text": "Bir çalışma planı hazırladığımda ilk 1-2 gün uyar, sonra erteleyerek planı tamamen rafa kaldırırım."
+      },
+      {
+        "key": "p_9",
+        "text": "Çalışmaya başlamak için özel bir 'ilham' veya 'yüksek motivasyon' gelmesini beklerim."
+      },
+      {
+        "key": "p_10",
+        "text": "Ertelediğim her an içimde suçluluk hissederim ama yine de derse başlamakta direnç yaşarım."
+      }
+    ]
+  },
+  "study_habits": {
+    "title": "4. YKS/LGS Çalışma Alışkanlıkları ve Masa Disiplini",
+    "questions": [
+      {
+        "key": "sh_1",
+        "text": "Her gün hangi dersten kaç soru çözeceğimi ve hangi konuları bitireceğimi planlayarak masaya otururum."
+      },
+      {
+        "key": "sh_2",
+        "text": "Deneme sınavlarından hemen sonra yanlış ve boş sorularımın tek tek çözümlerini inceler, öğrenmeden bırakmam."
+      },
+      {
+        "key": "sh_3",
+        "text": "Denemelerde veya testlerde yapamadığım zor soruları biriktirdiğim bir 'Hata Defteri / Yanlış Kutusu' tutarım."
+      },
+      {
+        "key": "sh_4",
+        "text": "Sadece pasif şekilde video izlemekle yetinmem; soru bankalarından yeterli sayıda soru çözerek konuyu pekiştiririm."
+      },
+      {
+        "key": "sh_5",
+        "text": "Öğrendiğim bir konuyu 1 hafta ve 1 ay sonra unutmama adına düzenli aralıklarla tekrar ederim."
+      },
+      {
+        "key": "sh_6",
+        "text": "Soru çözerken takıldığım an hemen cevaba bakmak yerine en az 3-4 dakika kendim uğraşırım."
+      },
+      {
+        "key": "sh_7",
+        "text": "Çalışma masamda yalnızca o an çalışacağım dersin kitapları bulunur; dikkat dağıtıcı eşyalar yer almaz."
+      },
+      {
+        "key": "sh_8",
+        "text": "Zorlandığım bir konu veya ders olduğunda pes etmek yerine o derse daha fazla zaman ayırırım."
+      },
+      {
+        "key": "sh_9",
+        "text": "Haftalık net ve soru hedeflerimi gün gün takip eder, haftanın sonunda kendimi değerlendiririm."
+      },
+      {
+        "key": "sh_10",
+        "text": "Konu eksiğim varken sürekli deneme çözmek yerine, önce temel konu kavramalarını tamamlarım."
+      }
+    ]
+  },
+  "self_efficacy": {
+    "title": "5. Akademik Öz-Yeterlik ve İçsel Motivasyon Ölçeği",
+    "questions": [
+      {
+        "key": "se_1",
+        "text": "Zor ve karmaşık bir konuyu yeterince emek verirsem mutlaka kavrayabileceğime inanırım."
+      },
+      {
+        "key": "se_2",
+        "text": "Ders çalışmamdaki asıl motivasyonum ailemin ya da çevremin zorlaması değil, kendi geleceğim ve hedeflerimdir."
+      },
+      {
+        "key": "se_3",
+        "text": "Denemelerde hedeflediğim netin altında kalsam bile, daha çok çalışarak bunu düzeltebileceğime inancım tamdır."
+      },
+      {
+        "key": "se_4",
+        "text": "Ders çalışırken zamanın nasıl geçtiğini unuttuğum ve öğrenmekten keyif aldığım anlar sıklıkla olur."
+      },
+      {
+        "key": "se_5",
+        "text": "Kendime koyduğum hedef üniversiteye veya liseye ulaşabileceğime dair içsel inancım yüksektir."
+      },
+      {
+        "key": "se_6",
+        "text": "Sınıfımdaki diğer arkadaşlarımla kendimi kıyaslayıp sürekli yetersizlik duygusuna kapılırım."
+      },
+      {
+        "key": "se_7",
+        "text": "Beklenmedik bir program değişikliğinde hızla uyum sağlar, çalışmama devam ederim."
+      },
+      {
+        "key": "se_8",
+        "text": "Bir hedefe ulaşmak için anlık zevklerimi (oyun, dizi, gezme vb.) erteleyebilme iradesine sahibim."
+      },
+      {
+        "key": "se_9",
+        "text": "Çalışma tempom düştüğünde kendimi yeniden motive edip masaya oturtabilirim."
+      },
+      {
+        "key": "se_10",
+        "text": "Hatalarımın beni başarısız yapmadığına, aksine bana neleri öğrenmem gerektiğini gösterdiğine inanırım."
+      }
+    ]
+  },
+  "time_management": {
+    "title": "6. Zaman Yönetimi ve Blok/Pomodoro Odaklanma Ölçeği",
+    "questions": [
+      {
+        "key": "tm_1",
+        "text": "Günün başında en önemli ve zor dersleri 'Öncelikli İş' olarak belirler, günün verimli saatinde bitiririm."
+      },
+      {
+        "key": "tm_2",
+        "text": "Ders çalışırken 40-50 dakikalık bloklar (veya 25 dk Pomodoro) uygular ve süreyi tam verimle doldururum."
+      },
+      {
+        "key": "tm_3",
+        "text": "Verdiğim 10-15 dakikalık molaları uzatmadan, zil veya zamanlayıcı çaldığında hemen derse dönerim."
+      },
+      {
+        "key": "tm_4",
+        "text": "Bir ders çalışırken aklıma başka dersler veya düşünceler geldiğinde odağım tamamen dağılır."
+      },
+      {
+        "key": "tm_5",
+        "text": "Haftalık çalışma çizelgemi hazırlarken okul, dershane, yemek ve uyku saatlerimi gerçekçi planlarım."
+      },
+      {
+        "key": "tm_6",
+        "text": "Günün sonunda ne kadar süre verimli çalıştığımı (net çalışma saati) not ederim."
+      },
+      {
+        "key": "tm_7",
+        "text": "Çat kapı gelen durumlar veya arkadaşlarımın çağrılarına 'hayır' diyerek çalışma saatimi korurum."
+      },
+      {
+        "key": "tm_8",
+        "text": "Aynı anda birden fazla ders veya işle uğraşmak yerine tek bir konuya tam odaklanırım."
+      },
+      {
+        "key": "tm_9",
+        "text": "Soru çözerken süre tutar (kronometre kullanır), sınav temposuna uygun hız kazanmaya çalışırım."
+      },
+      {
+        "key": "tm_10",
+        "text": "Günün sonunda bitiremediğim hedefler olduğunda hemen ertesi günün programına telafi eklerim."
+      }
+    ]
+  },
+  "mindset_resilience": {
+    "title": "7. Zihniyet (Mindset) ve Bilişsel Dayanıklılık Ölçeği",
+    "questions": [
+      {
+        "key": "ms_1",
+        "text": "Bir insanın zekası veya yeteneği doğuştan sabittir, ne kadar çalışırsa çalışsın bir noktadan sonra değişmez."
+      },
+      {
+        "key": "ms_2",
+        "text": "Deneme sınavında yaptığım her yanlış soru, bana eksik olduğum konuyu gösteren değerli bir rehberdir."
+      },
+      {
+        "key": "ms_3",
+        "text": "Çok çaba harcamama rağmen bir konuyu anlamadığımda 'bu derse yeteneğim yok' deyip vazgeçerim."
+      },
+      {
+        "key": "ms_4",
+        "text": "Zorlayıcı ve yeni nesil sorularla uğraşmak beni korkutmaz, aksine zihnimi geliştirdiği için heyecanlandırır."
+      },
+      {
+        "key": "ms_5",
+        "text": "Öğretmenimin veya koçumun eksiklerimle ilgili yaptığı yapıcı eleştirileri gelişimim için memnuniyetle dinlerim."
+      },
+      {
+        "key": "ms_6",
+        "text": "Netlerimin düştüğü dönemlerde pes etmek yerine çalışma yöntemimi gözden geçirip mücadeleye devam ederim."
+      },
+      {
+        "key": "ms_7",
+        "text": "Benden daha başarılı bir arkadaşımı gördüğümde kıskanmak yerine onun nasıl çalıştığını anlamaya çalışırım."
+      },
+      {
+        "key": "ms_8",
+        "text": "Bir konuyu 'henüz' yapamıyor olabilirim ama doğru pratikle kesinlikle ustalaşabileceğime inanırım."
+      },
+      {
+        "key": "ms_9",
+        "text": "Hata yapma korkusu yüzünden zor denemelere veya zor kaynaklara başlamaktan kaçınırım."
+      },
+      {
+        "key": "ms_10",
+        "text": "Sınav sürecinin bir maraton olduğunun ve iniş çıkışların bu sürecin doğal bir parçası olduğunun farkındayım."
+      }
+    ]
+  },
+  "digital_distraction": {
+    "title": "8. Dijital Bağımlılık ve Ekran/Odak Hijyeni Envanteri",
+    "questions": [
+      {
+        "key": "dd_1",
+        "text": "Ders çalışırken telefonum masanın üzerinde veya elimin hemen altında açık şekilde durur."
+      },
+      {
+        "key": "dd_2",
+        "text": "Ders esnasında gelen mesaj veya bildirim sesini duyduğum anda dayanamayıp derhal telefona bakarım."
+      },
+      {
+        "key": "dd_3",
+        "text": "Bir soru veya konuyu araştırmak için internete girip yarım saat sonra kendimi alakasız videolarda bulurum."
+      },
+      {
+        "key": "dd_4",
+        "text": "Mola verdiğimde telefonu elime aldığımda planladığım moladan çok daha uzun süre ekrana kilitlenirim."
+      },
+      {
+        "key": "dd_5",
+        "text": "Ders çalışma saatlerimde telefonumu başka bir odaya bırakabilir veya tamamen sessize / uçak moduna alabilirim."
+      },
+      {
+        "key": "dd_6",
+        "text": "Gece yatağa girdiğimde uyuyana kadar telefonda video izler veya sosyal medyada gezinirim."
+      },
+      {
+        "key": "dd_7",
+        "text": "Günde kaç saat telefon ekranına baktığımı (ekran süresi) takip eder ve sınır koymaya çalışırım."
+      },
+      {
+        "key": "dd_8",
+        "text": "Telefonsuz bir tam gün geçirme düşüncesi bile bende huzursuzluk veya eksiklik hissi yaratır."
+      }
+    ]
+  }
+}

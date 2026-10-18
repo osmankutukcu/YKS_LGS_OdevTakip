@@ -113,6 +113,11 @@ class ThemeSelectorDialog(QDialog):
 
         # Mevcut aktif tema
         self.current_theme = appset.ayar_get("tema_seti", "Cloud Light") or "Cloud Light"
+        # A live preview is reversible when the window is dismissed without saving.
+        from ui.theme import _CUSTOM_COLOR_KEYS
+        self._snapshot_keys = ("tema_seti", "tema", "tema_mod", "tema_primary", "tema_accent", "tema_bg") + _CUSTOM_COLOR_KEYS
+        self._snapshot = {k: appset.ayar_get(k, None) for k in self._snapshot_keys}
+        self._saved = False
         self.cards = {}
         self.filter_mode = "all"  # 'all', 'light', 'dark', 'fun'
 
@@ -256,10 +261,10 @@ class ThemeSelectorDialog(QDialog):
     def _apply_theme_live(self, name: str, show_toast: bool = False):
         try:
             tema_apply_preset(name)
-            new_qss = build_qss()
             app = QApplication.instance()
             if app:
-                app.setStyleSheet(new_qss)
+                from ui.theme import apply as apply_theme
+                apply_theme(app)
             if show_toast:
                 QMessageBox.information(self, "Tema Uygulandı", f"'{name}' teması başarıyla uygulandı!")
         except Exception as e:
@@ -267,4 +272,16 @@ class ThemeSelectorDialog(QDialog):
 
     def _save_and_close(self):
         self._apply_theme_live(self.current_theme, show_toast=False)
+        self._saved = True
         self.accept()
+
+    def reject(self):
+        # Escape / window X behaves as Cancel. No business records are changed.
+        if not self._saved:
+            for key, value in self._snapshot.items():
+                appset.ayar_set(key, value if value is not None else '')
+            from ui.theme import apply as apply_theme
+            app = QApplication.instance()
+            if app is not None:
+                apply_theme(app)
+        super().reject()

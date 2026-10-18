@@ -138,7 +138,8 @@ class TopicEvidenceGuideDialog(QDialog):
             }
             QPushButton:hover {
                 background: #1d4ed8;
-            }
+            
+                color: #FFFFFF;}
         """)
         btn_close.clicked.connect(self.accept)
         lay.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignRight)
@@ -226,7 +227,8 @@ class TopicEvidenceDialog(QDialog):
             }
             QPushButton:pressed {
                 background-color: #ccfbf1;
-            }
+            
+                color: #15191E;}
         """)
         refresh.clicked.connect(self.refresh)
         buttons.addWidget(refresh)
@@ -250,7 +252,8 @@ class TopicEvidenceDialog(QDialog):
             }
             QPushButton:pressed {
                 background-color: #e0e7ff;
-            }
+            
+                color: #15191E;}
         """)
         copy.clicked.connect(self.copy_report)
         buttons.addWidget(copy)
@@ -274,7 +277,8 @@ class TopicEvidenceDialog(QDialog):
             }
             QPushButton:pressed {
                 background-color: #dbeafe;
-            }
+            
+                color: #15191E;}
         """)
         import_questions.clicked.connect(self.import_question_evidence)
         buttons.addWidget(import_questions)
@@ -300,7 +304,8 @@ class TopicEvidenceDialog(QDialog):
             }
             QPushButton:pressed {
                 background-color: #bbf7d0;
-            }
+            
+                color: #15191E;}
         """)
         help_btn.clicked.connect(self.show_help_dialog)
         buttons.addWidget(help_btn)
@@ -341,7 +346,8 @@ class TopicEvidenceDialog(QDialog):
             }
             QPushButton:pressed {
                 background-color: #e2e8f0;
-            }
+            
+                color: #15191E;}
         """)
         close_btn.clicked.connect(self.accept)
         root.addWidget(close_btn, alignment=Qt.AlignmentFlag.AlignRight)

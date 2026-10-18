@@ -1,0 +1,11 @@
+{
+  "version": "v24.3-joint-evidence",
+  "files": {
+    "ui/student360_panel_v16.py": "9fa82085d0a20e55c4ea5a34179e31537c0086ce8071e5e700046cca33436c42",
+    "ui/coaching_manager.py": "ffb6a20003d9c5e5d3760aa32192f7cb1c270423e2099a10f269948146584e03",
+    "ui/survey_manager.py": "70cdd49a264c7909fc0a1bdc72027b17e777c10ece6011e37a8013601a9a8ccd",
+    "ui/today_priority_strip_v4.py": "48cec2d280fe71ef0bca103c65615daa5fb472188dbde77bf8984e24f4cf256f",
+    "ui/student_workspace_panel_v21.py": "89bbbc6ef0ed74b4f068a6644a7d0e9b5cc900368178d3ad68a9daf05ac260a2",
+    "services/student360_v16/reader.py": "f6866299f8d16eb71c89eecb0847b3986488d30e6a9f47a5db2117fb79ae09a1"
+  }
+}

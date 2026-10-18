@@ -23,6 +23,12 @@ from utils.homework_status import is_completed
 from web_api.homework_store import set_single_line_done
 
 sync_router = APIRouter(prefix="/api/sync", tags=["Offline Sync"])
+# V8 additive paged-download routes (existing push/snapshot remain unchanged).
+from web_api.snapshot_pages_v8 import router as paged_router
+sync_router.include_router(paged_router)
+# V9 read-only changed-student bandwidth optimization; V8 fallback remains.
+from web_api.delta_pages_v9 import router as delta_router
+sync_router.include_router(delta_router)
 
 class MutationItem(BaseModel):
     id: str = Field(min_length=8, max_length=128)

@@ -153,6 +153,8 @@ import json
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QPainter, QColor, QFont
 from PyQt6.QtWidgets import QWidget
+from ui.theme_special_v42 import legible_accent
+from ui.theme_tokens_v37 import semantic_palette
 
 class _MiniStats(QWidget):
     def __init__(self, parent=None):
@@ -173,10 +175,13 @@ class _MiniStats(QWidget):
     def paintEvent(self, e):
         p = QPainter(self); p.setRenderHint(QPainter.Antialiasing, True)
         r = self.rect(); x = 0; h = r.height()
+        c = semantic_palette()
+        # Explicit opaque surface makes the actual background deterministic.
+        p.fillRect(r, QColor(c['surface']))
 
         # "Tamamlanma:"
         f = p.font(); f.setBold(True); p.setFont(f)
-        p.setPen(QColor("#1f2937"))
+        p.setPen(QColor(c['surface_fg']))
         txt = "Tamamlanma:"
         p.drawText(x, 0, h, Qt.AlignmentFlag.AlignVCenter, txt)
         x += p.fontMetrics().horizontalAdvance(txt) + 6
@@ -184,7 +189,7 @@ class _MiniStats(QWidget):
         # bar
         bar_w = 120; bar_h = 10; y = (h - bar_h) // 2
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor("#eef2f7"))
+        p.setBrush(QColor(c['alt']))
         p.drawRoundedRect(x, y, bar_w, bar_h, 5, 5)
         fill_w = int(bar_w * self._pct / 100)
         p.setBrush(QColor("#22c55e"))
@@ -193,7 +198,7 @@ class _MiniStats(QWidget):
 
         # % değer
         f = p.font(); f.setBold(True); p.setFont(f)
-        p.setPen(QColor("#111827"))
+        p.setPen(QColor(c['surface_fg']))
         pct_txt = f"%{self._pct}"
         p.drawText(x, 0, h, Qt.AlignmentFlag.AlignVCenter, pct_txt)
         x += p.fontMetrics().horizontalAdvance(pct_txt) + 10
@@ -203,13 +208,13 @@ class _MiniStats(QWidget):
             nonlocal x
             # etiket
             f = p.font(); f.setBold(False); p.setFont(f)
-            p.setPen(QColor("#6b7280"))
+            p.setPen(QColor(legible_accent(c['surface'], '#94A3B8' if c['dark'] else '#6B7280')))
             lab = f"{label}: "
             p.drawText(x, 0, h, Qt.AlignmentFlag.AlignVCenter, lab)
             x += p.fontMetrics().horizontalAdvance(lab)
             # değer
             f = p.font(); f.setBold(True); p.setFont(f)
-            p.setPen(QColor(color) if color else QColor("#111827"))
+            p.setPen(QColor(legible_accent(c['surface'], color)) if color else QColor(c['surface_fg']))
             sval = str(val)
             p.drawText(x, 0, h, Qt.AlignmentFlag.AlignVCenter, sval)
             x += p.fontMetrics().horizontalAdvance(sval) + 10
@@ -766,7 +771,8 @@ class OdevKontrolDialog(QDialog):
                 border-radius: 8px;
                 background: #ffffff;
                 padding: 4px;
-            }
+            
+                color: #15191E;}
             QListWidget::item {
                 padding: 6px 10px;
                 border-radius: 6px;
@@ -797,7 +803,8 @@ class OdevKontrolDialog(QDialog):
             }
             QPushButton:pressed {
                 background: #e2e8f0;
-            }
+            
+                color: #15191E;}
             
             QPushButton#btnAction, QPushButton#btnKaydet {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #059669, stop:1 #047857);
@@ -806,7 +813,8 @@ class OdevKontrolDialog(QDialog):
             }
             QPushButton#btnAction:hover, QPushButton#btnKaydet:hover {
                 background: #047857;
-            }
+            
+                color: #FFFFFF;}
             
             QPushButton#btnPrimary, QPushButton#btnAktar {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #2563eb, stop:1 #1d4ed8);
@@ -815,7 +823,8 @@ class OdevKontrolDialog(QDialog):
             }
             QPushButton#btnPrimary:hover, QPushButton#btnAktar:hover {
                 background: #1d4ed8;
-            }
+            
+                color: #FFFFFF;}
 
             QPushButton#btnAktarSilmeden {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0284c7, stop:1 #0369a1);
@@ -824,7 +833,8 @@ class OdevKontrolDialog(QDialog):
             }
             QPushButton#btnAktarSilmeden:hover {
                 background: #0369a1;
-            }
+            
+                color: #FFFFFF;}
 
             QPushButton#btnWhatsApp {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #10b981, stop:1 #059669);
@@ -833,7 +843,8 @@ class OdevKontrolDialog(QDialog):
             }
             QPushButton#btnWhatsApp:hover {
                 background: #047857;
-            }
+            
+                color: #FFFFFF;}
             
             QPushButton#btnDanger, QPushButton#btnSatirSil, QPushButton#btnKumeSil {
                 background-color: #fff1f2;
@@ -843,7 +854,8 @@ class OdevKontrolDialog(QDialog):
             QPushButton#btnDanger:hover, QPushButton#btnSatirSil:hover, QPushButton#btnKumeSil:hover {
                 background-color: #ffe4e6;
                 border-color: #fda4af;
-            }
+            
+                color: #15191E;}
             
             QPushButton#btnSuccess, QPushButton#btnHepsiTamam {
                 background-color: #ecfdf5;
@@ -853,7 +865,8 @@ class OdevKontrolDialog(QDialog):
             QPushButton#btnSuccess:hover, QPushButton#btnHepsiTamam:hover {
                 background-color: #d1fae5;
                 border-color: #6ee7b7;
-            }
+            
+                color: #15191E;}
 
             QPushButton#btnStandard, QPushButton#btnHepsiGeri {
                 background-color: #ffffff;
@@ -862,7 +875,8 @@ class OdevKontrolDialog(QDialog):
             }
             QPushButton#btnStandard:hover, QPushButton#btnHepsiGeri:hover {
                 background-color: #f1f5f9;
-            }
+            
+                color: #15191E;}
 
             QPushButton#btnKapat {
                 background-color: #f1f5f9;
@@ -881,14 +895,16 @@ class OdevKontrolDialog(QDialog):
             }
             QPushButton#btnInfo:hover {
                 background-color: #dbeafe;
-            }
+            
+                color: #15191E;}
 
             QComboBox, QLineEdit {
                 border: 1px solid #cbd5e1;
                 border-radius: 6px;
                 padding: 5px 8px;
                 background: white;
-            }
+            
+                color: #15191E;}
             QComboBox:focus, QLineEdit:focus {
                 border: 2px solid #3b82f6;
             }
@@ -1006,7 +1022,8 @@ class OdevKontrolDialog(QDialog):
             QToolButton:pressed { 
                 background: #e2e8f0; 
                 border-color: #64748b;
-            }
+            
+                color: #15191E;}
             QToolButton::menu-indicator { 
                 image: none; 
                 width: 0px; 
@@ -1170,7 +1187,8 @@ class OdevKontrolDialog(QDialog):
                 selection-color: #1e293b;
                 font-family: 'Segoe UI', sans-serif;
                 outline: none; /* Focus rect yok */
-            }
+            
+                color: #15191E;}
             QTableWidget::item {
                 padding: 8px 12px;
                 border-bottom: 1px solid #f1f5f9;
@@ -2798,7 +2816,8 @@ class OdevKontrolDialog(QDialog):
         lw.setAlternatingRowColors(True)
         lw.setSpacing(4)
         lw.setStyleSheet("""
-            QListWidget { outline:none; border:1px solid #d9d9d9; background:#fafafa; }
+            QListWidget { outline:none; border:1px solid #d9d9d9; background:#fafafa; 
+                color: #15191E;}
             QListWidget::item { margin:2px; }
             QListWidget::item:selected { background:#e7f0ff; border:1px solid #a7c3ff; margin:1px; }
         """)
@@ -3516,7 +3535,8 @@ class OdevKontrolDialog(QDialog):
                 selection-color: #1e293b;
                 border: 1px solid #e2e8f0;
                 border-radius: 8px;
-            }
+            
+                color: #15191E;}
             QTableWidget::item, QTableView::item {
                 padding: 6px 8px;
             }

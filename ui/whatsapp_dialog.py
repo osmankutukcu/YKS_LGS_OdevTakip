@@ -462,7 +462,7 @@ class WhatsAppGonderDialog(QDialog):
         self.btnWeb.setStyleSheet("""
             QPushButton {
                 background-color: #ffffff;
-                color: #0284c7;
+                color: #027cbb;
                 border: 1px solid #bae6fd;
                 border-radius: 8px;
                 padding: 8px 14px;
@@ -472,7 +472,8 @@ class WhatsAppGonderDialog(QDialog):
             QPushButton:hover {
                 background-color: #f0f9ff;
                 border-color: #7dd3fc;
-            }
+            
+                color: #15191E;}
         """)
         self.btnWeb.clicked.connect(self._open_web_whatsapp)
         footer.addWidget(self.btnWeb)
@@ -552,7 +553,7 @@ class WhatsAppGonderDialog(QDialog):
         self.btnSend.setStyleSheet("""
             QPushButton {
                 background-color: #25d366;
-                color: #ffffff;
+                color: #474747;
                 border: none;
                 border-radius: 8px;
                 font-weight: bold;
@@ -561,10 +562,12 @@ class WhatsAppGonderDialog(QDialog):
             }
             QPushButton:hover {
                 background-color: #128c7e;
-            }
+            
+                color: #000000;}
             QPushButton:pressed {
                 background-color: #075e54;
-            }
+            
+                color: #FFFFFF;}
         """)
         self.btnSend.clicked.connect(self._on_send_clicked)
         footer.addWidget(self.btnSend)

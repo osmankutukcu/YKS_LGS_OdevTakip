@@ -70,7 +70,8 @@ class SmartRemedialDialog(QDialog):
             "⚡ Hızlı Sınav Takviyesi (ÖSYM ⭐⭐⭐)"
         ])
         self.cmbFocus.setStyleSheet("""
-            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 10px; font-weight: 600; }
+            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 10px; font-weight: 600; 
+                color: #15191E;}
             QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 22px; border: none; background: transparent; }
             QComboBox::down-arrow { border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #64748b; margin-right: 6px; }
         """)
@@ -82,7 +83,8 @@ class SmartRemedialDialog(QDialog):
         self.cmbLesson = QComboBox()
         self.cmbLesson.addItem("Tüm Dersler", "")
         self.cmbLesson.setStyleSheet("""
-            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 10px; }
+            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 10px; 
+                color: #15191E;}
             QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 22px; border: none; background: transparent; }
             QComboBox::down-arrow { border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #64748b; margin-right: 6px; }
         """)
@@ -116,7 +118,8 @@ class SmartRemedialDialog(QDialog):
             QPushButton:hover {
                 background: #dcfce7;
                 border-color: #86efac;
-            }
+            
+                color: #15191E;}
         """)
         self.btnInfo.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btnInfo.clicked.connect(self._show_info_dialog)
@@ -136,7 +139,8 @@ class SmartRemedialDialog(QDialog):
         ])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setStyleSheet("""
-            QTableWidget { background: white; gridline-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; }
+            QTableWidget { background: white; gridline-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; 
+                color: #15191E;}
             QHeaderView::section { background-color: #f8fafc; padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: bold; color: #334155; }
             QTableWidget::item { padding: 4px 6px; }
         """)
@@ -161,7 +165,8 @@ class SmartRemedialDialog(QDialog):
         self.btnAdd = QPushButton("✅ Takviyeleri Ödev Listesine Ekle")
         self.btnAdd.setStyleSheet("""
             QPushButton { background-color: #dc2626; color: white; padding: 9px 20px; font-weight: bold; border-radius: 6px; font-size: 13px; }
-            QPushButton:hover { background-color: #b91c1c; }
+            QPushButton:hover { background-color: #b91c1c; 
+                color: #FFFFFF;}
         """)
         self.btnAdd.clicked.connect(self._accept_selection)
         bottom.addWidget(self.btnAdd)
@@ -550,7 +555,8 @@ class SmartRemedialDialog(QDialog):
             }
             QPushButton:hover {
                 background: #e2e8f0;
-            }
+            
+                color: #15191E;}
         """)
         btnKapat.clicked.connect(dlg.close)
         layout.addWidget(btnKapat)

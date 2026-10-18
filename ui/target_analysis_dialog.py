@@ -91,7 +91,8 @@ class TargetAnalysisDialog(QDialog):
                 padding: 12px;
                 font-size: 14px;
             }
-            QPushButton#ActionBtn:hover { background-color: #1d4ed8; }
+            QPushButton#ActionBtn:hover { background-color: #1d4ed8; 
+                color: #FFFFFF;}
             
             QPushButton#SearchBtn {
                 background-color: #f1f5f9;
@@ -111,7 +112,7 @@ class TargetAnalysisDialog(QDialog):
             QTabWidget::pane { border: 0; }
             QTabBar::tab {
                 background: #e2e8f0;
-                color: #64748b;
+                color: #5a687d;
                 padding: 12px 22px;
                 margin-right: 4px;
                 border-top-left-radius: 8px;

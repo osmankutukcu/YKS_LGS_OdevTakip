@@ -136,7 +136,8 @@ class WhatsappHizliDialog(QDialog):
                 border: 1px solid #cbd5e1;
                 border-radius: 8px;
                 padding: 4px;
-            }
+            
+                color: #15191E;}
             QListWidget::item {
                 padding: 7px 10px;
                 border-bottom: 1px solid #f1f5f9;
@@ -185,16 +186,18 @@ class WhatsappHizliDialog(QDialog):
             }
             QPushButton#btnSend:hover {
                 background-color: #1d4ed8;
-            }
+            
+                color: #FFFFFF;}
             QPushButton#btnStop {
                 background-color: #ef4444;
-                color: #ffffff;
+                color: #191919;
                 border: none;
                 padding: 10px 18px;
             }
             QPushButton#btnStop:hover {
                 background-color: #dc2626;
-            }
+            
+                color: #FFFFFF;}
             QPushButton#btnTag {
                 background-color: #eff6ff;
                 border: 1px solid #bfdbfe;
@@ -206,17 +209,20 @@ class WhatsappHizliDialog(QDialog):
             }
             QPushButton#btnTag:hover {
                 background-color: #dbeafe;
-            }
+            
+                color: #15191E;}
             QPushButton#btnEmoji {
                 background-color: #f1f5f9;
                 border: 1px solid #e2e8f0;
                 padding: 3px 6px;
                 font-size: 12px;
                 border-radius: 4px;
-            }
+            
+                color: #15191E;}
             QPushButton#btnEmoji:hover {
                 background-color: #e2e8f0;
-            }
+            
+                color: #15191E;}
             QPushButton#btnQuickAction {
                 padding: 5px 8px;
                 font-size: 11.5px;

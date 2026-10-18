@@ -28,7 +28,7 @@ class ModernLoginWindow(QDialog):
     """
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Giriş - YKS/LGS Asistanı")
+        self.setWindowTitle("Giriş - KoçPilot 360")
         self.resize(1100, 700)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -211,17 +211,16 @@ class LoginCard(QFrame):
         title_v.setSpacing(8)
         title_v.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # Emoji Icon yerine güzel bir unicode karakter veya metin ikonu
-        lbl_icon = QLabel("💡") # Ampul veya Şimşek ⚡
+        lbl_icon = QLabel("🧭") # Pusula / KoçPilot İkonu
         lbl_icon.setStyleSheet("font-size: 56px;")
         lbl_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        lbl_h1 = QLabel("HOŞ GELDİNİZ")
-        lbl_h1.setStyleSheet("font-size: 26px; font-weight: 800; color: #1e293b; letter-spacing: -0.5px;")
+        lbl_h1 = QLabel("KoçPilot 360")
+        lbl_h1.setStyleSheet("font-size: 28px; font-weight: 900; color: #1e293b; letter-spacing: -0.5px;")
         lbl_h1.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        lbl_h2 = QLabel("YKS/LGS Asistanı v2")
-        lbl_h2.setStyleSheet("font-size: 14px; font-weight: 500; color: #64748b;")
+        lbl_h2 = QLabel("Bütünleşik Sınav & Koçluk Platformu")
+        lbl_h2.setStyleSheet("font-size: 13px; font-weight: 600; color: #64748b; letter-spacing: 0.2px;")
         lbl_h2.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         title_v.addWidget(lbl_icon)

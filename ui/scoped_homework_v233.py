@@ -96,7 +96,7 @@ class ScopedHomeworkDialog(QDialog):
         self.btn_add_topic.setFixedHeight(28)
         self.btn_add_topic.setToolTip('Bu öğrenciye ve derse özel yeni bir konu başlığı tanımla')
         self.btn_add_topic.setStyleSheet(
-            'QPushButton { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 5px; padding: 2px 8px; font-size: 11.5px; font-weight: 600; }'
+            'QPushButton { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 5px; padding: 2px 8px; font-size: 11.5px; font-weight: 600;  color: #15191E;}'
             'QPushButton:hover { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }'
         )
         self.btn_add_topic.clicked.connect(self._quick_add_student_topic)
@@ -127,7 +127,7 @@ class ScopedHomeworkDialog(QDialog):
         self.save_btn.setStyleSheet(
             'QPushButton { background: #2563eb; color: white; border: none; border-radius: 5px; padding: 3px 12px; font-size: 12px; font-weight: 700; }'
             'QPushButton:hover { background: #1d4ed8; }'
-            'QPushButton:disabled { background: #94a3b8; color: #f1f5f9; }'
+            'QPushButton:disabled { background: #94a3b8; color: #373839; }'
         )
         self.save_btn.clicked.connect(self._save)
         row1.addWidget(self.save_btn)
@@ -162,7 +162,7 @@ class ScopedHomeworkDialog(QDialog):
         self.btn_add_book.setFixedHeight(25)
         self.btn_add_book.setToolTip('Bu derste öğrenciye yeni bir kaynak kitap ekle')
         self.btn_add_book.setStyleSheet(
-            'QPushButton { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 8px; font-size: 11px; font-weight: 600; }'
+            'QPushButton { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 8px; font-size: 11px; font-weight: 600;  color: #15191E;}'
             'QPushButton:hover { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }'
         )
         self.btn_add_book.clicked.connect(self._quick_add_student_book)

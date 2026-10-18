@@ -217,11 +217,11 @@ class ModernSplash(QSplashScreen):
         # 6. Başlıklar
         painter.setPen(QColor("#f8fafc"))
         painter.setFont(self.font_title)
-        painter.drawText(0, 134, w, 32, Qt.AlignmentFlag.AlignCenter, "YKS - LGS")
+        painter.drawText(0, 134, w, 32, Qt.AlignmentFlag.AlignCenter, "KoçPilot 360")
         
-        painter.setPen(QColor("#94a3b8"))
+        painter.setPen(QColor("#38bdf8"))
         painter.setFont(self.font_sub)
-        painter.drawText(0, 168, w, 20, Qt.AlignmentFlag.AlignCenter, "ÖDEV & TAKİP YÖNETİCİSİ")
+        painter.drawText(0, 168, w, 20, Qt.AlignmentFlag.AlignCenter, "BÜTÜNLEŞİK KOÇLUK & SINAV PLATFORMU")
         
         # Versiyon Rozeti (Pill Badge)
         badge_text = f"v{__version__} PRO" if '__version__' in globals() else "v3.5 PRO"
@@ -414,6 +414,16 @@ def main() -> None:
     # 4) Ana pencere (EN AĞIR KISIM BURASI - Pandas vb. burada yükleniyor)
     from main_window import AnaPencere
     w = AnaPencere()
+    w.setWindowTitle("KoçPilot 360 — Bütünleşik Koçluk & Sınav Platformu")
+    try:
+        from PyQt6.QtWidgets import QLabel
+        for _lbl in w.findChildren(QLabel):
+            if "YKS/LGS" in _lbl.text() and "Asistanı" in _lbl.text():
+                _lbl.setText("KoçPilot 360\nBütünleşik Platform")
+                _lbl.setStyleSheet("font-size: 13px; font-weight: 800; color: #1e293b; letter-spacing: -0.3px;")
+                break
+    except Exception:
+        pass
 
     splash.set_progress(90, "Takvim ayarları yapılıyor...")
     # 5) Takvim fix

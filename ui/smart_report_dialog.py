@@ -46,7 +46,8 @@ class SmartReportDialog(QDialog):
                 background: white; border: 1px solid #cbd5e1; 
                 border-radius: 6px; padding: 10px; font-family: 'Consolas', 'Monaco', monospace;
                 font-size: 12px;
-            }
+            
+                color: #15191E;}
         """)
         layout.addWidget(self.txt_preview)
         

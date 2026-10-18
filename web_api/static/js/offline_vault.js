@@ -7,7 +7,7 @@
 (function (window) {
     'use strict';
     const NAME = 'YKS_Offline_Store_v1';
-    const VERSION = 2;
+    const VERSION = 3;
     const KDF_ITERATIONS = 310000;
     const MAX_FILE_BYTES = 40 * 1024 * 1024;
     const BACKUP_KIND = 'YKS_LGS_OFFLINE_ENCRYPTED_BACKUP';
@@ -107,21 +107,26 @@
             tx.onabort = () => {db.close(); reject(tx.error);};
         });
     }
+    // V5 encrypted records are read outside an IndexedDB transaction because
+    // WebCrypto promises cannot safely be awaited inside an active IDB tx.
     async function readBundle() {
         const db = await openDB();
-        return new Promise((resolve, reject) => {
+        const raw = await new Promise((resolve, reject) => {
             const tx = db.transaction(['snapshots','outbox','meta'], 'readonly');
             const sn = tx.objectStore('snapshots').get('current');
             const queue = tx.objectStore('outbox').getAll();
             const lock = tx.objectStore('meta').get('offline_access_v4');
-            tx.oncomplete = () => {
-                db.close();
-                resolve({snapshot: sn.result?.value || null, outbox: queue.result || [],
-                    offline_access: lock.result?.value || null});
-            };
-            tx.onerror = () => {db.close(); reject(tx.error);};
-            tx.onabort = () => {db.close(); reject(tx.error);};
+            tx.oncomplete = () => {db.close();resolve({snapshot:sn.result?.value || null,
+                outbox:queue.result || [],offline_access:lock.result?.value || null});};
+            tx.onerror = () => {db.close();reject(tx.error);};
+            tx.onabort = () => {db.close();reject(tx.error);};
         });
+        const secure = window.OfflineSecureStore;
+        if (secure && await secure.enabled()) {
+            raw.snapshot = await secure.openRecord('snapshots','current',raw.snapshot);
+            raw.outbox=await secure.openRecords('outbox',raw.outbox);
+        }
+        return raw;
     }
     function comparableMutation(m) {
         return JSON.stringify([m.id, m.type, m.payload, m.created_at]);
@@ -149,7 +154,81 @@
     }
     // Restore is all-or-nothing. The *existing* outbox remains and imported
     // commands are appended in order, with duplicate mutation IDs checked.
+    async function commitRestoreEncrypted(bundle) {
+        const secure=window.OfflineSecureStore;
+        if (!secure?.unlocked) throw Error('Önce şifreli çalışma alanını açın.');
+        const databaseId=await secure.databaseId();
+        if (databaseId!==bundle.database_id) throw Error('Bu yedek farklı bir masaüstüne ait.');
+        const db=await openDB();
+        const original=await new Promise((resolve,reject)=>{
+            const t=db.transaction(['snapshots','outbox','meta'],'readonly');
+            const sn=t.objectStore('snapshots').get('current');
+            const q=t.objectStore('outbox').getAll();
+            const seq=t.objectStore('meta').get('next_seq');
+            const lock=t.objectStore('meta').get('offline_access_v4');
+            t.oncomplete=()=>resolve({snapshot:sn.result || null,queue:q.result || [],
+                seq:seq.result || null,lock:lock.result||null});
+            t.onerror=()=>reject(t.error);
+            t.onabort=()=>reject(t.error);
+        });
+        db.close();
+        const existing=original.snapshot ? await secure.openRecord('snapshots','current',original.snapshot.value):null;
+        const saved=await secure.openRecords('outbox',original.queue);
+        if ((existing && existing.database_id!==databaseId) ||
+            (original.lock?.value && original.lock.value.database_id!==databaseId))
+            throw Error('Başka masaüstü veritabanına ait kayıt var; geri yükleme durduruldu.');
+        const ids=new Map(saved.map(x=>[x.id,x]));
+        let next=Number(original.seq?.value||0),imported=0;
+        for(const row of saved)next=Math.max(next,Number(row.seq||0));
+        const sealed=[];
+        for(const item of bundle.outbox) {
+            if(ids.has(item.id)) {
+                if(comparableMutation(ids.get(item.id))!==comparableMutation(item))
+                    throw Error('Aynı işlem kimliğinde farklı kayıt var; geri yükleme durduruldu.');
+                continue;
+            }
+            const seq=++next;
+            sealed.push({id:item.id,seq,encrypted:await secure.sealRecord('outbox',item.id,item)});
+            ids.set(item.id,item); imported++;
+        }
+        let snapshotRow=null;
+        if(!existing || String(bundle.snapshot.generated_at||'')>String(existing.generated_at||''))
+            snapshotRow={key:'current',value:await secure.sealRecord('snapshots','current',bundle.snapshot)};
+        const writable=await openDB();
+        try {
+            await new Promise((resolve,reject)=>{
+                const tx=writable.transaction(['snapshots','outbox','meta'],'readwrite');
+                const sn=tx.objectStore('snapshots').get('current');
+                const q=tx.objectStore('outbox').getAll();
+                const seq=tx.objectStore('meta').get('next_seq');
+                const lock=tx.objectStore('meta').get('offline_access_v4');
+                let ready=0,cause=null;
+                function readyCheck(){
+                    if(++ready!==4)return;
+                    if(JSON.stringify(sn.result||null)!==JSON.stringify(original.snapshot) ||
+                        JSON.stringify(q.result||[])!==JSON.stringify(original.queue) ||
+                        JSON.stringify(seq.result||null)!==JSON.stringify(original.seq) ||
+                        JSON.stringify(lock.result||null)!==JSON.stringify(original.lock)){
+                        cause=Error('Geri yükleme sırasında kayıtlar değişti; işlem güvenle iptal edildi.');tx.abort();return;
+                    }
+                    const dest=tx.objectStore('outbox');
+                    for(const row of sealed)dest.add(row);
+                    if(snapshotRow)tx.objectStore('snapshots').put(snapshotRow);
+                    tx.objectStore('meta').put({key:'next_seq',value:next});
+                    if(!lock.result && bundle.offline_access)
+                        tx.objectStore('meta').put({key:'offline_access_v4',value:bundle.offline_access});
+                }
+                sn.onsuccess=readyCheck;q.onsuccess=readyCheck;seq.onsuccess=readyCheck;lock.onsuccess=readyCheck;
+                tx.oncomplete=resolve;
+                tx.onabort=()=>reject(cause || tx.error || Error('Geri yükleme geri alındı.'));
+                tx.onerror=()=>{};
+            });
+        } finally {writable.close();}
+        return {imported,total:bundle.outbox.length};
+    }
     async function commitRestore(bundle) {
+        if (window.OfflineSecureStore && await window.OfflineSecureStore.enabled())
+            return commitRestoreEncrypted(bundle);
         const db = await openDB();
         return new Promise((resolve, reject) => {
             const tx = db.transaction(['snapshots','outbox','meta'], 'readwrite');
@@ -218,8 +297,11 @@
     const OfflineVault = {
         busy: false,
         async isConfigured() { return !!(await getMeta('offline_access_v4')); },
+        async configuredDatabaseId() { return (await getMeta('offline_access_v4'))?.database_id || null; },
         async configureOfflineAccess(accessKey, password, databaseId) {
             if (!accessKey || accessKey.length < 32 || !databaseId) throw new Error('Önce çevrimiçi giriş ve tam veri indirme gerekli.');
+            if (window.OfflineSecureStore && await window.OfflineSecureStore.enabled())
+                throw Error('Şifreleme etkin. Parola değiştirmek için ayrı güvenli anahtar döndürme işlemi gerekir.');
             const sealed = await seal({key: accessKey}, password, AAD);
             await putMeta('offline_access_v4', {version:1, database_id:databaseId, ...sealed});
             return true;

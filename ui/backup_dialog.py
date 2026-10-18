@@ -54,7 +54,8 @@ class BackupDialog(QDialog):
             QPushButton {
                 background-color: #4299e1; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold;
             }
-            QPushButton:hover { background-color: #3182ce; }
+            QPushButton:hover { background-color: #3182ce; 
+                color: #000000;}
         """)
         btn_select.clicked.connect(self._select_folder)
         
@@ -78,7 +79,8 @@ class BackupDialog(QDialog):
             QPushButton {
                 background-color: #48bb78; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 14px;
             }
-            QPushButton:hover { background-color: #38a169; }
+            QPushButton:hover { background-color: #38a169; 
+                color: #15191E;}
         """)
         self.btn_now.clicked.connect(self._backup_now)
         

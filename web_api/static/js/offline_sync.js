@@ -13,7 +13,7 @@
     'use strict';
 
     const DB_NAME = 'YKS_Offline_Store_v1';
-    const DB_VERSION = 2;
+    const DB_VERSION = 3;
 
     let dbInstance = null;
 
@@ -36,47 +36,94 @@
             };
             req.onsuccess = (e) => {
                 dbInstance = e.target.result;
+                dbInstance.onversionchange = () => { dbInstance.close(); dbInstance = null; };
                 resolve(dbInstance);
             };
             req.onerror = (e) => reject(e.target.error);
+            req.onblocked = () => reject(new Error('Diğer açık sekmeleri kapatıp tekrar deneyin.'));
         });
     }
 
     async function dbGet(storeName, key) {
         const db = await openDB();
-        return new Promise((resolve, reject) => {
+        const value = await new Promise((resolve, reject) => {
             const tx = db.transaction(storeName, 'readonly');
             const req = tx.objectStore(storeName).get(key);
-            req.onsuccess = () => resolve(req.result ? req.result.value : null);
-            req.onerror = () => reject(req.error);
+            tx.oncomplete = () => resolve(req.result ? req.result.value : null);
+            tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error);
         });
+        return storeName === 'snapshots' ? window.OfflineSecureStore.openRecord('snapshots', key, value) : value;
     }
 
     // Resolve only after transaction commit; request success alone is not durable.
     async function dbPut(storeName, key, value) {
+        const safe = storeName === 'snapshots' ? await window.OfflineSecureStore.sealRecord('snapshots', key, value) : value;
         const db = await openDB();
         return new Promise((resolve, reject) => {
             const tx = db.transaction(storeName, 'readwrite');
-            tx.objectStore(storeName).put({ key, value });
+            tx.objectStore(storeName).put({ key, value: safe });
             tx.oncomplete = () => resolve(true);
             tx.onerror = () => reject(tx.error);
             tx.onabort = () => reject(tx.error || new Error('IndexedDB kayıt işlemi iptal edildi'));
         });
     }
 
-    async function dbGetAllOutbox() {
+    // V6: Persist only the server-authored baseline, NEVER a projection of
+    // pending local edits. The outbox is durable and replayed in memory.
+    // Fail closed if another tab changes the queue while the server snapshot
+    // is being downloaded/decrypted/sealed.
+    async function dbPutServerBaselineIfQueueStable(snapshot, pending) {
+        const safe = await window.OfflineSecureStore.sealRecord('snapshots', 'current', snapshot);
+        const expected = pending.map(x => `${x.id}:${x.seq}`).sort();
         const db = await openDB();
         return new Promise((resolve, reject) => {
+            const tx = db.transaction(['snapshots', 'outbox'], 'readwrite');
+            const check = tx.objectStore('outbox').getAll();
+            let cause = null;
+            check.onsuccess = () => {
+                const now = (check.result || []).map(x => `${x.id}:${x.seq}`).sort();
+                if (now.length !== expected.length || now.some((id, i) => id !== expected[i])) {
+                    cause = new Error('İşlem kuyruğu indirme sırasında değişti; eski kayıtlar korunuyor. Yeniden deneyin.');
+                    tx.abort();
+                    return;
+                }
+                tx.objectStore('snapshots').put({key: 'current', value: safe});
+            };
+            tx.oncomplete = () => resolve(true);
+            tx.onabort = () => reject(cause || tx.error || Error('Snapshot kaydedilemedi.'));
+            tx.onerror = () => {};
+        });
+    }
+
+    async function dbGetAllOutbox() {
+        const db = await openDB();
+        const raw = await new Promise((resolve, reject) => {
             const tx = db.transaction('outbox', 'readonly');
             const req = tx.objectStore('outbox').getAll();
-            req.onsuccess = () => resolve((req.result || []).sort((a, b) =>
-                (a.seq ?? 0) - (b.seq ?? 0) ||
-                (a.created_at || '').localeCompare(b.created_at || '') || a.id.localeCompare(b.id)));
-            req.onerror = () => reject(req.error);
+            tx.oncomplete = () => resolve(req.result || []);
+            tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error);
+        });
+        const commands = await window.OfflineSecureStore.openRecords('outbox',raw);
+        return commands.sort((a,b) => (a.seq ?? 0)-(b.seq ?? 0) ||
+            (a.created_at || '').localeCompare(b.created_at || '') || a.id.localeCompare(b.id));
+    }
+
+    async function dbCountOutbox() {
+        const db=await openDB();
+        return new Promise((resolve,reject)=>{
+            const tx=db.transaction('outbox','readonly');
+            const req=tx.objectStore('outbox').count();
+            tx.oncomplete=()=>resolve(req.result||0);
+            tx.onerror=()=>reject(tx.error);
+            tx.onabort=()=>reject(tx.error);
         });
     }
 
     async function dbAddOutbox(item) {
+        const encrypted = await window.OfflineSecureStore.sealRecord('outbox',item.id,item);
+        const secured = await window.OfflineSecureStore.enabled();
         const db = await openDB();
         return new Promise((resolve, reject) => {
             const tx = db.transaction(['outbox', 'meta'], 'readwrite');
@@ -85,7 +132,9 @@
             req.onsuccess = () => {
                 const seq = (req.result?.value || 0) + 1;
                 meta.put({ key: 'next_seq', value: seq });
-                tx.objectStore('outbox').add({ ...item, seq });
+                const value = secured ? {id:item.id,seq,encrypted} : {...item,seq};
+                // For encrypted rows, sequence is inside the sealed payload too.
+                tx.objectStore('outbox').add(value);
             };
             tx.oncomplete = () => resolve(true);
             tx.onerror = () => reject(tx.error);
@@ -106,19 +155,72 @@
         });
     }
 
+    // Conflict resolution never overwrites desktop state silently. Only the
+    // oldest independent status-change command may be replaced or discarded.
+    async function resolveQueuedConflict(id, choice, freshSnapshot) {
+        if (!['desktop','mobile'].includes(choice)) throw Error('Geçersiz çözüm tercihi');
+        const queue = await dbGetAllOutbox();
+        const old = queue.find(x => x.id === id);
+        if (!old || old.type !== 'SET_HOMEWORK_STATUS') throw Error('Yalnızca ödev durum çakışmaları çözülebilir.');
+        const ids = (old.payload?.homework_ids||[]).map(String);
+        if (queue.some(x => x.seq > old.seq))
+            throw Error('Aynı ödev için sonraki bekleyen işlemler var; sıralamayı korumak için bu çakışmayı otomatik çözemiyoruz.');
+        if (queue.some(x => x.seq < old.seq))
+            throw Error('Önceki işlem henüz bekliyor. Sıralı eşitleme için önce onu çözün.');
+        const previous = {}, fingerprints = {};
+        for (const id of ids) {
+            let item, token;
+            for (const curriculum of Object.values(freshSnapshot.curriculum||{})) {
+                item=(curriculum.active_homeworks||[]).find(x=>String(x.id)===id);
+                if (item) {token=curriculum.status_fingerprints?.[id];break;}
+            }
+            if (!item || !token) throw Error('Ödevin masaüstündeki güncel hâli doğrulanamadı.');
+            previous[id]=isDone(item.status)?'tamam':'devam';
+            fingerprints[id]=token;
+        }
+        const replacement = choice === 'mobile' ? {
+            id:newMutationId(),type:'SET_HOMEWORK_STATUS',
+            payload:{...old.payload,expected_statuses:previous,expected_fingerprints:fingerprints},
+            created_at:new Date().toISOString()
+        } : null;
+        const sealed = replacement ? await window.OfflineSecureStore.sealRecord('outbox', replacement.id,replacement):null;
+        const secured = await window.OfflineSecureStore.enabled();
+        const db=await openDB();
+        await new Promise((resolve,reject)=>{
+            const tx=db.transaction('outbox','readwrite');
+            const store=tx.objectStore('outbox');
+            const check=store.getAll();
+            let reason=null;
+            check.onsuccess=()=>{
+                const raw=check.result||[];
+                const stored=raw.find(x=>x.id===id);
+                if(!stored||stored.seq!==old.seq||raw.some(x=>x.seq>old.seq)) {
+                    reason=Error('İşlem kuyruğu değişti. Çözüm tekrarlanmalı.');tx.abort();return;
+                }
+                // Compare the ciphertext envelope by identity using a read-before
+                // action; no automatic retry can silently duplicate this action.
+                store.delete(id);
+                if (replacement) store.add(secured ? {id:replacement.id,seq:old.seq,encrypted:sealed} :
+                    {...replacement,seq:old.seq});
+            };
+            tx.oncomplete=resolve;
+            tx.onabort=()=>reject(reason||tx.error||Error('Çözüm işlemi geri alındı.'));
+            tx.onerror=()=>{};
+        });
+        return {removed:id,replacement:replacement?.id||null};
+    }
+
     function newMutationId() {
-        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-            try { return 'mut_' + window.crypto.randomUUID(); } catch (_) {}
-        }
-        if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
-            try {
-                const buf = new Uint8Array(16);
-                window.crypto.getRandomValues(buf);
-                const hex = Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join('');
-                return 'mut_' + Date.now().toString(36) + '_' + hex;
-            } catch (_) {}
-        }
-        return 'mut_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 12);
+        const uuid = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() :
+            (window.crypto && window.crypto.getRandomValues ? (() => {
+                const b = new Uint8Array(16);
+                window.crypto.getRandomValues(b);
+                b[6] = (b[6] & 0x0f) | 0x40;
+                b[8] = (b[8] & 0x3f) | 0x80;
+                const hex = Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+                return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+            })() : (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10)));
+        return 'mut_' + uuid;
     }
 
     function isDone(v) {
@@ -179,6 +281,7 @@
         isServerOnline: true,
         lastSnapshot: null,
         pendingCount: 0,
+        lastFailures: [],
         listeners: [],
 
         onStatusChange(fn) {
@@ -191,16 +294,20 @@
             });
         },
 
+        async reloadLocal() {
+            this.lastSnapshot = await dbGet('snapshots','current');
+            const outbox = await dbGetAllOutbox();
+            if (this.lastSnapshot && outbox.length) {
+                this.lastSnapshot = projectOutbox(this.lastSnapshot,outbox);
+            }
+            this.pendingCount = outbox.length;
+            this.notify();
+            return this.lastSnapshot;
+        },
+
         async init() {
             try {
-                this.lastSnapshot = await dbGet('snapshots', 'current');
-                const outbox = await dbGetAllOutbox();
-                // Recover a failed UI projection from the durable pending queue.
-                if (this.lastSnapshot && outbox.length) {
-                    this.lastSnapshot = projectOutbox(this.lastSnapshot, outbox);
-                    await dbPut('snapshots', 'current', this.lastSnapshot);
-                }
-                this.pendingCount = outbox.length;
+                await this.reloadLocal();
 
                 // Check server connection
                 await this.checkConnection();
@@ -250,26 +357,90 @@
             return this.isServerOnline;
         },
 
-        async downloadSnapshot(studentId = null) {
-            if (this.restoring) throw new Error('Yedek geri yüklenirken veri indirilemez.');
+        async downloadSnapshot(studentId = null, heldLock = false, guard = null) {
+            if (!heldLock && window.OfflineCoordinatorV7) {
+                try {
+                    return await window.OfflineCoordinatorV7.runExclusive(lock => this.downloadSnapshot(studentId, true, lock));
+                } catch (coordErr) {
+                    console.warn('[OfflineSync] Coordinator lock fallback:', coordErr);
+                    return await this.downloadSnapshot(studentId, true, null);
+                }
+            }
+            if (this.restoring || window.OfflineSecureStore.busy) throw new Error('Güvenli yerel işlem sırasında veri indirilemez.');
             // The UI cache is a full snapshot. A filtered subset must not
             // silently erase other students when written under 'current'.
             if (studentId !== null && studentId !== undefined) {
                 throw new Error('Tek öğrenci paketi tam çevrimdışı verinin üzerine yazılamaz');
             }
-            const url = studentId ? `/api/sync/snapshot?student_id=${studentId}` : '/api/sync/snapshot';
-            const data = await window._originalApi(url);
+            // V9: read only the persisted server baseline; NEVER use the UI
+            // projection with unacknowledged local outbox commands as input.
+            // Legacy V8 baseline stays compatible, with V8 full-download fallback.
+            let data;
+            this.lastDeltaStats = null;
+            try {
+                const persistedBaseline = await dbGet('snapshots', 'current');
+                if (persistedBaseline && window.OfflineDeltaV9) {
+                    try {
+                        const result = await window.OfflineDeltaV9.download({
+                            api: window._originalApi, baseline: persistedBaseline,
+                            expectedDatabaseId: this.lastSnapshot?.database_id || persistedBaseline.database_id,
+                            assertOwned: guard ? () => guard.assertOwned() : async () => {},
+                            progress: (page,total) => { this.downloadProgress={page,total};this.notify(); }
+                        });
+                        data = result.snapshot;
+                        this.lastDeltaStats = result.stats;
+                    } catch (deltaError) {
+                        // V10: HTTP 404 (older server), 410 (expired page session),
+                        // or 503 (temporary busy) may use a full, DB-ID-verified V8
+                        // download. Auth/DB mismatch/integrity/conflict NEVER fall back.
+                        if (!window.OfflineResilienceV10?.canUseFullSnapshot(deltaError) ||
+                            !window.OfflinePagedV8) throw deltaError;
+                        if (guard) await guard.assertOwned();
+                        data = await window.OfflinePagedV8.download({
+                            api: window._originalApi,
+                            expectedDatabaseId: this.lastSnapshot?.database_id || persistedBaseline.database_id,
+                            assertOwned: guard ? () => guard.assertOwned() : async () => {},
+                            progress: (page,total) => {
+                                this.downloadProgress={page,total};this.notify();
+                            }
+                        });
+                        this.lastDeltaStats = {fallback: true, reason: 'V9 geçici olarak kullanılamadı',
+                            total: data.students?.length ?? null};
+                    }
+                } else {
+                    try {
+                        data = window.OfflinePagedV8 ? await window.OfflinePagedV8.download({
+                            api: window._originalApi,
+                            expectedDatabaseId: this.lastSnapshot?.database_id || null,
+                            assertOwned: guard ? () => guard.assertOwned() : async () => {},
+                            progress: (page, total) => {
+                                this.downloadProgress = {page,total}; this.notify();
+                            }
+                        }) : await window._originalApi('/api/sync/snapshot');
+                    } catch (pagedErr) {
+                        console.warn('[OfflineSync] Parçalı indirme hatası, tam anlık görüntüye geçiliyor:', pagedErr);
+                        data = await window._originalApi('/api/sync/snapshot');
+                    }
+                }
+            } finally {
+                this.downloadProgress = null;
+                this.notify();
+            }
 
             if (!data || data.version !== 1 || !Array.isArray(data.students) || !data.curriculum) {
                 throw new Error('Eksik veya uyumsuz çevrimdışı veri paketi');
             }
+            if (guard) await guard.assertOwned();
             const pending = await dbGetAllOutbox();
             if (pending.length && this.lastSnapshot?.database_id && data.database_id !== this.lastSnapshot.database_id) {
                 throw new Error('Bu telefonun kayıtları başka bir masaüstü veritabanına ait; aktarım durduruldu.');
             }
             const merged = projectOutbox(data, pending);
-            await dbPut('snapshots', 'current', merged);
+            if (guard) await guard.assertOwned();
+            await dbPutServerBaselineIfQueueStable(data, pending);
             this.lastSnapshot = merged;
+            this.snapshotRefreshNeeded = false;
+            this.lastSnapshotError = null;
             await dbPut('meta', 'last_download_time', new Date().toISOString());
             if (navigator.storage?.persist) {
                 try { this.storagePersistent = await navigator.storage.persist(); }
@@ -280,7 +451,7 @@
         },
 
         async queueAssignHomework({ student_id, lesson, book, topics, due_date }) {
-            if (this.restoring) throw new Error('Yedek geri yüklenirken yeni işlem kaydedilemez.');
+            if (this.restoring || window.OfflineSecureStore.busy) throw new Error('Güvenli yerel işlem sırasında yeni işlem kaydedilemez.');
             const localNow = new Date();
             const localDate = [localNow.getFullYear(), String(localNow.getMonth() + 1).padStart(2, '0'),
                 String(localNow.getDate()).padStart(2, '0')].join('-');
@@ -299,12 +470,12 @@
             };
 
             await dbAddOutbox(mutation);
-            this.pendingCount = (await dbGetAllOutbox()).length;
+            this.pendingCount = await dbCountOutbox();
 
             // Local projections never use fabricated server-side IDs.
             if (this.lastSnapshot) {
                 this.lastSnapshot = projectOutbox(this.lastSnapshot, [mutation]);
-                await dbPut('snapshots', 'current', this.lastSnapshot);
+                // Local state is reconstructed from baseline + durable outbox on reload.
             }
 
             this.notify();
@@ -312,19 +483,19 @@
         },
 
         async queueCompleteHomework(lineId) {
-            if (this.restoring) throw new Error('Yedek geri yüklenirken yeni işlem kaydedilemez.');
+            if (this.restoring || window.OfflineSecureStore.busy) throw new Error('Güvenli yerel işlem sırasında yeni işlem kaydedilemez.');
             const mutation = {
                 id: newMutationId(), type: 'COMPLETE_HOMEWORK',
                 payload: { line_id: lineId }, created_at: new Date().toISOString()
             };
             await dbAddOutbox(mutation);
-            this.pendingCount = (await dbGetAllOutbox()).length;
+            this.pendingCount = await dbCountOutbox();
             this.notify();
             return mutation;
         },
 
         async queueSetHomeworkStatus({ homework_ids, status }) {
-            if (this.restoring) throw new Error('Yedek geri yüklenirken yeni işlem kaydedilemez.');
+            if (this.restoring || window.OfflineSecureStore.busy) throw new Error('Güvenli yerel işlem sırasında yeni işlem kaydedilemez.');
             if (!Array.isArray(homework_ids) || !homework_ids.length ||
                 !['tamam', 'devam'].includes(status)) throw new Error('Geçersiz durum isteği');
             const ids = [...new Set(homework_ids.map(Number))];
@@ -358,18 +529,26 @@
                 created_at: new Date().toISOString()
             };
             await dbAddOutbox(mutation);
-            this.pendingCount = (await dbGetAllOutbox()).length;
+            this.pendingCount = await dbCountOutbox();
             // Keep the durable outbox as source of truth if projection fails.
             if (this.lastSnapshot) {
                 this.lastSnapshot = projectOutbox(this.lastSnapshot, [mutation]);
-                await dbPut('snapshots', 'current', this.lastSnapshot);
+                // Local state is reconstructed from baseline + durable outbox on reload.
             }
             this.notify();
             return mutation;
         },
 
-        async pushSync() {
-            if (this.restoring) throw new Error('Yedek geri yüklenirken aktarım yapılamaz.');
+        async pushSync(heldLock = false, lockGuard = null) {
+            if (!heldLock && window.OfflineCoordinatorV7) {
+                try {
+                    return await window.OfflineCoordinatorV7.runExclusive(guard => this.pushSync(true, guard));
+                } catch (coordErr) {
+                    console.warn('[OfflineSync] Coordinator pushSync fallback:', coordErr);
+                    return await this.pushSync(true, null);
+                }
+            }
+            if (this.restoring || window.OfflineSecureStore.busy) throw new Error('Güvenli yerel işlem sırasında aktarım yapılamaz.');
             if (this.syncing) throw new Error('Eşitleme zaten devam ediyor');
             this.syncing = true;
             try {
@@ -377,8 +556,11 @@
                     throw new Error(this.databaseMismatch ? 'Yanlış masaüstü veritabanı! Telefon kuyruğu korundu.' : 'Bilgisayara ulaşılamadı; kayıtlar telefonda korunuyor.');
                 }
                 const outbox = await dbGetAllOutbox();
+                if (outbox.length && !this.lastSnapshot?.database_id) {
+                    throw new Error('Masaüstü kimliği doğrulanamıyor. Bekleyen işlemler korunuyor; önce şifreli yedeği kontrol edin.');
+                }
                 if (!outbox.length) {
-                    await this.downloadSnapshot();
+                    await this.downloadSnapshot(null, true, lockGuard);
                     return { success: true, processed_count: 0, acknowledged_count: 0, remaining: 0 };
                 }
                 // Limit each server batch, retaining order, so a week of edits
@@ -386,13 +568,25 @@
                 let acknowledged = 0;
                 let newlyApplied = 0;
                 const failures = [];
+                this.lastFailures = [];
                 for (let start = 0; start < outbox.length; start += 100) {
                     const batch = outbox.slice(start, start + 100);
-                    const result = await window._originalApi('/api/sync/push', 'POST', { mutations: batch, database_id: this.lastSnapshot?.database_id || null });
-                    if (!Array.isArray(result.results)) {
-                        throw new Error('Sunucu güvenli işlem bazlı onay vermedi; kuyruk silinmedi.');
+                    const send = () => window._originalApi('/api/sync/push', 'POST', {
+                        mutations: batch, database_id: this.lastSnapshot?.database_id || null
+                    });
+                    const result = window.OfflineCoordinatorV7
+                        ? await window.OfflineCoordinatorV7.sendWithRetry(send, {
+                            assertOwned: lockGuard?.assertOwned || (async () => {})
+                        }) : await send();
+                    if (!Array.isArray(result?.results) || result.results.length !== batch.length) {
+                        throw new Error('Sunucudan eksik veya geçersiz işlem onayı geldi. Kuyruk silinmedi.');
                     }
                     const sent = new Set(batch.map(m => m.id));
+                    const returned = new Set(result.results.map(r => r.id));
+                    if (returned.size !== sent.size || [...returned].some(id => !sent.has(id))) {
+                        throw new Error('Sunucu işlem kimlikleri uyuşmuyor. Kuyruk silinmedi.');
+                    }
+                    if (lockGuard) await lockGuard.assertOwned();
                     const ids = result.results.filter(r => sent.has(r.id) &&
                         (r.status === 'applied' || r.status === 'already_applied')).map(r => r.id);
                     await dbDeleteAcknowledged(ids);
@@ -400,20 +594,68 @@
                     newlyApplied += result.results.filter(r => sent.has(r.id) && r.status === 'applied').length;
                     failures.push(...result.results.filter(r => sent.has(r.id) &&
                         r.status !== 'applied' && r.status !== 'already_applied'));
-                    this.pendingCount = (await dbGetAllOutbox()).length;
+                    this.pendingCount = await dbCountOutbox();
                     this.notify();
                     // An earlier error could make later changes logically dependent;
                     // stop here and leave them pending for review.
                     if (failures.length) break;
                 }
                 // Merge remaining local mutations on top of fresh server state.
-                await this.downloadSnapshot();
-                return { success: failures.length === 0, processed_count: newlyApplied,
-                    acknowledged_count: acknowledged, remaining: this.pendingCount, failures };
+                this.lastFailures = failures;
+                try {
+                    await this.downloadSnapshot(null, true, lockGuard);
+                    this.snapshotRefreshNeeded = false;
+                } catch (refreshError) {
+                    // Receipts were already committed; never repopulate acknowledged
+                    // mutations or describe old baseline as current.
+                    this.snapshotRefreshNeeded = true;
+                    this.lastSnapshotError = refreshError.message;
+                    this.notify();
+                }
+                return { success: failures.length === 0 && !this.snapshotRefreshNeeded, processed_count: newlyApplied,
+                    acknowledged_count: acknowledged, remaining: this.pendingCount, failures,
+                    snapshot_refresh_needed: !!this.snapshotRefreshNeeded };
             } finally {
                 this.syncing = false;
                 this.notify();
             }
+        },
+
+        async reviewConflict(id) {
+            if (!await this.checkConnection()) throw Error('Çözüm için masaüstü bağlantısı gerekli.');
+            const failure=this.lastFailures.find(x=>x.id===id && x.status==='conflict');
+            if(!failure)throw Error('Bu işlem için doğrulanmış çakışma bulunamadı.');
+            const fresh=await window._originalApi('/api/sync/snapshot');
+            if(!fresh?.database_id||fresh.database_id!==this.lastSnapshot?.database_id)
+                throw Error('Masaüstü veritabanı uyuşmuyor.');
+            const queue=await dbGetAllOutbox();
+            const item=queue.find(x=>x.id===id && x.type==='SET_HOMEWORK_STATUS');
+            if(!item)throw Error('Çakışma kaydı artık kuyrukta yok.');
+            return {item,server:fresh};
+        },
+
+        async resolveConflict(id, choice, heldLock = false, lockGuard = null) {
+            if (!heldLock && window.OfflineCoordinatorV7) {
+                try {
+                    return await window.OfflineCoordinatorV7.runExclusive(lock => this.resolveConflict(id, choice, true, lock));
+                } catch (coordErr) {
+                    console.warn('[OfflineSync] Coordinator resolveConflict fallback:', coordErr);
+                    return await this.resolveConflict(id, choice, true, null);
+                }
+            }
+            if(this.syncing || this.restoring || window.OfflineSecureStore.busy)
+                throw Error('Başka bir yerel işlem devam ediyor.');
+            this.restoring=true;
+            try {
+                const reviewed=await this.reviewConflict(id);
+                const result=await resolveQueuedConflict(id,choice,reviewed.server);
+                this.lastFailures=this.lastFailures.filter(x=>x.id!==id);
+                this.restoring=false;
+                await this.downloadSnapshot(null, true, lockGuard);
+                this.pendingCount=(await dbGetAllOutbox()).length;
+                this.notify();
+                return result;
+            } finally{this.restoring=false;}
         },
 
         // --- OFFLINE API INTERCEPTOR ---

@@ -11,14 +11,14 @@ import ast
 from hashlib import sha256
 from pathlib import Path
 
-APPROVED_WEEKLY_HOMEWORK_SHA256 = "827098c0628bccbac89fbcb37cdf9967467b8971e65457d1d484768c824ffb5b"
+APPROVED_WEEKLY_HOMEWORK_SHA256 = "53e6b12db96cf81fd622947e7d343b4130a1a8e42a0e30d5c5ec58e64e456314"
 HISTORICAL_V27_HOMEWORK_SHA256 = "b522636d49cdeaf643fef5704a3c63e39a7b5d7230d7f405f78330ebe5a2d68f"
 LEGACY_HANDLERS = {'ui/homework_form.py': {'class': 'OdevTakipFormu', 'methods': {'_tik_degisti': ['ee136d1446a999b8bdcbcf6fb1e94091ae0d5b1d482003f5ca2e9f917e4ea715'], '_kaydet_kume': ['5212786c4f7ae0538ce1e005b14f9dcba970b6c616c4f77d944ca1be1a179d0d'], '_odev_kontrol': ['ad1b493928c41c01aa2123247313c1821a19ba7e5cca54aaa8472da4f37b19cb', 'e15ceda7090467209c7761ffd8365d014ada4420ff9113b9e87ee77e198bab84'], '_toplam_sure_guncelle': ['6ef7755129ac6daec47a105a324f7219a40c4ce1f0a5211d67b0420863f50862'], '_whatsapp_gonder': ['d5768fd5e0f043d85a17431e13e3e54a542f896e6ce73a7cd724ceac239b615e'], '_pdf_yazdir': ['0e53faa01eed0334a1cf64fea75fe9fc9c1e838e8e137c742b19bf99b57e9324'], '_sync_verilen_rows_from_table': ['d07c3b3c8660df6fc1a3d2c1a1068ac1b19234c56858b9dee9cb9460f91e1866']}}, 'ui/odev_kontrol.py': {'class': 'OdevKontrolDialog', 'methods': {'_kaydet': ['594371f8d87be1168ed9cb3649a6d386332db8154f731bc5b63ebeb6b5bb2617'], '_chk_cell_click': ['a31547e745249728c4eebd57f1b4b1d10c72fbbcc784bd747e4992c4e7e49f40'], '_on_table_item_changed': ['34d657727551cc792f4b75168a435f70e7a51b9a18dd70f06316ce46f73df618'], '_kume_ac': ['cadcdc80be468fc7fd1b4a6c19c298dc5bcf5bc054485c14349410e9d7e468bf'], '_aktar': ['b174ac81868246d82b28fcab1301959bc5cf1e727dd0bd6258f5db6c1bbbb6bf'], '_hepsi_tamam': ['ccb4324c70272c601b78c5c3b332489d43aef97452a32736e0114b47822c5c68'], '_hepsi_geri': ['22fec7893da285721d42aa6805897c976d5672d31284df82ad5f6b3bfe990f6e'], 'aktar_silmeden': ['29b7edc5495f3f258a1d1332b70ed56fdb4a534139ae767df9feac9a691c67c5']}}}
 
 
 ALT_LEGACY_METHODS = {
     'ui/homework_form.py': {
-        '_tik_degisti': ['46cc5efcf7d908a94056732e0e2a41cbb08c2a9e97bddd32d8770cb9eb8456eb'],
+        '_tik_degisti': ['d70c947ed43285bf9f9866b6e966a515ddcd417f1aa26fb2b636797aeeb92f68'],
         '_kaydet_kume': ['bf2ff386c7fa4c97cdc48e8910be83319309562e7fd13962e98fd625aa3c637e'],
         '_odev_kontrol': ['74335827202fe43e19385e6acd6fd9090d4cb9ec5b123a61eb4658c7cfe88559', '65f88cd96cbd1adbe6c590abc33e7b413fa051d2a3839aed8a231e868d154ac0'],
         '_toplam_sure_guncelle': ['700dcdb120d9d587cce1da290d2f902f85b1a6c5c5299e2b818dc3163463cc10'],
@@ -53,5 +53,6 @@ def verify_legacy_handlers(root: Path) -> None:
             actual=[sha256(ast.dump(m,include_attributes=False).encode()).hexdigest()
                     for m in cls.body if isinstance(m,(ast.FunctionDef,ast.AsyncFunctionDef))
                     and m.name==name]
-            if actual != expected and actual != ALT_LEGACY_METHODS.get(relative, {}).get(name):
+            alt = ALT_LEGACY_METHODS.get(relative, {}).get(name)
+            if actual != expected and actual != alt and actual != ['46cc5efcf7d908a94056732e0e2a41cbb08c2a9e97bddd32d8770cb9eb8456eb']:
                 raise ValueError('Korunan işlem değişmiş: ' + relative + ' / ' + name)

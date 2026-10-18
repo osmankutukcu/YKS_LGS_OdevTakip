@@ -115,7 +115,8 @@ class TurkeyBenchmarkDialog(QDialog):
                 background: white;
                 border: 1px solid #e2e8f0;
                 border-radius: 8px;
-            }
+            
+                color: #15191E;}
             QHeaderView::section {
                 background: #f1f5f9;
                 color: #475569;
@@ -530,7 +531,8 @@ class TrialExamManager(QWidget):
             QPushButton {
                 background: #0284c7; color: white; font-weight: bold; border-radius: 8px; padding: 9px 14px; font-size: 12px;
             }
-            QPushButton:hover { background: #0369a1; }
+            QPushButton:hover { background: #0369a1; 
+                color: #FFFFFF;}
         """)
         self.btn_online_bench.clicked.connect(self._open_turkey_benchmark)
         top_bar.addWidget(self.btn_online_bench)
@@ -550,7 +552,8 @@ class TrialExamManager(QWidget):
                 background-color: #2563eb; color: white; 
                 padding: 9px 16px; border-radius: 8px; font-weight: bold;
             }
-            QPushButton:hover { background-color: #1d4ed8; }
+            QPushButton:hover { background-color: #1d4ed8; 
+                color: #FFFFFF;}
         """)
         self.btn_new.clicked.connect(self._open_new_exam_dialog)
         top_bar.addWidget(self.btn_new)

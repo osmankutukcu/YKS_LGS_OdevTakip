@@ -73,7 +73,8 @@ class RoutineHomeworkBar(QFrame):
             }
             QToolButton:hover {
                 background: #4338ca;
-            }
+            
+                color: #FFFFFF;}
             QToolButton::menu-button {
                 border-left: 1px solid rgba(255, 255, 255, 0.35);
                 border-top-right-radius: 5px;

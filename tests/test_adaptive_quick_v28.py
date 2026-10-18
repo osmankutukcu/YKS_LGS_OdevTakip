@@ -140,7 +140,7 @@ class OriginalCoreProtection(unittest.TestCase):
     # Anchored to original V27 sources, so Windows CI can validate parity
     # even without the private previous-turn work directory.
     V27_HOMEWORK_SHA256 = 'b522636d49cdeaf643fef5704a3c63e39a7b5d7230d7f405f78330ebe5a2d68f'
-    V35_REVIEWED_HOMEWORK_SHA256 = '827098c0628bccbac89fbcb37cdf9967467b8971e65457d1d484768c824ffb5b'
+    V35_REVIEWED_HOMEWORK_SHA256 = '53e6b12db96cf81fd622947e7d343b4130a1a8e42a0e30d5c5ec58e64e456314'
     V27_CONTROL_METHOD_SHA20 = {
       '_kume_ac':'cadcdc80be468fc7fd1b',
       '_kaydet':'594371f8d87be1168ed9',

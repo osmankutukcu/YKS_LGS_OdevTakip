@@ -1,0 +1,121 @@
+{
+  "version": "v8.0",
+  "description": "Audited desktop source, read-only V5-V7 integration plus V8 survey reliability",
+  "files": {
+    "main_window.py": "c2f8d2d085ee45cf1d8bf9fea199c8d9cf2985e8ebb328efcf02b976803e7b27",
+    "ui/homework_form.py": "53e6b12db96cf81fd622947e7d343b4130a1a8e42a0e30d5c5ec58e64e456314",
+    "ui/homework_workspace_bridge_v21.py": "310abf41ba40add0277520d8d411f9276018f45549311ed54711aa0495e9ecc6",
+    "ui/homework_context_hub_v1.py": "fd68849fe777bafb5153cdd297ffbe3665a16aa0929e4a0034175dcbbe1f403c",
+    "ui/homework_context_integrations_v2.py": "c5d4e3ccd5c71e40a1ac3461161f15baba741b2066e62d175f2e358de4bb34f1",
+    "ui/homework_context_logic_v1.py": "2b6e7fb456e8778592f58b2605fbd58421de35a48700fac00f965a1549cf39e7",
+    "services/live_student_summary_v3.py": "4b1ab4d77f366b905fb5b1c11261c5526c008da7d5908d3ef6112a0e0de7aa52",
+    "services/today_priority_v4.py": "6d64955287f77c2a4c10341c825bd210676fda41a7e5a7b2fd4e201fef4191c8",
+    "services/teacher_copilot_v5.py": "a7a44a0ddd091a06dfeb4c2e99af70adc93c5b9ed096b6c0cb3bd1cfeecc1a06",
+    "services/teacher_feedback_v5.py": "44c9bd6a41987463525959663b66c17801c01c712da99fa2687640f0a0fdd8c8",
+    "ui/today_priority_strip_v4.py": "57522d72a49da61af0a9d2c82e7212fc59c3b6169d922fd5b5d726e0ca340839",
+    "ui/teacher_copilot_strip_v5.py": "58b5b6096675737e92853f345c3a4a543a7ec90260272e6e906155da76faba3e",
+    "ui/student_workspace_panel_v21.py": "3e12759b8bbf5a0fed818aca9e3fdf3dc407c9bb813246f771a4a73141544fda",
+    "ui/student360_panel_v16.py": "6cbf8afcf6016af595ad57dddb66c4679030dea97ca9d651dd049b1f78a49c33",
+    "ui/coaching_manager.py": "39d93947eaba72aa1a502931bf6544c75e7a5c880150cbee666487ac5c1346cd",
+    "services/srl_grow_guide_v6.py": "b7af1ae58f7a813c0438e879abed8cf0e9e44f9868d65b7a735ae386689c055b",
+    "ui/srl_grow_guide_v6.py": "9dbef90d7b5aaf4bd895136fb0104ef4c2209003550d6bd09ce2fc5eddc388c1",
+    "services/survey_evidence_v7.py": "90e5cc688f4d05af2530f58805dcb3b8774c75c35dd7716e889bfa942fbf96a9",
+    "services/survey_integrity_v8.py": "c0720ee00439865327054cae3117947e6459d91c8c8251045dd5dc55aa4d48f2",
+    "ui/survey_manager.py": "683e4e880311675c2f4fa23751b037c7df44681e77fbe6116b661751319a5e72"
+  },
+  "accepted_source_sha256": {
+    "main_window.py": [
+      "4d37d0ee3fc30c669439531c6a61dda27f45ab6d001731fc0d5b118ed395e4de",
+      "c2f8d2d085ee45cf1d8bf9fea199c8d9cf2985e8ebb328efcf02b976803e7b27",
+      "953aef2a7cb3c4296015b565d145d794c6e86f491c3b215ee4ed03150fa3e668"
+    ],
+    "ui/homework_form.py": [
+      "53e6b12db96cf81fd622947e7d343b4130a1a8e42a0e30d5c5ec58e64e456314",
+      "a91084dd4ad0960bae671581bd7d6d8cbea8de4bdb519eaa181b1c93f8d7c0d3"
+    ],
+    "ui/homework_workspace_bridge_v21.py": [
+      "a1475f1259428bda8cf78965e73712814458eb05c5f4fba938d3f4e1387bd4e4",
+      "8ed8e546405045d79a7ac259472e7109e6782313c9f551783d682dff18d243f0"
+    ],
+    "ui/homework_context_hub_v1.py": [
+      "fd68849fe777bafb5153cdd297ffbe3665a16aa0929e4a0034175dcbbe1f403c",
+      null
+    ],
+    "ui/homework_context_integrations_v2.py": [
+      "c5d4e3ccd5c71e40a1ac3461161f15baba741b2066e62d175f2e358de4bb34f1",
+      null
+    ],
+    "ui/homework_context_logic_v1.py": [
+      "2b6e7fb456e8778592f58b2605fbd58421de35a48700fac00f965a1549cf39e7",
+      null
+    ],
+    "services/live_student_summary_v3.py": [
+      "4b1ab4d77f366b905fb5b1c11261c5526c008da7d5908d3ef6112a0e0de7aa52",
+      null
+    ],
+    "services/today_priority_v4.py": [
+      "6d64955287f77c2a4c10341c825bd210676fda41a7e5a7b2fd4e201fef4191c8",
+      null
+    ],
+    "services/teacher_copilot_v5.py": [
+      "a7a44a0ddd091a06dfeb4c2e99af70adc93c5b9ed096b6c0cb3bd1cfeecc1a06",
+      null
+    ],
+    "services/teacher_feedback_v5.py": [
+      "44c9bd6a41987463525959663b66c17801c01c712da99fa2687640f0a0fdd8c8",
+      null
+    ],
+    "ui/today_priority_strip_v4.py": [
+      "57522d72a49da61af0a9d2c82e7212fc59c3b6169d922fd5b5d726e0ca340839",
+      null
+    ],
+    "ui/teacher_copilot_strip_v5.py": [
+      null,
+      "58b5b6096675737e92853f345c3a4a543a7ec90260272e6e906155da76faba3e"
+    ],
+    "ui/student_workspace_panel_v21.py": [
+      "7648fcea7cc2988e3c2e1f7765682fd467662a82ea06f8fb18959c9005485c23",
+      "515ee3c8989c35421b2bd21690d1705de1ea9a0ae2cbcde45c8c1080882c3825",
+      "a4b8effea984f6557ba7abac6094f8d99184b7cd9cd338309ae31bc25d317a11",
+      "a597f11e2377d5abcccc10e3d7c30e40a96c4275b76a5041a8a68af194b5b74a"
+    ],
+    "ui/student360_panel_v16.py": [
+      "f22fe69cc43e27469bc2860cd6f3f907fa00a76f8d3ce3ceaee84bfec3fdf7e1",
+      "6cbf8afcf6016af595ad57dddb66c4679030dea97ca9d651dd049b1f78a49c33"
+    ],
+    "ui/coaching_manager.py": [
+      "48dae832c0fd70727faa1ebe3e2250df261bee72b6f3c8eef8f6fc2bf535216a",
+      "39d93947eaba72aa1a502931bf6544c75e7a5c880150cbee666487ac5c1346cd"
+    ],
+    "services/srl_grow_guide_v6.py": [
+      null,
+      "b7af1ae58f7a813c0438e879abed8cf0e9e44f9868d65b7a735ae386689c055b"
+    ],
+    "ui/srl_grow_guide_v6.py": [
+      null,
+      "9dbef90d7b5aaf4bd895136fb0104ef4c2209003550d6bd09ce2fc5eddc388c1"
+    ],
+    "services/survey_evidence_v7.py": [
+      null,
+      "90e5cc688f4d05af2530f58805dcb3b8774c75c35dd7716e889bfa942fbf96a9"
+    ],
+    "services/survey_integrity_v8.py": [
+      null,
+      "c0720ee00439865327054cae3117947e6459d91c8c8251045dd5dc55aa4d48f2"
+    ],
+    "ui/survey_manager.py": [
+      "0405ea30a9d13c7080716eafc1434e5c430514c838a1df0a15ff4cf0769a8f14",
+      "6c43250611ba590631617c0319ac5953bc9d91218f78d156933606e02043d476"
+    ]
+  },
+  "protect_file": {
+    "ui/homework_form.py": [
+      "53e6b12db96cf81fd622947e7d343b4130a1a8e42a0e30d5c5ec58e64e456314",
+      "a91084dd4ad0960bae671581bd7d6d8cbea8de4bdb519eaa181b1c93f8d7c0d3"
+    ]
+  },
+  "base_checksum": {
+    "ui/survey_manager.py": "0405ea30a9d13c7080716eafc1434e5c430514c838a1df0a15ff4cf0769a8f14",
+    "main_window.py": "953aef2a7cb3c4296015b565d145d794c6e86f491c3b215ee4ed03150fa3e668"
+  }
+}

@@ -112,7 +112,8 @@ class WhatsappLogRaporu(QWidget):
                 gridline-color: #f1f5f9;
                 selection-background-color: #eff6ff;
                 selection-color: #1e3a8a;
-            }
+            
+                color: #15191E;}
             QTableWidget::item {
                 padding: 6px 10px;
                 border-bottom: 1px solid #f8fafc;
@@ -130,7 +131,8 @@ class WhatsappLogRaporu(QWidget):
                 border: 1px solid #cbd5e1;
                 border-radius: 8px;
                 padding: 4px;
-            }
+            
+                color: #15191E;}
             QListWidget::item {
                 padding: 7px 10px;
                 border-bottom: 1px solid #f1f5f9;
@@ -150,7 +152,8 @@ class WhatsappLogRaporu(QWidget):
                 padding: 6px 10px;
                 background-color: white;
                 font-size: 13px;
-            }
+            
+                color: #15191E;}
             QLineEdit:focus, QDateEdit:focus {
                 border-color: #3b82f6;
             }
@@ -175,7 +178,8 @@ class WhatsappLogRaporu(QWidget):
             }
             QPushButton#btnPrimary:hover {
                 background-color: #1d4ed8;
-            }
+            
+                color: #FFFFFF;}
             QPushButton#btnSuccess {
                 background-color: #10b981;
                 color: white;
@@ -183,17 +187,20 @@ class WhatsappLogRaporu(QWidget):
             }
             QPushButton#btnSuccess:hover {
                 background-color: #059669;
-            }
+            
+                color: #15191E;}
             QPushButton#btnPreset {
                 padding: 5px 10px;
                 font-size: 11.5px;
                 background-color: #f1f5f9;
                 border: 1px solid #e2e8f0;
-            }
+            
+                color: #15191E;}
             QPushButton#btnPreset:hover {
                 background-color: #e2e8f0;
                 border-color: #cbd5e1;
-            }
+            
+                color: #15191E;}
             QCheckBox {
                 font-size: 12.5px;
                 font-weight: 600;

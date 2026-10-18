@@ -2,6 +2,9 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QGraphicsDropShadowEffect, QPushButton
 )
 from ui.gamification_widget import GamificationWidget
+from ui.theme import register_theme_listener, readable_text
+from ui.theme_tokens_v37 import semantic_palette
+from ui.theme_visual_tokens_v40 import accessible_gradient
 from ui.info_board_widget import InfoBoardWidget
 from services.smart_tips import SmartTipGenerator
 from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, pyqtSignal
@@ -40,7 +43,8 @@ class SimpleDonutChart(QWidget):
         thickness = 10
         
         # Arka plan halkası
-        p.setPen(QPen(QColor("#e2e8f0"), thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        colors = semantic_palette()
+        p.setPen(QPen(QColor(colors["border"]), thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
         p.drawEllipse(QPointF(cx, cy), radius, radius)
         
         # Dolu kısım
@@ -52,7 +56,7 @@ class SimpleDonutChart(QWidget):
             p.drawArc(int(cx-radius), int(cy-radius), int(radius*2), int(radius*2), 90*16, span_angle)
         
         # Ortadaki yazı
-        p.setPen(QColor("#1e293b"))
+        p.setPen(QColor(colors["surface_fg"]))
         f = p.font(); f.setBold(True); f.setPixelSize(16); p.setFont(f)
         p.drawText(rect, Qt.AlignmentFlag.AlignCenter, "—" if self.percent is None else f"%{int(self.percent)}")
 
@@ -66,15 +70,16 @@ class DashboardCard(QFrame):
         self.setFrameShadow(QFrame.Shadow.Raised)
         self.setFixedHeight(100)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        c1, c2, text_color = accessible_gradient(*bg_gradient)
         self.setStyleSheet(f"""
             QFrame {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {bg_gradient[0]}, stop:1 {bg_gradient[1]});
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {c1}, stop:1 {c2});
                 border-radius: 12px;
                 border: 1px solid rgba(255,255,255, 0.3);
             }}
             QLabel {{
                 background: transparent;
-                color: white;
+                color: {text_color};
                 border: none;
             }}
         """)
@@ -167,6 +172,8 @@ class SmartInsightCard(QFrame):
         shadow.setOffset(0, 4)
         shadow.setColor(QColor(0,0,0, 40))
         self.setGraphicsEffect(shadow)
+        # Before the first database refresh, keep the default purple card readable.
+        self.set_insight("Veriler analiz ediliyor...")
 
     def set_insight(self, msg, icon="💡", colors=None):
         self.lblMsg.setText(msg)
@@ -176,6 +183,7 @@ class SmartInsightCard(QFrame):
         if colors and len(colors) >= 2:
             c1, c2 = colors
             
+        c1, c2, text_color = accessible_gradient(c1, c2)
         self.setStyleSheet(f"""
             QFrame {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {c1}, stop:1 {c2});
@@ -184,7 +192,7 @@ class SmartInsightCard(QFrame):
             }}
             QLabel {{
                 background: transparent;
-                color: white;
+                color: {text_color};
                 border: none;
             }}
         """)
@@ -242,13 +250,14 @@ class _SimpleBarChart(QWidget):
                 p.fillPath(path, color)
             
             # Etiket (Gün)
-            p.setPen(QColor("#64748b"))
+            chart_colors = semantic_palette()
+            p.setPen(QColor(chart_colors["surface_fg"]))
             rect_txt = QRectF(float(x) - 5, float(h) - 20, float(bar_width) + 10, 20.0)
             p.drawText(rect_txt, Qt.AlignmentFlag.AlignCenter, day_str)
             
             # Etiket (Değer - Barın üstüne)
             # Sadece yer varsa çizelim
-            p.setPen(QColor("#334155"))
+            p.setPen(QColor(chart_colors["surface_fg"]))
             val_rect = QRectF(float(x) - 5, float(y) - 15, float(bar_width) + 10, 15.0)
             p.drawText(val_rect, Qt.AlignmentFlag.AlignCenter, str(int(val)) if has_data else "—")
 
@@ -260,13 +269,7 @@ class WeeklyTrendWidget(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(180) # Biraz genişçe
-        self.setStyleSheet("""
-            QFrame {
-                background-color: white;
-                border: 1px solid #e2e8f0;
-                border-radius: 12px;
-            }
-        """)
+        # V40: light/dark surface is refreshed without recreating the chart.
         
         # Gölge
         shadow = QGraphicsDropShadowEffect(self)
@@ -283,9 +286,9 @@ class WeeklyTrendWidget(QFrame):
         
         title_v = QVBoxLayout()
         title_v.setSpacing(2)
-        lbl_h = QLabel("Haftalık Performans Trendi")
+        self.lbl_h = lbl_h = QLabel("Haftalık Performans Trendi")
         lbl_h.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b; border:none; background:transparent;")
-        lbl_desc = QLabel("Son 7 günde teslim günü gelen ödevlerin durumu")
+        self.lbl_desc = lbl_desc = QLabel("Son 7 günde teslim günü gelen ödevlerin durumu")
         lbl_desc.setStyleSheet("font-size: 11px; color: #64748b; border:none; background:transparent;")
         title_v.addWidget(lbl_h); title_v.addWidget(lbl_desc)
         top_h.addLayout(title_v)
@@ -303,6 +306,16 @@ class WeeklyTrendWidget(QFrame):
         # Grafik Alanı
         self.chart_area = _SimpleBarChart()
         self.main_layout.addWidget(self.chart_area)
+        register_theme_listener(self)
+        self._on_theme_changed()
+
+    def _on_theme_changed(self):
+        c = semantic_palette()
+        self.setStyleSheet(f'QFrame {{background:{c["surface"]};border:1px solid {c["border"]};border-radius:12px;}}')
+        self.lbl_h.setStyleSheet(f'font-size:15px;font-weight:bold;color:{c["surface_fg"]};border:none;background:transparent;')
+        self.lbl_desc.setStyleSheet(f'font-size:11px;color:{c["surface_fg"]};border:none;background:transparent;')
+        self.lbl_week_avg.setStyleSheet(f'font-size:20px;font-weight:800;color:{c["surface_fg"]};border:none;background:transparent;')
+        self.chart_area.update()
 
     def set_data(self, daily_stats):
         """
@@ -335,6 +348,8 @@ class DashboardWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.init_ui()
+        register_theme_listener(self)
+        self._on_theme_changed()
         # Timer ile başlat
         QTimer.singleShot(100, self.refresh_stats)
 
@@ -402,7 +417,7 @@ class DashboardWidget(QWidget):
         
         self.chart = SimpleDonutChart("Genel Başarı", 0, "#8b5cf6")
         
-        lbl_chart_title = QLabel("Tamamlama")
+        self.lbl_chart_title = lbl_chart_title = QLabel("Tamamlama")
         lbl_chart_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_chart_title.setStyleSheet("color: #6b7280; font-size: 11px; font-weight: 600;")
         
@@ -438,6 +453,14 @@ class DashboardWidget(QWidget):
         self.smart_card = SmartInsightCard()
         main_layout.addWidget(self.smart_card)
 
+
+    def _on_theme_changed(self):
+        # The SVG/QSS-free charts use the same palette as their containing card.
+        c = semantic_palette()
+        self.frame_chart.setStyleSheet(f'QFrame {{background:{c["surface"]};border-radius:12px;border:1px solid {c["border"]};}}')
+        self.lbl_chart_title.setStyleSheet(f'color:{c["surface_fg"]};font-size:11px;font-weight:600;')
+        self.chart.update()
+        # Trend/badge panels subscribe to the same theme event independently.
 
     def refresh_stats(self):
         """Read one reliable snapshot, then refresh the *existing* UI widgets.

@@ -140,21 +140,26 @@ class OgrenciDetayDialog(QDialog):
             QDialog, QWidget { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 13px; background-color: #f8fafc; color: #1e293b; }
             QLabel { font-weight: 500; color: #334155; }
             
-            QLineEdit, QComboBox { border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; background: white; min-height: 24px; }
+            QLineEdit, QComboBox { border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; background: white; min-height: 24px; 
+                color: #15191E;}
             QLineEdit:focus, QComboBox:focus { border: 2px solid #2563eb; }
             
             /* Buttons */
             QPushButton { border-radius: 6px; padding: 6px 12px; font-weight: 600; background: white; border: 1px solid #cbd5e1; color: #475569; }
-            QPushButton:hover { background: #f1f5f9; border-color: #94a3b8; }
+            QPushButton:hover { background: #f1f5f9; border-color: #94a3b8; 
+                color: #15191E;}
             
             QPushButton#btnPrimary { background-color: #2563eb; color: white; border: 1px solid #2563eb; }
-            QPushButton#btnPrimary:hover { background-color: #1d4ed8; }
+            QPushButton#btnPrimary:hover { background-color: #1d4ed8; 
+                color: #FFFFFF;}
             
             QPushButton#btnPdf { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-            QPushButton#btnPdf:hover { background-color: #fecaca; }
+            QPushButton#btnPdf:hover { background-color: #fecaca; 
+                color: #15191E;}
 
             QPushButton#btnInfo { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-            QPushButton#btnInfo:hover { background-color: #dbeafe; }
+            QPushButton#btnInfo:hover { background-color: #dbeafe; 
+                color: #15191E;}
         """)
 
         root = QVBoxLayout(self)

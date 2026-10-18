@@ -40,7 +40,8 @@ class CoachDetailDialog(QDialog):
         tabs = QTabWidget()
         tabs.setStyleSheet("""
             QTabWidget::pane { border: 1px solid #e2e8f0; border-radius: 4px; }
-            QTabBar::tab { background: #f8fafc; padding: 8px 12px; margin-right: 2px; border-top-left-radius: 4px; border-top-right-radius: 4px; }
+            QTabBar::tab { background: #f8fafc; padding: 8px 12px; margin-right: 2px; border-top-left-radius: 4px; border-top-right-radius: 4px; 
+                color: #15191E;}
             QTabBar::tab:selected { background: #ffffff; border: 1px solid #e2e8f0; border-bottom: none; font-weight: bold; color: #2563eb; }
         """)
         
@@ -72,7 +73,8 @@ class CoachDetailDialog(QDialog):
         btn_close.clicked.connect(self.accept)
         btn_close.setStyleSheet("""
             QPushButton { background-color: #ef4444; color: white; border-radius: 6px; font-weight: bold; padding: 8px; }
-            QPushButton:hover { background-color: #dc2626; }
+            QPushButton:hover { background-color: #dc2626; 
+                color: #FFFFFF;}
         """)
         layout.addWidget(btn_close)
 

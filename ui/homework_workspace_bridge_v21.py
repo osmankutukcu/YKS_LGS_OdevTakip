@@ -7,7 +7,7 @@ from ui.student_workspace_panel_v21 import StudentWorkspacePanelV21
 class HomeworkWorkspaceBridgeV21:
     def __init__(self, form, splitter, bottom_bar, assignments=None):
         self.form = form
-        self.panel = StudentWorkspacePanelV21(form, open_control=self._open_control)
+        self.panel = StudentWorkspacePanelV21(form, open_control=self._open_control, open_adaptive=self._open_adaptive)
         splitter.addWidget(self.panel)
         splitter.setStretchFactor(2, 0)
         self.panel.set_open(False)
@@ -33,6 +33,13 @@ class HomeworkWorkspaceBridgeV21:
         """)
         bottom_bar.addWidget(self.toggle_button)
         self.toggle_button.clicked.connect(self.toggle)
+        try:
+            from ui.smart_coach_secretary_toast import SmartCoachSecretaryController
+            self.secretary = SmartCoachSecretaryController(
+                form, bottom_bar, open_control=self._open_control, open_adaptive=self._open_adaptive
+            )
+        except Exception:
+            self.secretary = None
         for cmb in (form.cmbAd, form.cmbSoyad):
             cmb.currentIndexChanged.connect(self.selection_changed)
         # Existing clicked handlers are connected first; refresh happens after they return.
@@ -48,6 +55,8 @@ class HomeworkWorkspaceBridgeV21:
         except (TypeError, ValueError, AttributeError):
             sid = None
         self.panel.set_student(sid)
+        if getattr(self, 'secretary', None) is not None:
+            self.secretary.on_student_changed(sid)
 
     def toggle(self):
         want = not self.panel._is_open
@@ -61,3 +70,16 @@ class HomeworkWorkspaceBridgeV21:
             self.panel.set_student(self.form._secili_ogrenci_id())
             return
         self.form.btnKontrol.click()
+
+    def _open_adaptive(self):
+        # Never open another learner's analysis if selection changed mid-action.
+        try:
+            current = self.form._secili_ogrenci_id()
+        except (AttributeError, TypeError, ValueError):
+            current = None
+        if current is None or current != self.panel._student_id:
+            self.panel.set_student(current)
+            return
+        btn = getattr(self.form, 'btnOgrenme', None)
+        if btn is not None:
+            btn.click()  # Reuse the *existing* V25 analysis path.

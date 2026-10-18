@@ -38,7 +38,8 @@ class AuditLogDialog(QDialog):
                 border: 1px solid #cbd5e1;
                 border-radius: 6px;
                 background: #f8fafc;
-            }
+            
+                color: #15191E;}
         """)
         self.txtSearch.textChanged.connect(self._load_data)
         top.addWidget(self.txtSearch)
@@ -65,7 +66,8 @@ class AuditLogDialog(QDialog):
                 border-radius: 8px;
                 gridline-color: #f1f5f9;
                 background-color: white;
-            }
+            
+                color: #15191E;}
             QHeaderView::section {
                 background-color: #f1f5f9;
                 padding: 6px;

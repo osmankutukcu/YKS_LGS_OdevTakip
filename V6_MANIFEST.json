@@ -1,0 +1,42 @@
+{
+  "release": "V6-safe-pilot",
+  "based_on": "V5 full source ZIP",
+  "production_ready": false,
+  "changed_existing": [
+    "web_api/templates/index.html",
+    "web_api/static/sw.js",
+    "web_api/static/js/offline_sync.js"
+  ],
+  "added": [
+    "web_api/static/js/offline_health_v6.js",
+    "tests/test_offline_v6_readiness.cjs",
+    "tests/test_offline_v6_baseline.cjs",
+    "tests/test_offline_v6_chromium_smoke.py",
+    "MOBIL_OFFLINE_V6_DENETIM_VE_KURULUM.md"
+  ],
+  "core_sha256_unchanged": {
+    "db.py": "0273aa9842fea40e1961728de39c2a04bc796eb66d9dadad2bb2d25e22b75b94",
+    "main_window.py": "953aef2a7cb3c4296015b565d145d794c6e86f491c3b215ee4ed03150fa3e668",
+    "ui/homework_form.py": "7b480162fb9843d90b2f8e9ec6c052679dc7547fdbf38ea131cf485abf911954",
+    "web_api/main.py": "0f7a2b527c4fbdb1679ab0aa3bd28dfc5921a6abbccb39cf7ec0a7d532df98b6",
+    "web_api/sync_engine.py": "d35f16a77549513c30be800c346f9b5c1e7feff3133f70884424fd169b0e7d67",
+    "web_api/sync_transactions.py": "044a6b525ec60c6c8d35bcd612e536b047fe843d9471a1f747d195f8221b900c",
+    "web_api/homework_store.py": "e8a21abfb8b4a1681960134f87e6d7dd7c9f37288754dfcf08fa7c4cc24ed701"
+  },
+  "patch_sha256": {
+    "web_api/static/sw.js": "8e71560270f92d0ac64312b985d2e26b028efee90a8ff921e40687d72c2b21c0",
+    "web_api/static/js/offline_sync.js": "53098a5f175a979a5a5f8fd15432b9159a48b5953481b0740669e3b7b5c0aa69",
+    "web_api/static/js/offline_health_v6.js": "129fb435401238bd8425773721ca7d2bf83f8bc3277447ead6ab6af6c64b4e67",
+    "web_api/templates/index.html": "ff8bc8fe9bd468976a563ae1a221f5b6d8715373ea70f039d6d8097ab55f34fd",
+    "tests/test_offline_v6_readiness.cjs": "b1c1dc3e9a3bd89462b9066175db5c66453a6f4ed07c02971f75762351c94976",
+    "tests/test_offline_v6_baseline.cjs": "1d3bd6d30831953f8b9c6302d10efb6f96511d83a598074ecff7da80a63ce4a4",
+    "tests/test_offline_v6_chromium_smoke.py": "9d2872aa9677b415a6778cd0c96d4764512e84db2273f80833a3c19b0ad60292",
+    "MOBIL_OFFLINE_V6_DENETIM_VE_KURULUM.md": "f92a28d294228bac7362089934c397df16643e9856dd4c5ef1bc79cb9e85e15d"
+  },
+  "validated": {
+    "python_regression": "153 passed, 19 subtests passed",
+    "node_v4_v5_v6": "PASS",
+    "real_chromium": "BLOCKED_BY_ADMINISTRATOR — not passed",
+    "real_ios_android_windows": "not tested"
+  }
+}

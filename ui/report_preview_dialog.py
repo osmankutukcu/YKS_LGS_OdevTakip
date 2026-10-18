@@ -74,7 +74,7 @@ class ReportPreviewDialog(QDialog):
         self.btn_cancel.setStyleSheet("""
             QPushButton {
                 background-color: #f1f5f9;
-                color: #64748b;
+                color: #606f85;
                 border: 1px solid #cbd5e1;
                 border-radius: 8px;
                 padding: 10px 20px;
@@ -96,7 +96,8 @@ class ReportPreviewDialog(QDialog):
                 font-weight: bold;
                 font-size: 13px;
             }
-            QPushButton:hover { background-color: #1d4ed8; }
+            QPushButton:hover { background-color: #1d4ed8; 
+                color: #FFFFFF;}
         """)
         self.btn_send.clicked.connect(self._confirm_send)
 

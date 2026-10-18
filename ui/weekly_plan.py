@@ -689,7 +689,8 @@ class HaftalikPlanDialog(QDialog):
         self.tbl.setHorizontalHeaderItem(0, QTableWidgetItem("Ödev"))
 
         self.tbl.setStyleSheet("""
-            QTableWidget { gridline-color: #d1d5db; background: white; }
+            QTableWidget { gridline-color: #d1d5db; background: white; 
+                color: #15191E;}
             QTableWidget::item { border: 1px solid #e5e7eb; padding: 6px; }
             QTableWidget::item:selected { background-color: #dbeafe; color: #1e3a8a; }
         """)

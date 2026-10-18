@@ -1,0 +1,33 @@
+{
+  "version": "v11.0-pilot",
+  "requires": "Verified V10 source files; no cloud production enablement",
+  "files": {
+    "services/adaptive_outcomes_v11.py": "61b8a045a34018c19538d3ec3121a092148c053467aab83a29162ed5572d1c7c",
+    "ui/adaptive_followup_v11.py": "af750f74c1c7813a482330b0f22a3108245a771db65f41fb3d48b56f4d5adcb5",
+    "ui/adaptive_coaching_dialog_v25.py": "57b41c0a8586883e01575337b72e409391cb69bbc7250c9666014c5e47daf11b",
+    "ui/student_workspace_panel_v21.py": "3e12759b8bbf5a0fed818aca9e3fdf3dc407c9bb813246f771a4a73141544fda"
+  },
+  "accepted_sources": {
+    "services/adaptive_outcomes_v11.py": [
+      null
+    ],
+    "ui/adaptive_followup_v11.py": [
+      null
+    ],
+    "ui/adaptive_coaching_dialog_v25.py": [
+      "1b4be2edc299fe044a8681d36805c66baa145cf23ecae9d2eb0c422b538722fc"
+    ],
+    "ui/student_workspace_panel_v21.py": [
+      "a4b8effea984f6557ba7abac6094f8d99184b7cd9cd338309ae31bc25d317a11"
+    ]
+  },
+  "protected": {
+    "ui/homework_form.py": "53e6b12db96cf81fd622947e7d343b4130a1a8e42a0e30d5c5ec58e64e456314",
+    "ui/student360_panel_v16.py": "6cbf8afcf6016af595ad57dddb66c4679030dea97ca9d651dd049b1f78a49c33",
+    "main_window.py": "c2f8d2d085ee45cf1d8bf9fea199c8d9cf2985e8ebb328efcf02b976803e7b27",
+    "ui/survey_manager.py": "683e4e880311675c2f4fa23751b037c7df44681e77fbe6116b661751319a5e72",
+    "services/adaptive_coaching_v25/engine.py": "d7d64aeb7a19b6649d58c85a2c736203a8117bf3ded2039d7c14606cd6001414",
+    "web_api/main.py": "8ce11f4cbc6dc047266221245b3e528d82285a577d70aa44db7454d5c071a51c",
+    "web_api/live_changes_v10.py": "029a9a3bf5df9dc6723332bf69c97e1a92f8d36392063e748c013ece0e78442f"
+  }
+}

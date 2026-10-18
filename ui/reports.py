@@ -17,6 +17,7 @@ import sqlite3
 from typing import List, Tuple, Dict, Any, Optional
 
 import db  # mevcut db yardımcıların (get_conn, listele_ogrenciler, DERS_TABLOLARI vs.)
+from services.lesson_catalog_v39 import read_lesson_options
 
 
 # --- Küçük yardımcılar ------------------------------------------------------
@@ -291,25 +292,20 @@ class RaporlarFormu(QWidget):
             self.lstOgr.addItem(it)
 
     def _yukle_dersler(self):
+        """Katalog derslerini ID'leriyle seçtirir; eski ödev dersleri de korunur."""
         self.lstDers.clear()
-        dersler: List[str] = []
         try:
-            dersler = list(db.DERS_TABLOLARI)  # senin sabitin
+            options = read_lesson_options(
+                self._con, legacy=db.DERS_TABLOLARI,
+                history_sources=('odev', 'odev_satir')
+            )
         except Exception:
-            pass
-
-        if not dersler:
-            # Fallback: odev_satir'dan distinct ders
-            con = self._con
-            rows = con.execute(
-                "SELECT DISTINCT ders FROM odev_satir "
-                "WHERE ders IS NOT NULL AND ders<>'' ORDER BY ders"
-            ).fetchall()
-            dersler = [r[0] for r in rows]
-
-        for d in dersler:
-            it = QListWidgetItem(d)
-            it.setData(0x0100, d)
+            from services.lesson_catalog_v39 import LessonOption
+            options = tuple(LessonOption(d, d) for d in db.DERS_TABLOLARI)
+        for option in options:
+            it = QListWidgetItem(option.label)
+            it.setData(0x0100, option.code)
+            it.setToolTip(f'Ders kodu: {option.code}. Eski ödev kayıtları değiştirilmez.')
             it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
             it.setCheckState(Qt.CheckState.Unchecked)
             self.lstDers.addItem(it)

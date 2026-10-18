@@ -1,0 +1,44 @@
+{
+  "base": "YKS_LGS_HomeworkManager_V8_Entegre_Kaynak_Veriler_Haric.zip",
+  "version": "V9",
+  "pilot": true,
+  "changed_paths": [
+    "MOBIL_OFFLINE_V9_DEGISIKLIK_TEMELLI_AKTARIM_RAPORU.md",
+    "tests/test_mobile_sync_v3_integration.py",
+    "tests/test_offline_v7_readiness.cjs",
+    "tests/test_offline_v9_delta.cjs",
+    "tests/test_offline_v9_delta.py",
+    "tests/v9_canonical_synthetic.json",
+    "web_api/delta_pages_v9.py",
+    "web_api/static/js/offline_delta_v9.js",
+    "web_api/static/js/offline_health_v6.js",
+    "web_api/static/js/offline_sync.js",
+    "web_api/static/sw.js",
+    "web_api/sync_engine.py",
+    "web_api/templates/index.html"
+  ],
+  "sha256": {
+    "MOBIL_OFFLINE_V9_DEGISIKLIK_TEMELLI_AKTARIM_RAPORU.md": "ae18e7deed859735a7d474a9cd746b61299c313e511dd1adaba3b3991bbeea01",
+    "tests/test_mobile_sync_v3_integration.py": "7bac35dcd8269e67039367c40e42e8f67a5ff58e7cebe82cf7cd9608690d4581",
+    "tests/test_offline_v7_readiness.cjs": "aad412ca3f81b0577fb35777bee67263c64787c4a4b6bc3d84477454170863c7",
+    "tests/test_offline_v9_delta.cjs": "f35963353256a1e94151d8115e8359b09b0b06187fd49c80179ede667137b7ac",
+    "tests/test_offline_v9_delta.py": "a64417834df8923d8ae0d2db6dbab12a99d74dea04a0fc6961c1871cfcc81c41",
+    "tests/v9_canonical_synthetic.json": "da04a0c6ab773d07a3e3a053c6e254b94ce29cdd82dff70722d343bc48782fd1",
+    "web_api/delta_pages_v9.py": "9751f8e1a63b0192dbbb905b103dc403f6ff93830952ca54afc9b5a5aeee75f6",
+    "web_api/static/js/offline_delta_v9.js": "e6389f1f50107a42562623b46d82916305a13d597c9679b7b960af1a2d4d1a32",
+    "web_api/static/js/offline_health_v6.js": "1610095220423a2610eb9b4f23bb4454a01a1061064ea0915d0e301d36a73e32",
+    "web_api/static/js/offline_sync.js": "311fdcec1ea59f0c21a67dd5b00f8d35ada13220f2bde7f2308c11190a0aa054",
+    "web_api/static/sw.js": "e5ce97704b5bb0c12950b629ca3557504fb3617a8b68325a9e54590be779850b",
+    "web_api/sync_engine.py": "966f57ec39ba2ff8392bc2c0a2c5483782240e85c2c258c282d8761043c620f4",
+    "web_api/templates/index.html": "bcf73e3939fa629045f83632302a0a04b2012642b7ad5ddc940e1eb100b4df75"
+  },
+  "protected_unchanged": [
+    "db.py",
+    "main_window.py",
+    "ui/homework_form.py",
+    "web_api/main.py",
+    "web_api/sync_transactions.py",
+    "web_api/homework_store.py"
+  ],
+  "notes": "Test pilot only; pre-existing desktop release gate failures; no user databases included."
+}

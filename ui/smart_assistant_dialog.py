@@ -325,13 +325,14 @@ class SmartAssistantDialog(QDialog):
             QListWidget { border: none; background-color: transparent; outline: none; }
             QPushButton#RefreshBtn {
                 background-color: #EFF6FF;
-                color: #3B82F6;
+                color: #326dcf;
                 border: 1px solid #DBEAFE;
                 border-radius: 6px;
                 padding: 6px 12px;
                 font-weight: 600;
             }
-            QPushButton#RefreshBtn:hover { background-color: #DBEAFE; }
+            QPushButton#RefreshBtn:hover { background-color: #DBEAFE; 
+                color: #15191E;}
         """)
 
         self._ensure_tables()
@@ -444,7 +445,8 @@ class SmartAssistantDialog(QDialog):
                 QPushButton:checked {
                     background-color: #3B82F6; border: 1px solid #3B82F6; color: white;
                 }
-                QPushButton:hover:!checked { background-color: #F1F5F9; }
+                QPushButton:hover:!checked { background-color: #F1F5F9; 
+                color: #15191E;}
             """)
             btn.clicked.connect(lambda checked, k=f_key: self._apply_filter(k))
             filter_layout.addWidget(btn)

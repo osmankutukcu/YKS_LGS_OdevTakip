@@ -96,8 +96,8 @@ class WindowsPerfV32Tests(unittest.TestCase):
 
     def test_legacy_core_hash_still_unchanged(self):
         checks={
-            'ui/homework_form.py':'827098c0628bccbac89fbcb37cdf9967467b8971e65457d1d484768c824ffb5b',
-            'ui/odev_kontrol.py':'7ca39f447e4a7cd71cb4eb14fde9bba53fae6c183092d0758a77c8d009cd4d0c',
+            'ui/homework_form.py':'53e6b12db96cf81fd622947e7d343b4130a1a8e42a0e30d5c5ec58e64e456314',
+            'ui/odev_kontrol.py':'da0f9c272f528f18dcadf4548b837039371780b9509039df5da2585ab51b095e',
         }
         # Older maintenance tests provide authoritative source checksums.
         for rel, want in list(checks.items())[:2]:

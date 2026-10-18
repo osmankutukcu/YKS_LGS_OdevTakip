@@ -32,7 +32,7 @@ def sidebar_data(con, student_id: int, *, today=None):
     if obs:
         for b in engine.get_blockers(con, sid, limit=15):
             observed = engine._date(b['created_at'])
-            if observed is not None and 0 <= (day - observed).days <= 14:
+            if observed is not None and (day - observed).days <= 14 and observed <= max(day, date.today()):
                 recent_blockers.append({'reason': b['reason'], 'detail': b['detail'],
                                         'resolution': b['resolution']})
     # V28 is a separate, explicit teacher observation, NOT measured mastery.

@@ -1,0 +1,72 @@
+{
+  "version": "V10",
+  "base": "YKS_LGS_HomeworkManager_V9_Entegre_Kaynak_Veriler_Haric.zip",
+  "type": "PILOT / NEVER AUTO DEPLOY",
+  "changed_paths": [
+    ".github/workflows/build_installer.yml",
+    "MOBIL_OFFLINE_V10_STABILIZASYON_YAYIN_KAPISI.md",
+    "V10_SENTETIK_BENCHMARK.json",
+    "tests/bench_offline_v10_delta.py",
+    "tests/test_offline_v10_recovery.cjs",
+    "tests/test_offline_v10_source_guards.py",
+    "tests/test_offline_v7_readiness.cjs",
+    "web_api/static/js/offline_health_v6.js",
+    "web_api/static/js/offline_resilience_v10.js",
+    "web_api/static/js/offline_sync.js",
+    "web_api/static/sw.js",
+    "web_api/templates/index.html"
+  ],
+  "sha256": {
+    ".github/workflows/build_installer.yml": "265bedccb147ccdb8d416df64346f2a3087819fcad764175759ec1032dfcc7a0",
+    "MOBIL_OFFLINE_V10_STABILIZASYON_YAYIN_KAPISI.md": "c1d8d31b7525aa86a2507cb2881d1c0ee067ec3b85fdf545b73725e9f739c17b",
+    "V10_SENTETIK_BENCHMARK.json": "f16b666ce0b62a7da3f209222259d794336e5b8a600e08c22b5e31544b468d70",
+    "tests/bench_offline_v10_delta.py": "f58b3bf6f10d7ecf06d7af416c16b3cdf8a565e70735834a5bfb3564b6a25d50",
+    "tests/test_offline_v10_recovery.cjs": "045a6bb14b446eeb394b56a8b3be64a8a5797a7d03a26bd5ceaba5bc3af50605",
+    "tests/test_offline_v10_source_guards.py": "5c7f286a39a58963b5c34117218d55668682421bf3e53dfff4cb472930a8e0ec",
+    "tests/test_offline_v7_readiness.cjs": "27c1b06afc2bbe9437fd3235ddf614e8a2b6f4680d50c84c3988fbeb1541dd36",
+    "web_api/static/js/offline_health_v6.js": "e23a04c02e1e27600e1494be1e94e1a0643ea640b36984f3ed648d374e55914d",
+    "web_api/static/js/offline_resilience_v10.js": "9ca98e3cfc2e23eff740a57257afbd6f01cf87b898eeb8eeca9438dbcc6f849d",
+    "web_api/static/js/offline_sync.js": "12d980134ac9c805c0781479f449608b532e29e1212ea3c976f8417e45034e9c",
+    "web_api/static/sw.js": "7fe00b51cdaf7ffbf54bf14bb8a5ce51623559e73bc022ffc752b9be99c66010",
+    "web_api/templates/index.html": "a3803063d2993fb56b03640e8508280721e93e059e1e30970b7842281abbc859"
+  },
+  "protected_files": {
+    "db.py": {
+      "sha256": "0273aa9842fea40e1961728de39c2a04bc796eb66d9dadad2bb2d25e22b75b94",
+      "unchanged_from_v9": true
+    },
+    "main_window.py": {
+      "sha256": "953aef2a7cb3c4296015b565d145d794c6e86f491c3b215ee4ed03150fa3e668",
+      "unchanged_from_v9": true
+    },
+    "ui/homework_form.py": {
+      "sha256": "7b480162fb9843d90b2f8e9ec6c052679dc7547fdbf38ea131cf485abf911954",
+      "unchanged_from_v9": true
+    },
+    "ui/odev_kontrol.py": {
+      "sha256": "da0f9c272f528f18dcadf4548b837039371780b9509039df5da2585ab51b095e",
+      "unchanged_from_v9": true
+    },
+    "web_api/main.py": {
+      "sha256": "0f7a2b527c4fbdb1679ab0aa3bd28dfc5921a6abbccb39cf7ec0a7d532df98b6",
+      "unchanged_from_v9": true
+    },
+    "web_api/sync_transactions.py": {
+      "sha256": "044a6b525ec60c6c8d35bcd612e536b047fe843d9471a1f747d195f8221b900c",
+      "unchanged_from_v9": true
+    },
+    "web_api/homework_store.py": {
+      "sha256": "e8a21abfb8b4a1681960134f87e6d7dd7c9f37288754dfcf08fa7c4cc24ed701",
+      "unchanged_from_v9": true
+    }
+  },
+  "test_summary": {
+    "selected_pytest": 125,
+    "subtests": 20,
+    "javascript_suites": 11,
+    "release_gate_passed": 9,
+    "release_gate_failed": 2,
+    "reason": "Historical protected source digest mismatch; manual review required"
+  },
+  "safety": "No student data / SQLite migration / manual Windows acceptance"
+}

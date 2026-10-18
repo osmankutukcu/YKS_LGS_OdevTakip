@@ -236,7 +236,7 @@ class WeeklyPlannerOverview(QWidget):
             self.lbl_routine_status.setText(
                 'ℹ️ Verilen ödevler arasında "Paragraf" veya "Problem" ödevi tespit edildiğinde otomatik her güne alışkanlık olarak dağıtılır.'
             )
-            self.lbl_routine_status.setStyleSheet('font-size: 11.5px; color: #0284c7; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 6px 10px;')
+            self.lbl_routine_status.setStyleSheet('font-size: 11.5px; color: #0277b3; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 6px 10px;')
 
     def get_routine_settings(self) -> dict:
         return {

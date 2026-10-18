@@ -127,18 +127,19 @@ class QuickCoachBridgeV28:
         self.tab.customContextMenuRequested.connect(self.open_from_context)
 
         # Küme açıldığında veya değiştiğinde rozetleri otomatik olarak yükle
-        orig_kume_ac = self.dialog._kume_ac
+        orig_kume_ac = getattr(self.dialog, '_kume_ac', None)
         orig_kume_ac_moved = getattr(self.dialog, '_kume_ac_moved', None)
 
-        def wrapped_kume_ac(*args, **kwargs):
-            res = orig_kume_ac(*args, **kwargs)
-            try:
-                self.decorate_table()
-            except Exception:
-                pass
-            return res
+        if orig_kume_ac is not None:
+            def wrapped_kume_ac(*args, **kwargs):
+                res = orig_kume_ac(*args, **kwargs)
+                try:
+                    self.decorate_table()
+                except Exception:
+                    pass
+                return res
 
-        self.dialog._kume_ac = wrapped_kume_ac
+            self.dialog._kume_ac = wrapped_kume_ac
 
         if orig_kume_ac_moved is not None:
             def wrapped_kume_ac_moved(*args, **kwargs):

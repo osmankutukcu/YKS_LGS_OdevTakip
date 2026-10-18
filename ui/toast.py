@@ -8,7 +8,7 @@ _ACTIVE = []
 
 _KIND_STYLES = {
     "info":    {"bg": "#2563eb", "fg": "#ffffff", "emoji": "ℹ️"},
-    "success": {"bg": "#16a34a", "fg": "#ffffff", "emoji": "✅"},
+    "success": {"bg": "#15803d", "fg": "#ffffff", "emoji": "✅"},
     "warn":    {"bg": "#eab308", "fg": "#111827", "emoji": "⚠️"},
     "error":   {"bg": "#dc2626", "fg": "#ffffff", "emoji": "✖"},
 }
@@ -27,8 +27,10 @@ class Toast(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
 
         st = _KIND_STYLES.get(kind, _KIND_STYLES["info"])
-        self.bg = QColor(st["bg"])
-        self.fg = QColor(st["fg"])
+        from ui.theme_notification_tokens_v38 import toast_colors
+        bg, fg = toast_colors(kind)
+        self.bg = QColor(bg)
+        self.fg = QColor(fg)
 
         # içerik
         self.label = QLabel(f"{st['emoji']}  {text}")
@@ -36,7 +38,7 @@ class Toast(QWidget):
         f.setPointSize(font_size)
         f.setBold(True)
         self.label.setFont(f)
-        self.label.setStyleSheet(f"color:{st['fg']};")
+        self.label.setStyleSheet(f"color:{fg}; background:transparent; border:none;")
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         lay = QVBoxLayout(self)

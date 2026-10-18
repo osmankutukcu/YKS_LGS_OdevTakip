@@ -1,0 +1,1 @@
+{"student": {"id": 12, "ad": "Öğrenci 🎓", "special": "Türkçe\n✓"}, "curriculum": {"books": {"2": ["Fizik"], "10": ["Kimya"]}, "topics": {"17": [{"float": 1.0, "value": 0.0001, "hint": "θ"}]}, "status": true}, "expected": "c34314be0f6b9970b24a4fd2db8e355511ddede0881c1ab68ef37346b1e6cd28"}

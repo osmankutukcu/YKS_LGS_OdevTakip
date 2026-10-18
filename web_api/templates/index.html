@@ -1142,7 +1142,10 @@
             }
             if (!res.ok) {
                 const errJson = await res.json().catch(() => ({}));
-                throw new Error(errJson.detail || errJson.message || res.statusText);
+                const err = new Error(errJson.detail || errJson.message || res.statusText);
+                // V10: typed status permits ONLY safe transient delta->full fallback.
+                err.httpStatus = res.status;
+                throw err;
             }
             return await res.json();
         }
@@ -1187,6 +1190,13 @@
             }
         }
 
+        // V10 optional: safe auto refresh of overview, not any unsaved homework form.
+        window.addEventListener('yks:live10-updated', async () => {
+            const active = document.activeElement;
+            if (active && active.matches('input, textarea, select, [contenteditable="true"]')) return;
+            if (!sessionStorage.getItem('yks_access') || document.hidden) return;
+            try { await initApp(); } catch (e) { console.info('[V10] Görünüm yenileme ertelendi'); }
+        });
         // --- INIT & AUTHENTICATION ---
         async function initApp() {
             try {
@@ -2560,6 +2570,12 @@
             const pending = syncObj.pendingCount || 0;
             if (badge) badge.textContent = pending;
 
+            if (syncObj.downloadProgress) {
+                const {page,total}=syncObj.downloadProgress;
+                dot.className='status-dot dot-yellow';
+                txt.textContent=`Güvenli indirme ${page}/${total} parça`;
+                return;
+            }
             if (syncObj.isServerOnline) {
                 if (pending > 0) {
                     dot.className = 'status-dot dot-yellow';
@@ -2589,7 +2605,10 @@
                 $('btn-sync-pull').disabled = true;
                 $('btn-sync-pull').textContent = '⏳ İndiriliyor...';
                 await OfflineSync.downloadSnapshot();
-                showToast('Tüm veriler telefonunuza kopyalandı! Çevrimdışı kullanabilirsiniz.', true);
+                const delta = OfflineSync.lastDeltaStats;
+                showToast(delta
+                    ? `${delta.changed} öğrenci kaydı yenilendi, ${delta.removed} kaldırıldı. ${delta.total} öğrenci çevrimdışı hazır.`
+                    : 'Tüm veriler telefonunuza kopyalandı! Çevrimdışı kullanabilirsiniz.', true);
             } catch (err) {
                 showToast('İndirme hatası: ' + err.message, false);
             } finally {
@@ -2606,6 +2625,12 @@
                 const res = await OfflineSync.pushSync();
                 if (res.remaining > 0) {
                     showToast(`${res.acknowledged_count || 0} işlem onaylandı; ${res.remaining} işlem güvenle bekliyor.`, false);
+                    if ((res.failures||[]).some(x=>x.status==='conflict')) {
+                        await toggleVaultPanel(true);
+                        renderOfflineConflicts();
+                    }
+                } else if (res.snapshot_refresh_needed) {
+                    showToast(`${res.acknowledged_count || 0} işlem masaüstüne yazıldı; güncel görünüm henüz indirilemedi. Bağlantı gelince İndir düğmesine basın.`, false);
                 } else {
                     showToast(`Eşitlendi: ${res.acknowledged_count || 0} işlem onaylandı.`, true);
                 }
@@ -2628,7 +2653,7 @@
           <h2 style="font-size:18px;">🛡 Çevrimdışı Güvenlik</h2>
           <button type="button" class="btn" onclick="toggleVaultPanel(false)" style="padding:8px 12px;" aria-label="Kapat">✕</button>
         </div>
-        <p style="font-size:12px; color:#64748b; margin-bottom:12px;">Güçlü parolanız cihazınızdan gönderilmez. Yedek dosyası AES-256-GCM ile şifrelenir. Mevcut telefon içi IndexedDB kayıtları henüz ayrıca şifrelenmiş değildir.</p>
+        <p style="font-size:12px; color:#64748b; margin-bottom:12px;">Güçlü parolanız cihazınızdan gönderilmez. Yedek dosyası AES-256-GCM ile şifrelenir. V5: Telefon içindeki öğrenci ve ödev kayıtlarını ayrıca şifreleyebilirsiniz. Etkinleştirmeden önce şifreli yedek almanız önerilir. Parolayı unutursanız kurtarma yedeği gerekir.</p>
         <label for="vault-pass" style="font-size:12px; font-weight:700;">Parola (en az 12 karakter)</label>
         <input id="vault-pass" type="password" autocomplete="new-password" placeholder="Güçlü yedek / erişim parolası" style="display:block; width:100%; padding:12px; border:1px solid #cbd5e1; border-radius:9px; margin:6px 0 10px;">
         <label for="vault-confirm" style="font-size:12px; font-weight:700;">Parola tekrarı (ayar/yedek için)</label>
@@ -2638,22 +2663,59 @@
           <button class="btn" id="vault-export" onclick="exportPhoneBackup()" type="button" style="border:1px solid #cbd5e1;">📤 Şifreli Yedek Al</button>
         </div>
         <div style="border-top:1px solid #e2e8f0; margin:14px 0; padding-top:14px;">
+          <p style="font-size:12px;font-weight:700;margin-bottom:8px;">V5 · Telefon içi şifreli çalışma alanı</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn" id="vault-encrypt-device" onclick="encryptPhoneData()" type="button" style="border:1px solid #cbd5e1; flex:1;">🔒 Yerel Verileri Şifrele</button>
+            <button class="btn" id="vault-unlock-device" onclick="unlockPhoneStorage()" type="button" style="border:1px solid #cbd5e1; flex:1;">🔑 Çalışma Alanını Aç</button>
+          </div>
+          <p id="vault-encryption-status" role="status" style="font-size:11px;color:#64748b;margin-top:8px;">Şifreleme durumu kontrol ediliyor...</p>
+        </div>
+        <div style="border-top:1px solid #e2e8f0; margin:14px 0; padding-top:14px;">
+          <p style="font-size:12px;font-weight:700;margin-bottom:6px;">V8 · Telefonda şifreli kurtarma klasörü</p>
+          <p style="font-size:11px;color:#64748b;margin-bottom:8px;">Android / desteklenen tarayıcı: seçtiğiniz klasöre yedek. iPhone/iPad: Dosyalar uygulamasına kaydetmek için paylaşım ekranı. Tarayıcı verilerinin yerine geçmez.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn" id="vault-folder-choose" type="button" onclick="choosePhoneFolder()" style="border:1px solid #cbd5e1;flex:1;">📁 Klasör Seç</button>
+            <button class="btn btn-primary" id="vault-folder-save" type="button" onclick="savePhoneFolderBackup()" style="flex:1;">💾 Şifreli Yedeği Kaydet</button>
+          </div>
+          <p id="vault-folder-status" role="status" style="font-size:11px;color:#64748b;margin-top:7px;">Klasör desteği kontrol ediliyor...</p>
+        </div>
+        <div style="border-top:1px solid #e2e8f0; margin:14px 0; padding-top:14px;">
           <label for="vault-file" style="font-size:12px; font-weight:700;">Şifreli yedeği geri yükle (.yksbackup)</label>
           <input id="vault-file" type="file" accept=".yksbackup,application/octet-stream" style="display:block; width:100%; margin:8px 0; font-size:12px;">
           <button class="btn" id="vault-import" onclick="importPhoneBackup()" type="button" style="border:1px solid #cbd5e1; width:100%;">📥 Kayıpları Kurtar (Mevcut Kuyruğu Koru)</button>
+        </div>
+        <div id="offline-conflict-panel" style="display:none;border-top:1px solid #e2e8f0;margin:14px 0;padding-top:14px;">
+          <h3 style="font-weight:700;font-size:13px;color:#92400e;">⚠️ Eşitleme çakışmaları</h3>
+          <p style="font-size:11px;color:#64748b;margin:5px 0;">Masaüstü kaydına dokunulmadı. Yalnızca doğrulanmış durum çakışmaları incelenebilir.</p>
+          <div id="offline-conflict-items"></div>
+        </div>
+        <div style="border-top:1px solid #e2e8f0;margin-top:14px;padding-top:12px;">
+          <button class="btn" type="button" id="offline-audit-btn" onclick="runOfflineReadiness()"
+              style="border:1px solid #cbd5e1;width:100%;">🧪 Çevrimdışı Hazırlık Denetimi</button>
+          <p id="offline-audit-results" role="status" aria-live="polite"
+              style="white-space:pre-wrap;font-size:11px;line-height:1.65;color:#475569;margin-top:8px;"></p>
         </div>
         <p id="vault-storage" style="font-size:11px; color:#64748b; margin-top:10px;"></p>
         <p id="vault-result" role="status" aria-live="polite" style="font-size:12px; font-weight:650; white-space:pre-wrap; margin-top:12px;"></p>
       </div>
     </div>
-    <script src="/static/js/offline_vault.js"></script>
+    <script src="/static/js/offline_secure_store_v5.js?v=12.3"></script>
+    <script src="/static/js/offline_vault.js?v=12.3"></script>
     <!-- MODULAR OFFLINE SYNC SCRIPT -->
-    <script src="/static/js/offline_sync.js"></script>
+    <script src="/static/js/offline_coordinator_v7.js?v=12.3"></script>
+    <script src="/static/js/offline_paged_v8.js?v=12.3"></script>
+    <script src="/static/js/offline_delta_v9.js?v=12.3"></script>
+    <script src="/static/js/offline_resilience_v10.js?v=12.3"></script>
+    <script src="/static/js/offline_folder_v8.js?v=12.3"></script>
+    <script src="/static/js/offline_sync.js?v=12.3"></script>
+    <script src="/static/js/offline_live_v10.js?v=10.0"></script>
+    <script src="/static/js/offline_health_v6.js?v=12.3"></script>
     <script>
         async function toggleVaultPanel(show) {
             const modal = $('vault-layer');
             modal.style.display = show ? 'flex' : 'none';
             $('vault-result').textContent = '';
+            if (show && window.OfflineFolderV8) refreshFolderStatus().catch(()=>{});
             if (!show) { $('vault-pass').value=''; $('vault-confirm').value=''; $('vault-file').value=''; }
             else if (window.OfflineVault) {
                 try {
@@ -2661,7 +2723,99 @@
                     const usage = space.usage == null ? 'Bilinmiyor' : `${Math.round(space.usage / 1048576)} MB`;
                     $('vault-storage').textContent = `Cihaz saklama kullanımı: ${usage}. Kalıcı saklama izni: ${space.persistent ? 'Var' : 'Yok / desteklenmiyor'}. Tarayıcı verileri yedek olmadan garanti değildir.`;
                 } catch (_) { $('vault-storage').textContent = 'Depolama güvenilirliği ölçülemedi; mutlaka şifreli yedek alın.'; }
+                await refreshEncryptionStatus();
+                renderOfflineConflicts();
             }
+        }
+        async function runOfflineReadiness() {
+            const output = $('offline-audit-results');
+            const button = $('offline-audit-btn');
+            button.disabled = true;
+            output.textContent = 'Uygulama dosyaları ve yerel kayıtlar kontrol ediliyor…';
+            try {
+                await window.offlineSyncReady;
+                const report = await OfflineHealthV6.audit();
+                output.textContent = report.results.map(x =>
+                    `${x.ok ? '✓' : (x.severity === 'warning' ? '!' : '✗')} ${x.message}`).join('\n') +
+                    `\nBekleyen işlem: ${report.pending ?? 'bilinmiyor'}` +
+                    `\n${report.ready ? 'Uygulama temel kontrollerden geçti.' : 'Bazı zorunlu koşullar eksik.'}` +
+                    `\n${report.note}`;
+                output.style.color = report.ready ? '#166534' : '#9a3412';
+            } catch (error) {
+                output.textContent = 'Denetim tamamlanamadı: ' + error.message;
+                output.style.color = '#b91c1c';
+            } finally { button.disabled = false; }
+        }
+        async function refreshEncryptionStatus() {
+            const enabled=await OfflineSecureStore.enabled();
+            $('vault-encryption-status').textContent = enabled ?
+              (OfflineSecureStore.unlocked ? '✅ Yerel çalışma alanı şifreli ve açık.' : '🔒 Yerel çalışma alanı şifreli ve kilitli.') :
+              'Şifreleme kapalı. IndexedDB kayıtları cihazda açık biçimde tutuluyor.';
+            $('vault-encrypt-device').disabled=enabled;
+        }
+        async function encryptPhoneData() {
+            try {
+                if (OfflineSync.syncing || OfflineSync.restoring) throw Error('Önce eşitlemeyi tamamlayın.');
+                const pass=vaultPassword(false);
+                const dbid=OfflineSync.lastSnapshot?.database_id;
+                if(!dbid)throw Error('Önce masaüstünden öğrenci verilerini indirin.');
+                await OfflineVault.unlockOfflineAccess(pass,dbid);
+                if(!window.confirm('ÖNCE ŞİFRELİ YEDEK ALDINIZ MI? Eski açık kayıtlar atomik olarak şifreli hâle getirilecektir. Parolanız olmadan çevrimdışı erişilemez. Devam edilsin mi?'))return;
+                $('vault-encrypt-device').disabled=true;
+                const result=await OfflineCoordinatorV7.runExclusive(
+                    () => OfflineSecureStore.enable(pass,dbid));
+                await OfflineSync.reloadLocal();
+                vaultResult(`Yerel öğrenci ve ödev kayıtları şifrelendi (${result.encrypted_commands} bekleyen işlem).`,true);
+            } catch(err){vaultResult('Şifreleme uygulanmadı: '+err.message,false);}
+            finally{await refreshEncryptionStatus().catch(()=>{});}
+        }
+        async function unlockPhoneStorage() {
+            try {
+                const pass=vaultPassword(false);
+                const dbid=await OfflineSecureStore.databaseId();
+                if(!dbid)throw Error('Şifreli çalışma alanı ayarlanmamış.');
+                await OfflineVault.unlockOfflineAccess(pass,dbid);
+                await OfflineSecureStore.unlock(pass,dbid);
+                await OfflineSync.reloadLocal();
+                await OfflineSync.checkConnection();
+                vaultResult('Yerel veriler güvenle açıldı. Yeni işlemler de şifrelenerek kaydedilecek.',true);
+                if(sessionStorage.getItem('yks_access'))await initApp();
+            } catch(err){vaultResult(err.message,false);}
+            finally{await refreshEncryptionStatus().catch(()=>{});}
+        }
+        function renderOfflineConflicts() {
+            const panel=$('offline-conflict-panel'),target=$('offline-conflict-items');
+            const failures=(OfflineSync.lastFailures||[]).filter(x=>x.status==='conflict');
+            target.replaceChildren(); panel.style.display=failures.length?'block':'none';
+            for(const failed of failures) {
+                const div=document.createElement('div');
+                div.style.cssText='border:1px solid #fcd34d;border-radius:10px;padding:10px;margin-top:8px;';
+                const para=document.createElement('p');
+                para.style.cssText='font-size:12px;white-space:pre-wrap;';
+                para.textContent=(failed.reason||'Masaüstü ve telefon arasında fark var.')+' (işlem: '+failed.id.slice(0,16)+'…)';
+                div.append(para);
+                const actions=document.createElement('div');
+                actions.style.cssText='display:flex;gap:8px;margin-top:8px;';
+                for(const choice of [{label:'Masaüstünü koru',value:'desktop'},
+                      {label:'Telefon tercihimi yeniden dene',value:'mobile'}]) {
+                    const button=document.createElement('button');button.type='button';button.className='btn';
+                    button.style.cssText='border:1px solid #d97706;font-size:11px;flex:1;';
+                    button.textContent=choice.label;
+                    button.addEventListener('click',()=>resolvePhoneConflict(failed.id,choice.value));
+                    actions.append(button);
+                }
+                div.append(actions);target.append(div);
+            }
+        }
+        async function resolvePhoneConflict(id,choice) {
+            const label=choice==='desktop'?'Telefondaki bu çakışan işlemi silip masaüstündeki durumu korumak':
+                'Güncel masaüstü kaydını esas alarak telefon tercihini YENİ işlem olarak sıraya almak';
+            if(!window.confirm(label+' istiyor musunuz? Sonraki bağımlı işlemler varsa bu işlem reddedilecek.'))return;
+            try {
+                await OfflineSync.resolveConflict(id,choice);
+                renderOfflineConflicts();
+                vaultResult('Seçiminiz işlendi. Telefon tercihi seçildiyse masaüstüne aktarılması için tekrar Eşitle düğmesini kullanın.',true);
+            } catch(err){vaultResult('Çakışma çözülemedi: '+err.message,false);}
         }
         function vaultPassword(requireMatch = false) {
             const p = $('vault-pass').value;
@@ -2691,9 +2845,13 @@
             field.value = '';
             try {
                 await window.offlineSyncReady;
-                const snap = OfflineSync.lastSnapshot;
-                if (!snap?.database_id) throw new Error('Telefonda tam veri paketi bulunamadı.');
-                const key = await OfflineVault.unlockOfflineAccess(pass, snap.database_id);
+                const dbid = await OfflineVault.configuredDatabaseId();
+                if (!dbid) throw new Error('Telefonda çevrimdışı erişim ayarlanmamış.');
+                const key = await OfflineVault.unlockOfflineAccess(pass,dbid);
+                if (await OfflineSecureStore.enabled()) await OfflineSecureStore.unlock(pass,dbid);
+                await OfflineSync.reloadLocal();
+                if (OfflineSync.lastSnapshot?.database_id!==dbid)
+                    throw Error('Öğrenci kayıtları ile masaüstü kimliği farklı.');
                 sessionStorage.setItem('yks_access', key);
                 // No server required: local snapshot + verified encrypted access key.
                 await OfflineSync.checkConnection();
@@ -2723,7 +2881,7 @@
         }
         async function exportPhoneBackup() {
             try {
-                if (OfflineSync.syncing || OfflineVault.busy) throw new Error('Önce eşitlemenin bitmesini bekleyin.');
+                if (OfflineSync.syncing || OfflineVault.busy || OfflineSecureStore.busy) throw new Error('Önce eşitlemenin bitmesini bekleyin.');
                 const password = vaultPassword(true);
                 $('vault-export').disabled = true;
                 const blob = await OfflineVault.exportEncryptedBackup(password);
@@ -2737,6 +2895,37 @@
             } catch (err) { vaultResult(err.message, false); }
             finally { $('vault-export').disabled = false; }
         }
+        async function refreshFolderStatus() {
+            const data=await OfflineFolderV8.status();
+            $('vault-folder-choose').style.display=data.supported?'':'none';
+            $('vault-folder-status').textContent=data.folder ?
+                `Seçili kurtarma klasörü: ${data.folder}. Yedek otomatik yazılmaz; Kaydet düğmesine basın.` :
+                (data.supported ? 'Önce klasör seçin veya Kaydet ile şifreli yedeği dışa aktarın.' :
+                    'Bu cihazda doğrudan klasör erişimi yok; Kaydet düğmesi paylaşma / Dosyalar’a kaydetme akışını açar.');
+        }
+        async function choosePhoneFolder() {
+            try {
+                const folder=await OfflineFolderV8.chooseFolder();
+                vaultResult(`Klasör seçildi: ${folder}. Şimdi güncel şifreli yedeği ayrıca kaydedebilirsiniz.`,true);
+                await refreshFolderStatus();
+            } catch(e) {vaultResult(e.message,false);}
+        }
+        async function savePhoneFolderBackup() {
+            const button=$('vault-folder-save');
+            try {
+                const password=vaultPassword(true);
+                button.disabled=true;
+                // A folder handle can require permission again after an OS/browser restart.
+                const info=await OfflineCoordinatorV7.runExclusive(() =>
+                    OfflineFolderV8.save({password}));
+                if(info.method==='folder') {
+                    vaultResult(`Şifreli yedek doğrulandı ve ${info.folder} klasörüne kaydedildi: ${info.filename}`,true);
+                } else {
+                    vaultResult('Şifreli yedek paylaşım/indirme akışına verildi. Dosyalar’a gerçekten kaydedildiğini kontrol edin; web uygulaması bunu doğrulayamaz.',true);
+                }
+            } catch(e) {vaultResult('Yedek saklanamadı: '+e.message,false);}
+            finally {button.disabled=false;await refreshFolderStatus();}
+        }
         async function importPhoneBackup() {
             try {
                 if (OfflineSync.syncing || OfflineVault.busy) throw new Error('Önce diğer işlemi tamamlayın.');
@@ -2746,7 +2935,8 @@
                 if (!window.confirm('Geri yükleme mevcut bekleyen işlemleri SİLMEZ. İki kopya farklı masaüstlerine aitse işlem reddedilir. Devam edilsin mi?')) return;
                 $('vault-import').disabled = true;
                 OfflineSync.restoring = true;
-                const status = await OfflineVault.importEncryptedBackup(f, password);
+                const status = await OfflineCoordinatorV7.runExclusive(
+                    () => OfflineVault.importEncryptedBackup(f, password));
                 OfflineSync.lastSnapshot = null;
                 await OfflineSync.init();
                 await refreshOfflineButton();
@@ -2765,8 +2955,19 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js', { scope: '/' })
-                    .then(reg => console.log('[PWA] Service Worker aktif:', reg.scope))
+                    .then(reg => {
+                        console.log('[PWA] Service Worker aktif:', reg.scope);
+                        reg.update();
+                    })
                     .catch(err => console.log('[PWA] Service Worker kaydı:', err));
+            });
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!refreshing) {
+                    refreshing = true;
+                    console.log('[PWA] Yeni sürüm aktifleşti, sayfa güncelleniyor...');
+                    window.location.reload();
+                }
             });
         }
     </script>

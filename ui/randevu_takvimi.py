@@ -145,7 +145,8 @@ class RandevuTakvimi(QDialog):
                 border: none; border-radius: 6px;
                 padding: 4px 12px; font-weight: 800; font-size: 10.5px;
             }
-            QPushButton:hover { background: #f1f5f9; }
+            QPushButton:hover { background: #f1f5f9; 
+                color: #15191E;}
         """)
         btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_refresh.clicked.connect(self._load_from_db)
@@ -417,7 +418,8 @@ class RandevuTakvimi(QDialog):
         self.tbl_det_homeworks.verticalHeader().setDefaultSectionSize(24)
         self.tbl_det_homeworks.setMinimumHeight(100)
         self.tbl_det_homeworks.setStyleSheet("""
-            QTableWidget { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 11px; }
+            QTableWidget { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 11px; 
+                color: #15191E;}
             QHeaderView::section { background: #f8fafc; font-weight: 700; color: #475569; padding: 3px; font-size: 10px; border: none; border-bottom: 1px solid #e2e8f0; }
         """)
         l_det.addWidget(self.tbl_det_homeworks, 1)
@@ -434,7 +436,8 @@ class RandevuTakvimi(QDialog):
                 background: #10b981; color: white; font-weight: 700;
                 padding: 4px 8px; border-radius: 6px; font-size: 11px; border: none; min-height: 26px;
             }
-            QPushButton:hover { background: #059669; }
+            QPushButton:hover { background: #059669; 
+                color: #15191E;}
         """)
         self.btn_det_wa.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_det_wa.clicked.connect(self._send_whatsapp_for_selected)
@@ -446,7 +449,8 @@ class RandevuTakvimi(QDialog):
                 background: #2563eb; color: white; font-weight: 700;
                 padding: 4px 8px; border-radius: 6px; font-size: 11px; border: none; min-height: 26px;
             }
-            QPushButton:hover { background: #1d4ed8; }
+            QPushButton:hover { background: #1d4ed8; 
+                color: #FFFFFF;}
         """)
         self.btn_det_open.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_det_open.clicked.connect(self._open_tracking_for_selected)
@@ -470,7 +474,8 @@ class RandevuTakvimi(QDialog):
                 background: #ecfdf5; color: #065f46; font-weight: 700;
                 padding: 4px 8px; border-radius: 6px; font-size: 11px; border: 1px solid #a7f3d0; min-height: 26px;
             }
-            QPushButton:hover { background: #d1fae5; }
+            QPushButton:hover { background: #d1fae5; 
+                color: #15191E;}
         """)
         self.btn_det_done.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_det_done.clicked.connect(self._mark_selected_kume_completed)
@@ -602,7 +607,8 @@ class RandevuTakvimi(QDialog):
             QComboBox:hover {
                 border-color: #3b82f6;
                 background-color: #f8fafc;
-            }
+            
+                color: #15191E;}
             QComboBox:focus {
                 border-color: #2563eb;
                 background-color: #ffffff;
@@ -727,7 +733,8 @@ class RandevuTakvimi(QDialog):
                 font-family: 'Segoe UI', system-ui, sans-serif;
                 font-size: 13px;
                 outline: none; /* Focus çerçevesini kaldır */
-            }
+            
+                color: #15191E;}
             QHeaderView::section {
                 background-color: #f8fafc;
                 color: #64748b;
@@ -1011,7 +1018,8 @@ class RandevuTakvimi(QDialog):
         self.tab.setItemDelegate(_ColorFriendlyDelegate(self.tab))
 
         self.tab.setStyleSheet("""
-            QTableWidget { background: #ffffff; gridline-color: #e5e7eb; font-size: 13px; }
+            QTableWidget { background: #ffffff; gridline-color: #e5e7eb; font-size: 13px; 
+                color: #15191E;}
             QHeaderView::section {
                 background: #f8fafc; color: #111827; padding: 8px 10px;
                 border: 1px solid #e5e7eb; font-weight: 600;
@@ -1398,7 +1406,7 @@ class RandevuTakvimi(QDialog):
             old_view.setReadOnly(True)
             old_view.setPlainText(old_note)
             old_view.setFixedHeight(60)
-            old_view.setStyleSheet("background: #f1f5f9; color: #64748b; border: none;")
+            old_view.setStyleSheet("background: #f1f5f9; color: #606f85; border: none;")
             ly.addWidget(old_view)
         
         btn_save = QPushButton("Kaydet ve Kapat")
@@ -2824,7 +2832,8 @@ class RandevuTakvimi(QDialog):
             }
             QPushButton:hover {
                 background-color: #e2e8f0;
-            }
+            
+                color: #15191E;}
         """)
         btn_close.clicked.connect(dlg.accept)
         
@@ -2998,7 +3007,8 @@ class RandevuTakvimi(QDialog):
                 border-radius: 10px;
                 gridline-color: #f1f5f9;
                 font-size: 14px;
-            }
+            
+                color: #15191E;}
             QTableWidget::item {
                 padding-left: 10px;
                 color: #334155;
@@ -5395,7 +5405,7 @@ class SingleStudentWhatsAppDialog(QDialog):
 
         btn_cancel = QPushButton("İptal")
         btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_cancel.setStyleSheet("background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 14px; font-weight: bold; color: #64748b;")
+        btn_cancel.setStyleSheet("background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 14px; font-weight: bold; color: #606f85;")
         btn_cancel.clicked.connect(self.reject)
         h_btn.addWidget(btn_cancel)
 
@@ -5411,7 +5421,8 @@ class SingleStudentWhatsAppDialog(QDialog):
                 padding: 8px 18px;
                 border: none;
             }
-            QPushButton:hover { background-color: #15803d; }
+            QPushButton:hover { background-color: #15803d; 
+                color: #FFFFFF;}
         """)
         def do_send():
             raw_phone = self.inp_custom_phone.text().strip() if self.cmb_phones.currentData() == "custom" else self.cmb_phones.currentData()
@@ -5513,7 +5524,8 @@ class _WhatsAppBatchDialog(QDialog):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setStyleSheet("""
                 QPushButton { background: #e2e8f0; border: none; padding: 5px 12px; border-radius: 6px; color: #475569; font-weight: 600; font-size: 12px; }
-                QPushButton:hover { background: #cbd5e1; }
+                QPushButton:hover { background: #cbd5e1; 
+                color: #15191E;}
             """)
         
         tools.addWidget(self.btnAll)
@@ -5556,7 +5568,8 @@ class _WhatsAppBatchDialog(QDialog):
                 border: 1px solid #e2e8f0;
                 border-radius: 8px;
                 gridline-color: transparent;
-            }
+            
+                color: #15191E;}
             QHeaderView::section {
                 background-color: #f1f5f9;
                 color: #475569;
@@ -5576,7 +5589,8 @@ class _WhatsAppBatchDialog(QDialog):
             }
             QLineEdit {
                 background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px;
-            }
+            
+                color: #15191E;}
             QLineEdit:focus { border: 1px solid #3b82f6; background: #fff; }
         """)
         
@@ -5604,7 +5618,8 @@ class _WhatsAppBatchDialog(QDialog):
         self.edtTemplate.setStyleSheet("""
             QTextEdit {
                 border: 2px solid #e2e8f0; border-radius: 8px; padding: 10px; font-size: 14px; background: #f8fafc;
-            }
+            
+                color: #15191E;}
             QTextEdit:focus { border-color: #3b82f6; background: #ffffff; }
         """)
         mf_lay.addWidget(self.edtTemplate)
@@ -5647,7 +5662,7 @@ class _WhatsAppBatchDialog(QDialog):
         self.btnExport = QPushButton("Excel'e Kaydet")
         self.btnExport.setFlat(True)
         self.btnExport.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btnExport.setStyleSheet("color: #059669; font-weight: 600; font-size: 14px; border: 1px solid #a7f3d0; border-radius: 8px; padding: 8px 16px; background: #ecfdf5;")
+        self.btnExport.setStyleSheet("color: #04825b; font-weight: 600; font-size: 14px; border: 1px solid #a7f3d0; border-radius: 8px; padding: 8px 16px; background: #ecfdf5;")
 
         # Kapat Butonu
         self.btnClose = QPushButton("Vazgeç")
@@ -5666,8 +5681,10 @@ class _WhatsAppBatchDialog(QDialog):
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2563eb, stop:1 #3b82f6);
                 color: white; font-weight: bold; font-size: 15px; border-radius: 8px; padding: 0 24px; border: none;
             }
-            QPushButton:hover { background: #1d4ed8; }
-            QPushButton:pressed { background: #1e40af; }
+            QPushButton:hover { background: #1d4ed8; 
+                color: #FFFFFF;}
+            QPushButton:pressed { background: #1e40af; 
+                color: #FFFFFF;}
         """)
 
         f_lay.addWidget(self.btnExport)

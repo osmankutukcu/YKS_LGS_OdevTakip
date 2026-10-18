@@ -47,9 +47,17 @@ def _fallback_toast(parent, text, color="#22c55e", ms=1800, font=18):
     w = QFrame(parent)
     w.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
     w.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
+    # V38: fallback notification follows the same accessible text rules.
+    from ui.theme_notification_tokens_v38 import toast_colors
+    from PyQt6.QtGui import QColor
+    resolved = QColor(color)
+    if not resolved.isValid():
+        resolved = QColor('#15803d')
+    bg, fg = toast_colors('success', resolved.name(QColor.NameFormat.HexRgb))
+    w.setObjectName('settingsFallbackToastV38')
     w.setStyleSheet(
-        "QFrame{background:%s;border-radius:14px;padding:8px 14px;}"
-        "QLabel{color:white;font-weight:600;}" % color
+        f"QFrame#settingsFallbackToastV38 {{background:{bg};border-radius:14px;padding:8px 14px;}}"
+        f"QFrame#settingsFallbackToastV38 QLabel {{color:{fg};background:transparent;font-weight:600;}}"
     )
     lay = QHBoxLayout(w)
     lay.setContentsMargins(12, 8, 12, 8)
@@ -427,6 +435,11 @@ class ThemeManagerDialog(QDialog):
 
         # Küçük stil dokunuşu
         self.setStyleSheet("""
+            /* Tema düzenleyicisi sabit AÇIK bir çalışma tuvalidir.
+               Böylece koyu uygulama modundan kalma beyaz yazı/zemin çakışmaz. */
+            QWidget { background:#f8fafc; color:#0f172a; }
+            QGroupBox { background:#ffffff; color:#0f172a; }
+            QRadioButton, QCheckBox { color:#0f172a; background:transparent; }
             QGroupBox {
                 font-weight:600;
                 border:1px solid #e2e8f0;
@@ -439,8 +452,15 @@ class ThemeManagerDialog(QDialog):
                 padding:0 4px;
             }
             QLabel { color:#0f172a; }
-            QLineEdit, QComboBox, QSpinBox { min-height: 24px; padding: 2px 6px; }
-            QPushButton { min-height: 26px; padding: 4px 10px; }
+            QLineEdit, QComboBox, QSpinBox {
+                background:#ffffff; color:#0f172a;
+                border:1px solid #cbd5e1; min-height:24px; padding:2px 6px;
+            }
+            QPushButton {
+                background:#2563eb; color:#ffffff;
+                border:1px solid #1d4ed8; min-height:26px; padding:4px 10px;
+            }
+            QPushButton:hover { background:#1d4ed8; color:#ffffff; }
         """)
 
     # ==== Custom tema load/save (aynı mantık) ====
@@ -461,7 +481,7 @@ class ThemeManagerDialog(QDialog):
             pass
 
     def _reload_custom_combo(self):
-        self.cmbCustom.clear
+        self.cmbCustom.clear()
         names = sorted(self._custom_themes.keys())
         if names:
             self.cmbCustom.addItems(names)
@@ -484,6 +504,35 @@ class ThemeManagerDialog(QDialog):
             self.radDark.setChecked(True)
 
         is_dark_preset = (mode in ("dark", "koyu"))
+
+        # Named presets must reset *all* theme color fields, not only the six
+        # list/header colors. Otherwise dark cards, tabs and white button text
+        # can leak into a newly selected light preset (and vice versa).
+        from ui.theme import readable_text, _mix
+        primary = p.get("primary", "#2563eb")
+        accent = p.get("accent", "#10b981")
+        bg = p.get("bg", "#1b1c1d" if is_dark_preset else "#FFFFFF")
+        card = "#2A2C31" if is_dark_preset else "#F6F7F9"
+        alt = "#33363C" if is_dark_preset else "#EEF0F3"
+        baseline = {
+            "tema_card": card,
+            "tema_alt": alt,
+            "tema_button_bg": primary,
+            "tema_button_border": primary,
+            "tema_button_fg": readable_text(primary, "#FFFFFF"),
+            "tema_tab_bg": _mix(card, bg, 0.80),
+            "tema_tab_fg": readable_text(_mix(card, bg, 0.80)),
+            "tema_tab_sel_bg": card,
+            "tema_tab_sel_fg": readable_text(card),
+            "tema_tab_hover_bg": _mix(_mix(card, bg, 0.80), primary, 0.08),
+            "tema_list_hover_bg": _mix(primary, "#1b1c1d" if is_dark_preset else "#FFFFFF", 0.06),
+            "tema_list_hover_fg": readable_text("#1b1c1d" if is_dark_preset else "#FFFFFF"),
+            "tema_head_glow": _mix(primary, "#FFFFFF", 0.92),
+            "tema_ok": accent,
+        }
+        for key, value in baseline.items():
+            if key in self._color_fields:
+                self._color_fields[key].setText(value)
 
         if is_dark_preset:
             self._color_fields["tema_list_bg"].setText("#1b1c1d")

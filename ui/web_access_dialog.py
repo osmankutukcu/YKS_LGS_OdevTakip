@@ -251,7 +251,8 @@ class WebAccessDialog(QDialog):
             }
             QTabBar::tab:hover {
                 background: #e2e8f0;
-            }
+            
+                color: #15191E;}
             QFrame#QRCard {
                 background-color: #ffffff;
                 border: 2px dashed #cbd5e1;
@@ -275,7 +276,8 @@ class WebAccessDialog(QDialog):
                 font-size: 14px;
                 padding: 12px 20px;
             }
-            QPushButton#btnStart:hover { background-color: #1d4ed8; }
+            QPushButton#btnStart:hover { background-color: #1d4ed8; 
+                color: #FFFFFF;}
             QPushButton#btnStop {
                 background-color: #ef4444;
                 color: white;
@@ -283,7 +285,8 @@ class WebAccessDialog(QDialog):
                 font-size: 14px;
                 padding: 12px 20px;
             }
-            QPushButton#btnStop:hover { background-color: #dc2626; }
+            QPushButton#btnStop:hover { background-color: #dc2626; 
+                color: #FFFFFF;}
             QPushButton#btnAction {
                 background-color: #ffffff;
                 border: 1px solid #cbd5e1;
@@ -292,7 +295,8 @@ class WebAccessDialog(QDialog):
             QPushButton#btnAction:hover {
                 background-color: #f1f5f9;
                 border-color: #94a3b8;
-            }
+            
+                color: #15191E;}
             QPushButton#btnWhatsApp {
                 background-color: #dcfce7;
                 border: 1px solid #86efac;
@@ -300,14 +304,16 @@ class WebAccessDialog(QDialog):
             }
             QPushButton#btnWhatsApp:hover {
                 background-color: #bbf7d0;
-            }
+            
+                color: #15191E;}
             QLineEdit {
                 border: 1.5px solid #cbd5e1;
                 border-radius: 6px;
                 padding: 8px 10px;
                 background-color: white;
                 font-size: 13px;
-            }
+            
+                color: #15191E;}
             QLineEdit:focus {
                 border-color: #3b82f6;
             }
@@ -597,7 +603,7 @@ class WebAccessDialog(QDialog):
         pix.fill(Qt.GlobalColor.white)
         self.lbl_qr.setPixmap(pix)
         self.lbl_qr.setText("Sunucuyu Başlattığınızda\nBurada QR Kod Görünecektir")
-        self.lbl_qr.setStyleSheet("color: #94a3b8; font-weight: bold; font-size: 12px; background: #ffffff;")
+        self.lbl_qr.setStyleSheet("color: #6b7584; font-weight: bold; font-size: 12px; background: #ffffff;")
 
     def get_active_url(self):
         if self.public_url:

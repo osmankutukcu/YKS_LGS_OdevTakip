@@ -22,7 +22,8 @@ class HomeworkAdaptiveBridgeV27:
         self.button.setStyleSheet('''
             QPushButton {background:#f5f3ff;border:1px solid #c4b5fd;
                border-radius:6px;color:#6d28d9;font-weight:700;padding:2px 9px;}
-            QPushButton:hover {background:#ede9fe;border-color:#8b5cf6;}
+            QPushButton:hover {background:#ede9fe;border-color:#8b5cf6;
+                color: #15191E;}
         ''')
         bottom.addWidget(self.button)
         self.button.clicked.connect(self.toggle)

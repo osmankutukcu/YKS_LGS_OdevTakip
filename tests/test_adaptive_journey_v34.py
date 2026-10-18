@@ -21,10 +21,10 @@ from services.adaptive_coaching_v34.journey import compose_journey, journey_text
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_CRITICAL_SHA256 = {
-    'ui/homework_form.py': '827098c0628bccbac89fbcb37cdf9967467b8971e65457d1d484768c824ffb5b',
-    'ui/odev_kontrol.py': '7ca39f447e4a7cd71cb4eb14fde9bba53fae6c183092d0758a77c8d009cd4d0c',
-    'db.py': '0273aa9842fea40e1961728de39c2a04bc796eb66d9dadad2bb2d25e22b75b94',
-    'main_window.py': '953aef2a7cb3c4296015b565d145d794c6e86f491c3b215ee4ed03150fa3e668',
+    'ui/homework_form.py': '53e6b12db96cf81fd622947e7d343b4130a1a8e42a0e30d5c5ec58e64e456314',
+    'ui/odev_kontrol.py': 'da0f9c272f528f18dcadf4548b837039371780b9509039df5da2585ab51b095e',
+    'db.py': '8b295f375a18b41bdb92f120170bafb9a2cb93863be9e98b789241ceb32c4d6b',
+    'main_window.py': 'c2f8d2d085ee45cf1d8bf9fea199c8d9cf2985e8ebb328efcf02b976803e7b27',
 }
 
 

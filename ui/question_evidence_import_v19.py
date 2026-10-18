@@ -7,6 +7,7 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 from urllib.parse import quote
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,
     QFileDialog,QMessageBox,QTableWidget,QTableWidgetItem,QHeaderView,QComboBox,QCheckBox)
 from ui.question_evidence_ocr_worker_v202 import ReportReadWorker, ACTIVE_READERS
@@ -26,6 +27,145 @@ class QuestionEvidenceImportDialog(QDialog):
         self._dialog_closed=False
         self.setWindowTitle('Soru–Konu Eşleştirme | Öğretmen Onaylı')
         self.resize(1000,650)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #f8fafc;
+                font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            }
+            QLabel {
+                color: #1e293b;
+                font-size: 12.5px;
+            }
+            QComboBox {
+                background-color: #ffffff;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 6px 12px;
+                color: #0f172a;
+                font-size: 12.5px;
+                font-weight: 600;
+                min-height: 34px;
+            }
+            QComboBox:hover {
+                border-color: #3b82f6;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 28px;
+                border-left: 1px solid #cbd5e1;
+                border-top-right-radius: 8px;
+                border-bottom-right-radius: 8px;
+                background: #f8fafc;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid #475569;
+                width: 0;
+                height: 0;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #ffffff;
+                color: #0f172a;
+                border: 1px solid #cbd5e1;
+                border-radius: 8px;
+                selection-background-color: #eff6ff;
+                selection-color: #1d4ed8;
+                padding: 4px;
+            }
+            QTableWidget {
+                background-color: #ffffff;
+                border: 1px solid #cbd5e1;
+                border-radius: 8px;
+                gridline-color: #f1f5f9;
+                font-size: 12px;
+                color: #1e293b;
+                selection-background-color: #dbeafe;
+                selection-color: #1e3a8a;
+            }
+            QHeaderView::section {
+                background-color: #f1f5f9;
+                color: #334155;
+                font-weight: 600;
+                font-size: 12px;
+                padding: 7px 10px;
+                border: none;
+                border-right: 1px solid #e2e8f0;
+                border-bottom: 2px solid #cbd5e1;
+            }
+            QCheckBox {
+                color: #1e293b;
+                font-size: 12px;
+                font-weight: 500;
+                spacing: 8px;
+            }
+            QPushButton#btnChoose {
+                background-color: #2563eb;
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 12.5px;
+                border-radius: 8px;
+                padding: 8px 16px;
+                border: none;
+            }
+            QPushButton#btnChoose:hover { background-color: #1d4ed8; color: #ffffff; }
+            QPushButton#btnChoose:pressed { background-color: #1e40af; color: #ffffff; }
+
+            QPushButton#btnKarne {
+                background-color: #0f766e;
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 12.5px;
+                border-radius: 8px;
+                padding: 8px 16px;
+                border: none;
+            }
+            QPushButton#btnKarne:hover { background-color: #0d9488; color: #ffffff; }
+            QPushButton#btnKarne:pressed { background-color: #115e59; color: #ffffff; }
+
+            QPushButton#btnTemplate {
+                background-color: #ffffff;
+                color: #334155;
+                font-weight: 600;
+                font-size: 12.5px;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 8px 16px;
+            }
+            QPushButton#btnTemplate:hover { background-color: #f1f5f9; border-color: #94a3b8; color: #0f172a; }
+            QPushButton#btnTemplate:pressed { background-color: #e2e8f0; color: #0f172a; }
+
+            QPushButton#btnApply {
+                background-color: #16a34a;
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 13px;
+                border-radius: 8px;
+                padding: 10px 24px;
+                border: none;
+            }
+            QPushButton#btnApply:hover { background-color: #15803d; color: #ffffff; }
+            QPushButton#btnApply:pressed { background-color: #166534; color: #ffffff; }
+            QPushButton#btnApply:disabled {
+                background-color: #e2e8f0;
+                color: #94a3b8;
+                border: 1px solid #cbd5e1;
+            }
+
+            QPushButton#btnClose {
+                background-color: #ffffff;
+                color: #475569;
+                font-weight: 600;
+                font-size: 13px;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 10px 24px;
+            }
+            QPushButton#btnClose:hover { background-color: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+            QPushButton#btnClose:pressed { background-color: #e2e8f0; color: #0f172a; }
+        """)
         root=QVBoxLayout(self)
         heading=QLabel('Deneme sorularını öğrenci–ders–soru numarası ve açık konu adıyla eşleştirin.')
         heading.setWordWrap(True)
@@ -35,9 +175,9 @@ class QuestionEvidenceImportDialog(QDialog):
         caution.setWordWrap(True);root.addWidget(caution)
         row=QHBoxLayout();row.addWidget(QLabel('Deneme:'))
         self.exams=QComboBox();row.addWidget(self.exams,1)
-        choose=QPushButton('CSV / Excel Seç');choose.clicked.connect(self.select_file);row.addWidget(choose)
-        karne=QPushButton('Karne / Fotoğraf (OCR)');karne.clicked.connect(self.select_analysis_file);row.addWidget(karne)
-        template=QPushButton('CSV Şablon');template.clicked.connect(self.save_template);row.addWidget(template)
+        choose=QPushButton('CSV / Excel Seç');choose.setObjectName('btnChoose');choose.setCursor(Qt.CursorShape.PointingHandCursor);choose.clicked.connect(self.select_file);row.addWidget(choose)
+        karne=QPushButton('Karne / Fotoğraf (OCR)');karne.setObjectName('btnKarne');karne.setCursor(Qt.CursorShape.PointingHandCursor);karne.clicked.connect(self.select_analysis_file);row.addWidget(karne)
+        template=QPushButton('CSV Şablon');template.setObjectName('btnTemplate');template.setCursor(Qt.CursorShape.PointingHandCursor);template.clicked.connect(self.save_template);row.addWidget(template)
         root.addLayout(row)
         self.summary=QLabel('Öğrenci için kayıtlı deneme seçin, ardından dosyayı açın.')
         self.summary.setWordWrap(True);root.addWidget(self.summary)
@@ -52,9 +192,15 @@ class QuestionEvidenceImportDialog(QDialog):
         root.addWidget(self.confirm)
         bottom=QHBoxLayout()
         self.apply_button=QPushButton('Kontrol Edilmiş Eşleştirmeleri Kaydet')
+        self.apply_button.setObjectName('btnApply')
+        self.apply_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.apply_button.clicked.connect(self.commit)
         bottom.addWidget(self.apply_button)
-        close=QPushButton('Kapat');close.clicked.connect(self.reject);bottom.addWidget(close)
+        close=QPushButton('Kapat')
+        close.setObjectName('btnClose')
+        close.setCursor(Qt.CursorShape.PointingHandCursor)
+        close.clicked.connect(self.reject)
+        bottom.addWidget(close)
         root.addLayout(bottom)
         self.exams.currentIndexChanged.connect(self.refresh_preview)
         self._load_exams(preselect_exam_id)

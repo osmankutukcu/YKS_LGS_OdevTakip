@@ -42,6 +42,7 @@ from PyQt6.QtWidgets import (
 )
 from utils.web_portal import WebPortalGenerator
 from ui.analytics_dialog import AnalyticsDialog
+from ui.theme_special_v42 import table_bar_colors, trend_colors
 from PyQt6.QtGui import QIcon, QAction
 
 try: 
@@ -160,7 +161,8 @@ class PerformansPaneli(QDialog):
             QPushButton {
                 background-color: #3b82f6; color: white; border: none; font-weight: bold; padding: 6px 15px;
             }
-            QPushButton:hover { background-color: #2563eb; }
+            QPushButton:hover { background-color: #2563eb; 
+                color: #FFFFFF;}
         """)
         self.btnYenile.clicked.connect(self._yenile)
         tb_layout.addWidget(self.btnYenile)
@@ -193,11 +195,12 @@ class PerformansPaneli(QDialog):
             QTabWidget::pane { border: 1px solid #e2e8f0; border-radius: 8px; background: white; }
             QTabWidget::tab-bar { left: 10px; }
             QTabBar::tab {
-                background: #e2e8f0; color: #64748b; padding: 8px 16px; margin-right: 4px; border-top-left-radius: 6px; border-top-right-radius: 6px;
+                background: #e2e8f0; color: #5a687d; padding: 8px 16px; margin-right: 4px; border-top-left-radius: 6px; border-top-right-radius: 6px;
                 font-weight: 600;
             }
             QTabBar::tab:selected { background: white; color: #3b82f6; border-bottom: 2px solid white; }
-            QTabBar::tab:hover { background: #f1f5f9; }
+            QTabBar::tab:hover { background: #f1f5f9; 
+                color: #15191E;}
         """)
         content_box.addWidget(self.tabs)
 
@@ -269,7 +272,8 @@ class PerformansPaneli(QDialog):
                 border: none;
                 selection-background-color: #eff6ff;
                 selection-color: #1e3a8a;
-            }
+            
+                color: #15191E;}
             QHeaderView::section {
                 font-weight: 600;
                 padding: 10px;
@@ -749,11 +753,12 @@ class PerformansPaneli(QDialog):
                     pct = 0
 
                 painter.save()
-                painter.fillRect(option.rect, QColor(248, 250, 252))
+                colors = table_bar_colors(pct)
+                painter.fillRect(option.rect, QColor(colors['base']))
 
                 r = option.rect.adjusted(6, 6, -6, -6)
                 painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(QColor(230, 236, 242))
+                painter.setBrush(QColor(colors['base']))
                 painter.drawRoundedRect(r, 6, 6)
 
                 def _mix(c1, c2, t_):
@@ -764,7 +769,7 @@ class PerformansPaneli(QDialog):
                     )
 
                 t_ = pct / 100.0
-                fill = _mix(QColor("#ef4444"), QColor("#22c55e"), t_)
+                fill = QColor(colors['fill'])
                 bar = QRect(r.x(), r.y(), int(r.width() * t_), r.height())
                 painter.setBrush(fill)
                 painter.drawRoundedRect(bar, 6, 6)
@@ -784,7 +789,7 @@ class PerformansPaneli(QDialog):
                 f = QFont(option.font)
                 f.setBold(True)
                 painter.setFont(f)
-                painter.setPen(QColor(30, 41, 59))
+                painter.setPen(QColor(colors['text']))
                 painter.drawText(r, Qt.AlignmentFlag.AlignCenter, txt)
                 painter.restore()
 
@@ -815,6 +820,8 @@ class PerformansPaneli(QDialog):
                     diff = 0
 
                 painter.save()
+                colors = trend_colors()
+                painter.fillRect(option.rect, QColor(colors['surface']))
                 r = option.rect.adjusted(6, 6, -6, -6)
 
                 if diff >= 3:
@@ -830,12 +837,18 @@ class PerformansPaneli(QDialog):
                     msg = "→ Değişim yok"
                     color = QColor("#22c55e")
 
+                # An opaque neutral label surface prevents white-on-white text
+                # at zero progress. A narrow colored strip retains status.
                 painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QColor(colors['surface']))
+                painter.drawRoundedRect(r, 5, 5)
                 painter.setBrush(color)
-                fill = QRect(r.x(), r.y(), int(r.width() * min(abs(diff) / 5, 1.0)), r.height())
-                painter.drawRoundedRect(fill, 5, 5)
+                painter.drawRoundedRect(QRect(r.x(), r.y(), 5, r.height()), 2, 2)
+                progress_w = int(max(0, r.width() - 10) * min(abs(diff) / 5, 1.0))
+                if progress_w > 0:
+                    painter.drawRect(QRect(r.x() + 6, r.bottom() - 2, progress_w, 3))
 
-                painter.setPen(QColor(255, 255, 255))
+                painter.setPen(QColor(colors['text']))
                 f = QFont(option.font)
                 f.setBold(True)
                 painter.setFont(f)
@@ -1207,7 +1220,8 @@ class PerformansPaneli(QDialog):
             QFrame { background-color: #ffffff; border-top: 1px solid #e2e8f0; }
             QPushButton { background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; font-family: 'Segoe UI'; font-weight: 600; font-size: 13px; padding: 8px 16px; }
             QPushButton:hover { background-color: #f1f5f9; border-color: #94a3b8; color: #0f172a; }
-            QPushButton:pressed { background-color: #e2e8f0; }
+            QPushButton:pressed { background-color: #e2e8f0; 
+                color: #15191E;}
         """)
         btn_layout = QHBoxLayout(btn_frame)
         btn_layout.setContentsMargins(10, 8, 10, 8)
@@ -1221,7 +1235,8 @@ class PerformansPaneli(QDialog):
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1e3a8a, stop:1 #2563eb);
                 color: white; font-weight: 800; border-radius: 6px; padding: 8px 16px; border: none; font-size: 12px;
             }
-            QPushButton:hover { background: #1d4ed8; }
+            QPushButton:hover { background: #1d4ed8; 
+                color: #FFFFFF;}
         """)
         btn_board_poster.clicked.connect(self.export_board_poster_pdf)
         btn_layout.addWidget(btn_board_poster)

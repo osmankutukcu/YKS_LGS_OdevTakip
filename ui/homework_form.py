@@ -258,7 +258,8 @@ class ModernReportDialog(QDialog):
                 font-weight: bold; 
                 font-size: 14px;
             } 
-            QPushButton:hover { background-color: #34495e; }
+            QPushButton:hover { background-color: #34495e; 
+                color: #FFFFFF;}
         """)
         bl.addWidget(btn)
         main_layout.addWidget(btn_area)
@@ -2243,7 +2244,8 @@ class DersSiralamaDialog(QDialog):
             QListWidget {
                 background: white; border: 1px solid #cbd5e1; border-radius: 8px;
                 padding: 4px; font-size: 12px;
-            }
+            
+                color: #15191E;}
             QListWidget::item {
                 padding: 6px 10px; border-radius: 5px; margin: 1px 0px;
             }
@@ -2297,7 +2299,8 @@ class DersSiralamaDialog(QDialog):
                 background: #2563eb; color: white; font-weight: bold;
                 border-radius: 6px; padding: 6px 16px; font-size: 12px;
             }
-            QPushButton:hover { background: #1d4ed8; }
+            QPushButton:hover { background: #1d4ed8; 
+                color: #FFFFFF;}
         """)
         btn_save.clicked.connect(self._save)
         h_foot.addWidget(btn_save)
@@ -2364,8 +2367,29 @@ class DersSiralamaDialog(QDialog):
         self.accept()
 
 
-# === PART 2/7 — updated ===
+from PyQt6.QtCore import QObject, QEvent
 
+
+class _TabBarWheelFilter(QObject):
+    """Fare tekerleği ve trackpad ile sekmelerin pürüzsüz yatay kaydırılmasını sağlar."""
+    def __init__(self, tab_bar, parent=None):
+        super().__init__(parent or tab_bar)
+        self.tab_bar = tab_bar
+
+    def eventFilter(self, obj, event):
+        if obj == self.tab_bar and event.type() == QEvent.Type.Wheel:
+            delta = event.angleDelta().y() or event.angleDelta().x()
+            if delta != 0:
+                from PyQt6.QtWidgets import QToolButton
+                left_btn = self.tab_bar.findChild(QToolButton, "ScrollLeftButton")
+                right_btn = self.tab_bar.findChild(QToolButton, "ScrollRightButton")
+                if delta < 0 and right_btn and right_btn.isEnabled():
+                    right_btn.click()
+                    return True
+                elif delta > 0 and left_btn and left_btn.isEnabled():
+                    left_btn.click()
+                    return True
+        return super().eventFilter(obj, event)
 
 
 class OdevTakipFormu(QWidget):
@@ -2399,8 +2423,45 @@ class OdevTakipFormu(QWidget):
         else:
             QTimer.singleShot(0, self._auto_load_on_open)
         
-        # Apply modern visuals
+        # Apply modern visuals, then semantic V37 colors (presentation only).
         self._apply_visuals()
+        self._apply_theme_v37()
+        from ui.theme import register_theme_listener
+        register_theme_listener(self)
+
+    def _on_theme_changed(self):
+        # Live switching never reloads data, changes selection, or re-emits button clicks.
+        self._apply_theme_v37()
+
+    def _apply_theme_v37(self):
+        from ui.theme_tokens_v37 import homework_root_qss, semantic_palette
+        from ui.theme_scrollbar_v41 import scrollbar_qss
+        from ui import app_settings as appset
+        self.setObjectName('HomeworkRootV37')
+        self.setStyleSheet(homework_root_qss())
+        colors = semantic_palette()
+        # V36's local combo stylesheet sets a white background without a paired
+        # text color; remove it so the V37 semantic root stylesheet can control it.
+        for name in ('cmbAd', 'cmbSoyad', 'cmbAraKolon'):
+            combo = getattr(self, name, None)
+            if combo is not None:
+                style = combo.styleSheet()
+                if 'background: white;' in style and 'color:' not in style:
+                    combo.setStyleSheet('')
+        # The Assigned Homework table had a fixed white style that would survive
+        # dark preset changes. Its CSS now follows the root form token palette.
+        if getattr(self, 'verilen', None) is not None:
+            self.verilen.setStyleSheet(f"""
+                QTableWidget {{background:{colors['surface']};color:{colors['surface_fg']};
+                    alternate-background-color:{colors['alt']};gridline-color:{colors['border']};
+                    selection-background-color:{colors['selected']};selection-color:{colors['selected_fg']};
+                    border:1px solid {colors['border']};border-radius:6px;}}
+                QHeaderView::section {{background:{colors['alt']};color:{colors['alt_fg']};
+                    font-weight:600;padding:6px;border-bottom:1px solid {colors['border']};}}
+                QTableWidget::item {{padding:3px 6px;}}
+                QTableWidget::item:hover {{background:{colors['tab_hover']};color:{colors['tab_hover_fg']};}}
+                {scrollbar_qss(colors['surface'], colors['surface_fg'], colors['primary'], appset.ayar_get('tema_scrollbar', 12))}
+            """)
 
     def _apply_visuals(self):
         self.setStyleSheet("""
@@ -2420,15 +2481,18 @@ class OdevTakipFormu(QWidget):
             QTabBar::tab:selected { 
                 background: #fff; color: #2563eb; font-weight: bold; border-bottom: 2px solid #2563eb; 
             }
-            QTabBar::tab:hover { background: #e5e7eb; }
+            QTabBar::tab:hover { background: #e5e7eb; 
+                color: #15191E;}
 
             /* Buttons - Base */
             QPushButton { 
                 border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 12px;
                 background-color: #ffffff; border: 1px solid #cbd5e1; color: #334155;
             }
-            QPushButton:hover { background-color: #f1f5f9; border-color: #94a3b8; }
-            QPushButton:pressed { background-color: #e2e8f0; }
+            QPushButton:hover { background-color: #f1f5f9; border-color: #94a3b8; 
+                color: #15191E;}
+            QPushButton:pressed { background-color: #e2e8f0; 
+                color: #15191E;}
 
             /* Primary (Blue) - Actions */
             QPushButton#btnPrimary, QPushButton#btnAction {
@@ -2436,23 +2500,26 @@ class OdevTakipFormu(QWidget):
             }
             QPushButton#btnPrimary:hover, QPushButton#btnAction:hover { 
                 background-color: #1d4ed8; border-color: #1d4ed8; 
-            }
+            
+                color: #FFFFFF;}
 
             /* Danger (Pastel Red) - Delete/Clear */
             QPushButton#btnDanger {
-                background-color: #fee2e2; color: #dc2626; border: 1px solid #fecaca;
+                background-color: #fee2e2; color: #ca2323; border: 1px solid #fecaca;
             }
             QPushButton#btnDanger:hover { 
                 background-color: #fecaca; 
-            }
+            
+                color: #15191E;}
 
             /* Excel (Pastel Green) */
             QPushButton#btnExcel {
-                background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0;
+                background-color: #ecfdf5; color: #04825b; border: 1px solid #a7f3d0;
             }
             QPushButton#btnExcel:hover { 
                 background-color: #d1fae5; 
-            }
+            
+                color: #15191E;}
             
             /* Info/Wizard (Pastel Purple) */
             QPushButton#btnInfo {
@@ -2460,7 +2527,8 @@ class OdevTakipFormu(QWidget):
             }
             QPushButton#btnInfo:hover { 
                 background-color: #e9d5ff; 
-            }
+            
+                color: #15191E;}
 
             /* WhatsApp (Green) */
             QPushButton#btnSuccess {
@@ -2468,15 +2536,18 @@ class OdevTakipFormu(QWidget):
             }
             QPushButton#btnSuccess:hover {
                  background-color: #bbf7d0;
-            }
+            
+                color: #15191E;}
 
             /* Inputs */
             QLineEdit, QDateEdit, QComboBox {
                 border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; background: white;
-            }
+            
+                color: #15191E;}
             QSpinBox {
                 border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 18px 4px 6px; background: white;
-            }
+            
+                color: #15191E;}
             QSpinBox::up-button {
                 subcontrol-origin: border;
                 subcontrol-position: top right;
@@ -2620,6 +2691,7 @@ class OdevTakipFormu(QWidget):
             btn_bg     = "#374151"
             btn_fg     = "#f3f4f6"
             btn_hover  = "#4b5563"
+            bg_hover   = btn_hover
             
             tab_bg      = "#1f2937"
             tab_fg      = "#9ca3af"
@@ -2646,6 +2718,7 @@ class OdevTakipFormu(QWidget):
             btn_bg     = "#f9fafb"
             btn_fg     = "#1f2937"
             btn_hover  = "#f3f4f6"
+            bg_hover   = btn_hover
             
             tab_bg      = "#f3f4f6"
             tab_fg      = "#374151"
@@ -2695,7 +2768,7 @@ class OdevTakipFormu(QWidget):
             QPushButton#btnInfo {{ background-color: #8b5cf6; color: white; border: 1px solid #8b5cf6; }}
             QPushButton#btnInfo:hover {{ background-color: #7c3aed; border-color: #7c3aed; }}
 
-            QPushButton#btnDanger {{ background-color: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }}
+            QPushButton#btnDanger {{ background-color: #fee2e2; color: #bd2222; border: 1px solid #fecaca; }}
             QPushButton#btnDanger:hover {{ background-color: #fecaca; }}
             /* Koyu modda danger butonu çok parlak kalmasın */
             /* İstenirse buraya 'if is_dark: ...' ile özel renk verilebilir ancak standart renkler kalsa da olur */
@@ -3252,7 +3325,7 @@ class OdevTakipFormu(QWidget):
                 border-top-right-radius: 6px;
                 padding: 8px 16px;
                 margin-right: 2px;
-                color: #64748b;
+                color: #606f85;
                 font-weight: 500;
             }
             QTabBar::tab:selected {
@@ -3273,7 +3346,8 @@ class OdevTakipFormu(QWidget):
                 padding: 4px 8px;
                 background: white;
                 selection-background-color: #2563eb;
-            }
+            
+                color: #15191E;}
             QLineEdit:focus, QComboBox:focus {
                 border-color: #3b82f6; 
             }
@@ -3295,7 +3369,8 @@ class OdevTakipFormu(QWidget):
                 selection-background-color: #eff6ff;
                 selection-color: #1e3a8a;
                 alternate-background-color: #f8fafc;
-            }
+            
+                color: #15191E;}
             QHeaderView::section {
                 background-color: #f1f5f9;
                 padding: 6px;
@@ -3343,28 +3418,32 @@ class OdevTakipFormu(QWidget):
                 background-color: white;
                 color: #374151;
             }
-            QPushButton:hover { background-color: #f9fafb; }
+            QPushButton:hover { background-color: #f9fafb; 
+                color: #15191E;}
             
             QPushButton#btnPrimary {
                 background-color: #3b82f6; 
                 color: white; 
                 border: 1px solid #2563eb;
             }
-            QPushButton#btnPrimary:hover { background-color: #2563eb; }
+            QPushButton#btnPrimary:hover { background-color: #2563eb; 
+                color: #FFFFFF;}
             
             QPushButton#btnAction {
                 background-color: #10b981; 
                 color: white; 
                 border: 1px solid #059669;
             }
-            QPushButton#btnAction:hover { background-color: #059669; }
+            QPushButton#btnAction:hover { background-color: #059669; 
+                color: #15191E;}
             
              QPushButton#btnDanger {
                 background-color: #ef4444; 
                 color: white; 
                 border: 1px solid #dc2626;
             }
-            QPushButton#btnDanger:hover { background-color: #dc2626; }
+            QPushButton#btnDanger:hover { background-color: #dc2626; 
+                color: #FFFFFF;}
         """)
 
         # ---------------- ÜST BAR (KOMPAKT & MİNİMALİST) ----------------
@@ -3443,7 +3522,7 @@ class OdevTakipFormu(QWidget):
         self.lbl_snap_done.setStyleSheet("font-size: 10.5px; font-weight: 600; color: #16a34a;")
 
         self.lbl_snap_countdown = QLabel("⏰ 7 Gün")
-        self.lbl_snap_countdown.setStyleSheet("font-size: 10.5px; font-weight: 700; color: #2563eb; background: #e0e7ff; padding: 1px 6px; border-radius: 4px;")
+        self.lbl_snap_countdown.setStyleSheet("font-size: 10.5px; font-weight: 700; color: #235edf; background: #e0e7ff; padding: 1px 6px; border-radius: 4px;")
 
         h_snap.addWidget(self.lbl_snap_target)
         h_snap.addWidget(self.lbl_snap_total)
@@ -3479,8 +3558,10 @@ class OdevTakipFormu(QWidget):
             QPushButton {
                 background-color: #eff6ff; border: 1.5px solid #60a5fa; border-radius: 6px;
                 font-size: 17px; padding: 0px;
-            }
-            QPushButton:hover { background-color: #dbeafe; border-color: #2563eb; }
+            
+                color: #15191E;}
+            QPushButton:hover { background-color: #dbeafe; border-color: #2563eb; 
+                color: #15191E;}
         """)
 
         self.btnKitap = QPushButton("📚")
@@ -3491,8 +3572,10 @@ class OdevTakipFormu(QWidget):
             QPushButton {
                 background-color: #f0fdfa; border: 1.5px solid #2dd4bf; border-radius: 6px;
                 font-size: 17px; padding: 0px;
-            }
-            QPushButton:hover { background-color: #ccfbf1; border-color: #0d9488; }
+            
+                color: #15191E;}
+            QPushButton:hover { background-color: #ccfbf1; border-color: #0d9488; 
+                color: #15191E;}
         """)
 
         self.btnKaydet = QPushButton("💾")
@@ -3503,8 +3586,10 @@ class OdevTakipFormu(QWidget):
             QPushButton {
                 background-color: #ecfdf5; border: 1.5px solid #34d399; border-radius: 6px;
                 font-size: 17px; padding: 0px;
-            }
-            QPushButton:hover { background-color: #d1fae5; border-color: #059669; }
+            
+                color: #15191E;}
+            QPushButton:hover { background-color: #d1fae5; border-color: #059669; 
+                color: #15191E;}
         """)
 
         self.btnPlan = QPushButton("📅")
@@ -3515,8 +3600,10 @@ class OdevTakipFormu(QWidget):
             QPushButton {
                 background-color: #f5f3ff; border: 1.5px solid #a78bfa; border-radius: 6px;
                 font-size: 17px; padding: 0px;
-            }
-            QPushButton:hover { background-color: #ede9fe; border-color: #7c3aed; }
+            
+                color: #15191E;}
+            QPushButton:hover { background-color: #ede9fe; border-color: #7c3aed; 
+                color: #15191E;}
         """)
         
         self.btnKontrol = QPushButton("✅")
@@ -3527,8 +3614,10 @@ class OdevTakipFormu(QWidget):
             QPushButton {
                 background-color: #f0fdf4; border: 1.5px solid #4ade80; border-radius: 6px;
                 font-size: 17px; padding: 0px;
-            }
-            QPushButton:hover { background-color: #dcfce7; border-color: #16a34a; }
+            
+                color: #15191E;}
+            QPushButton:hover { background-color: #dcfce7; border-color: #16a34a; 
+                color: #15191E;}
         """)
         
         for b in (self.btnGetir, self.btnKitap, self.btnKaydet, self.btnPlan, self.btnKontrol):
@@ -3626,6 +3715,25 @@ class OdevTakipFormu(QWidget):
         self.tabs.tabBar().setMovable(True)
         self.tabs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.tabs.setMinimumWidth(350)
+        self.tabs.setStyleSheet("""
+            QTabBar::scroller {
+                width: 44px;
+            }
+            QTabBar QToolButton {
+                background: #f8fafc;
+                border: 1px solid #cbd5e1;
+                border-radius: 4px;
+                margin: 1px;
+                min-width: 18px;
+                min-height: 20px;
+            }
+            QTabBar QToolButton:hover {
+                background: #eff6ff;
+                border-color: #3b82f6;
+            }
+        """)
+        self._tab_wheel_filter = _TabBarWheelFilter(self.tabs.tabBar(), self)
+        self.tabs.tabBar().installEventFilter(self._tab_wheel_filter)
         left_lay.addWidget(self.tabs, 1)
 
         # Sinyal bağlantıları
@@ -3740,7 +3848,8 @@ class OdevTakipFormu(QWidget):
                 font-size: 10.5px; font-weight: 600; color: #2563eb;
                 background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 2px 6px;
             }
-            QToolButton:hover { background: #dbeafe; }
+            QToolButton:hover { background: #dbeafe; 
+                color: #15191E;}
         """)
         btn_apply_all_dur.clicked.connect(self._apply_default_duration_to_all)
         v_top_row.addWidget(btn_apply_all_dur)
@@ -3789,6 +3898,34 @@ class OdevTakipFormu(QWidget):
         self.verilen.setWordWrap(False)
         self.verilen.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.verilen.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.verilen.setAlternatingRowColors(True)
+        self.verilen.setStyleSheet("""
+            QTableWidget {
+                border: 1px solid #cbd5e1;
+                border-radius: 6px;
+                background-color: white;
+                gridline-color: #f1f5f9;
+                selection-background-color: #eff6ff;
+                selection-color: #1e3a8a;
+                alternate-background-color: #f8fafc;
+            
+                color: #15191E;}
+            QTableWidget::item {
+                padding: 3px 6px;
+            }
+            QTableWidget::item:hover {
+                background-color: #f0f7ff;
+            }
+            QHeaderView::section {
+                background-color: #f1f5f9;
+                color: #334155;
+                font-weight: bold;
+                padding: 6px;
+                border: none;
+                border-bottom: 2px solid #cbd5e1;
+                border-right: 1px solid #e2e8f0;
+            }
+        """)
 
         # [optimize] Büyük listede gereksiz relayout’u azalt
         self.verilen.setUpdatesEnabled(True)
@@ -3909,7 +4046,8 @@ class OdevTakipFormu(QWidget):
                 background: #fefce8; color: #854d0e; border: 1px solid #fef08a;
                 border-radius: 6px; font-size: 13px; font-weight: 600; padding: 2px;
             }
-            QPushButton:hover { background: #fef9c3; border-color: #eab308; }
+            QPushButton:hover { background: #fef9c3; border-color: #eab308; 
+                color: #15191E;}
         """)
         row2.addWidget(self.btnOneriler)
 
@@ -3922,7 +4060,8 @@ class OdevTakipFormu(QWidget):
                 background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa;
                 border-radius: 6px; font-size: 13px; font-weight: 600; padding: 2px;
             }
-            QPushButton:hover { background: #ffedd5; border-color: #f97316; }
+            QPushButton:hover { background: #ffedd5; border-color: #f97316; 
+                color: #15191E;}
         """)
         self.btnTakvim.clicked.connect(self._open_smart_calendar_pdf)
         row2.addWidget(self.btnTakvim)
@@ -3936,7 +4075,8 @@ class OdevTakipFormu(QWidget):
                 background: #f8fafc; color: #334155; border: 1px solid #cbd5e1;
                 border-radius: 6px; font-size: 13px; font-weight: 600; padding: 2px;
             }
-            QPushButton:hover { background: #eff6ff; border-color: #3b82f6; }
+            QPushButton:hover { background: #eff6ff; border-color: #3b82f6; 
+                color: #15191E;}
         """)
         row2.addWidget(self.btnYazdir)
 
@@ -3949,7 +4089,8 @@ class OdevTakipFormu(QWidget):
                 background: #f0fdf4; color: #166534; border: 1px solid #86efac;
                 border-radius: 6px; font-size: 13px; font-weight: 600; padding: 2px;
             }
-            QPushButton:hover { background: #dcfce7; border-color: #22c55e; }
+            QPushButton:hover { background: #dcfce7; border-color: #22c55e; 
+                color: #15191E;}
         """)
         row2.addWidget(self.btnWhatsapp)
 
@@ -3965,7 +4106,8 @@ class OdevTakipFormu(QWidget):
                 color: #1e40af; font-size: 14px;
                 border: 1.5px solid #bfdbfe; border-radius: 6px; background: #eff6ff; padding: 0px;
             }
-            QToolButton:hover { background: #dbeafe; border-color: #3b82f6; }
+            QToolButton:hover { background: #dbeafe; border-color: #3b82f6; 
+                color: #15191E;}
         """)
         row2.addWidget(self.btnFiltre)
 
@@ -3976,10 +4118,11 @@ class OdevTakipFormu(QWidget):
         self.btnTemizle.setFixedSize(32, 26)
         self.btnTemizle.setStyleSheet("""
             QPushButton {
-                background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca;
+                background: #fef2f2; color: #d82525; border: 1.5px solid #fecaca;
                 border-radius: 6px; font-size: 14px; padding: 0px;
             }
-            QPushButton:hover { background: #fee2e2; border-color: #ef4444; }
+            QPushButton:hover { background: #fee2e2; border-color: #ef4444; 
+                color: #15191E;}
         """)
         row2.addWidget(self.btnTemizle)
 
@@ -4016,8 +4159,10 @@ class OdevTakipFormu(QWidget):
             QPushButton {
                 background: #f0fdf4; border: 1px solid #86efac; border-radius: 5px;
                 font-size: 12px; font-weight: 600; padding: 2px;
-            }
-            QPushButton:hover { background: #dcfce7; border-color: #22c55e; }
+            
+                color: #15191E;}
+            QPushButton:hover { background: #dcfce7; border-color: #22c55e; 
+                color: #15191E;}
         """)
         bottom.addWidget(self.btnExcel)
 
@@ -4418,7 +4563,8 @@ class OdevTakipFormu(QWidget):
             QDateEdit {
                 background:#ffffff; border:1px solid #d0d7e2; border-radius:8px;
                 padding:4px 8px;
-            }
+            
+                color: #15191E;}
             QDateEdit:focus { border-color:#9ec1ff; }
         """)
 
@@ -4432,7 +4578,8 @@ class OdevTakipFormu(QWidget):
                 font-weight:600; color:#334155;
             }
             QTabBar::tab:selected { background:#eaf1ff; border-color:#cfe0ff; color:#0b3b80; }
-            QTabBar::tab:hover { background:#eef2ff; }
+            QTabBar::tab:hover { background:#eef2ff; 
+                color: #15191E;}
         """)
 
         t = self.verilen
@@ -4449,7 +4596,8 @@ class OdevTakipFormu(QWidget):
                 background:#ffffff; alternate-background-color:#fafbff;
                 gridline-color:#eef2f7; selection-background-color:#eaf1ff;
                 selection-color:#0b3b80; border:1px solid #e5e7eb; border-radius:10px;
-            }
+            
+                color: #15191E;}
             QHeaderView::section {
                 background:#f8fafc; color:#334155; padding:6px 10px;
                 border:1px solid #e5e7eb; border-top-left-radius:8px; border-top-right-radius:8px;
@@ -4477,7 +4625,8 @@ class OdevTakipFormu(QWidget):
                     QLineEdit {
                         background:#ffffff; border:1px solid #d0d7e2; border-radius:8px;
                         padding:4px 8px;
-                    }
+                    
+                color: #15191E;}
                     QLineEdit:focus { border-color:#9ec1ff; }
                 """)
 
@@ -4487,7 +4636,8 @@ class OdevTakipFormu(QWidget):
                     QComboBox {
                         background:#ffffff; border:1px solid #d0d7e2; border-radius:8px;
                         padding:4px 8px;
-                    }
+                    
+                color: #15191E;}
                     QComboBox:focus { border-color:#9ec1ff; }
                     QComboBox::drop-down {
                         subcontrol-origin: padding;
@@ -4968,7 +5118,8 @@ class OdevTakipFormu(QWidget):
                 font-size: 11px;
                 font-weight: bold;
             }
-            QPushButton:hover { background-color: #dcfce7; }
+            QPushButton:hover { background-color: #dcfce7; 
+                color: #15191E;}
         """)
         btn_top_info.clicked.connect(lambda: self._show_oneri_rehberi_dialog(dlg))
         top_bar.addWidget(btn_top_info)
@@ -5080,7 +5231,8 @@ class OdevTakipFormu(QWidget):
             QPushButton:hover {
                 background-color: #dbeafe;
                 border-color: #93c5fd;
-            }
+            
+                color: #15191E;}
         """)
         btnEkle = QPushButton("Seçilenleri Ekle");
         _btn(btnEkle)
@@ -5236,7 +5388,8 @@ class OdevTakipFormu(QWidget):
             QPushButton {
                 background-color: #2563eb; color: white; font-weight: bold; border-radius: 6px; border: none; font-size: 13px;
             }
-            QPushButton:hover { background-color: #1d4ed8; }
+            QPushButton:hover { background-color: #1d4ed8; 
+                color: #FFFFFF;}
         """)
         btnKapat.clicked.connect(dlg.accept)
         layout.addWidget(btnKapat)
@@ -5717,7 +5870,7 @@ class OdevTakipFormu(QWidget):
             if diff < 0:
                 self.lbl_snap_countdown.setText(f"⚠️ {abs(diff)} Gün Gecikmiş!")
                 self.lbl_snap_countdown.setToolTip(f"Teslim tarihi {abs(diff)} gün önceydi!")
-                self.lbl_snap_countdown.setStyleSheet("font-size: 11px; font-weight: 800; color: #dc2626; background: #fee2e2; padding: 2px 8px; border-radius: 5px;")
+                self.lbl_snap_countdown.setStyleSheet("font-size: 11px; font-weight: 800; color: #ca2323; background: #fee2e2; padding: 2px 8px; border-radius: 5px;")
             elif diff == 0:
                 self.lbl_snap_countdown.setText("🚨 Bugün Teslim!")
                 self.lbl_snap_countdown.setToolTip("Ödevlerin teslim tarihi bugün!")
@@ -5725,7 +5878,7 @@ class OdevTakipFormu(QWidget):
             else:
                 self.lbl_snap_countdown.setText(f"⏰ {diff} Gün Kaldı")
                 self.lbl_snap_countdown.setToolTip(f"Bitiş tarihine kalan süre: {diff} gün ({bitis_qdate.toString('dd.MM.yyyy')})")
-                self.lbl_snap_countdown.setStyleSheet("font-size: 11px; font-weight: 800; color: #2563eb; background: #e0e7ff; padding: 2px 8px; border-radius: 5px;")
+                self.lbl_snap_countdown.setStyleSheet("font-size: 11px; font-weight: 800; color: #235edf; background: #e0e7ff; padding: 2px 8px; border-radius: 5px;")
         except Exception:
             pass
 
@@ -6025,7 +6178,7 @@ class OdevTakipFormu(QWidget):
 
         # ---- tablo ----
         table = QTableWidget(len(konular), 1 + len(kitaplar))
-        table.setHorizontalHeaderLabels(["Konu"] + kitaplar)
+        table.setHorizontalHeaderLabels(["📌 Konu Başlığı"] + kitaplar)
         table.setAlternatingRowColors(True)  # zebra
         table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -6049,26 +6202,27 @@ class OdevTakipFormu(QWidget):
         hdr_bg = "#1e293b" if is_dark else "#f1f5f9"
         hdr_fg = "#f8fafc" if is_dark else "#0f172a"
         hdr_bd = "#334155" if is_dark else "#cbd5e1"
+        hdr_book_fg = "#93c5fd" if is_dark else "#1e3a8a"
         hov_bg = "rgba(148, 163, 184, 0.15)" if is_dark else "rgba(2, 132, 199, 0.08)"
 
         table.setStyleSheet(f"""
             QTableWidget, QTableView {{
                 gridline-color: {grid_clr};
                 border: none;
+                background-color: {"#0f172a" if is_dark else "white"};
             }}
             QTableWidget::item:hover, QTableView::item:hover {{
                 background: {hov_bg};                /* zebra üstüne hafif hover */
             }}
             QHeaderView::section {{
                 background: {hdr_bg};
-                color: {hdr_fg};
-                font-weight: 600;
+                color: {hdr_book_fg};
+                font-weight: 700;
                 padding: 6px;
                 border: 1px solid {hdr_bd};
             }}
         """)
 
-        # ---- satırları doldur ----
         # ---- satırları doldur ----
         try:
             table.setUpdatesEnabled(False)
@@ -6078,6 +6232,11 @@ class OdevTakipFormu(QWidget):
                 it = QTableWidgetItem(k["konu"])
                 it.setData(Qt.ItemDataRole.UserRole, int(k["id"]))
                 it.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                it.setToolTip(str(k["konu"]))
+                it.setForeground(QColor("#f8fafc" if is_dark else "#0f172a"))
+                f_it = it.font()
+                f_it.setBold(True)
+                it.setFont(f_it)
                 table.setItem(i, 0, it)
     
                 for c in range(1, table.columnCount()):
@@ -6451,6 +6610,13 @@ class OdevTakipFormu(QWidget):
                 lay.addWidget(routine_bar)
             except Exception as _r_exc:
                 print("Rutin barı eklenemedi:", _r_exc)
+        # V1 keşif ipucu: etkileşimli hücre, kilit, tablo boyama
+        # veya kaydetme davranışına müdahale ETMEZ.
+        _menu_hint = QLabel("💡 Konuya sağ tık: Konu özeti  ·  Resmî kaynaklar  ·  Güvenli plan")
+        _menu_hint.setFixedHeight(18)
+        _menu_hint.setStyleSheet("font-size: 10px; color: #64748b; padding-left: 6px;")
+        _menu_hint.setToolTip("Konu veya kitap hücresine sağ tıklayarak akıllı menüyü açabilirsiniz.")
+        lay.addWidget(_menu_hint)
         lay.addWidget(table)
 
         # mevcut yardımcıların kalsın
@@ -6464,7 +6630,7 @@ class OdevTakipFormu(QWidget):
             pass
 
         # sağ tık menü (senin fonksiyonun)
-        self._install_context_menu(table)
+        self._install_context_menu(table, ders=ders)
 
         # Konu metinleri uzun olabilir → çok satır + içeriğe göre boyut
         table.setWordWrap(True)
@@ -6533,9 +6699,9 @@ class OdevTakipFormu(QWidget):
         >>> Böylece iki tarafta ayrılan yükseklik eşit olur ve son satır kaymaz.
         Diğer davranışlar korunur.
         """
-        from PyQt6.QtWidgets import QWidget, QHBoxLayout, QTableView, QAbstractItemView, QStyledItemDelegate
+        from PyQt6.QtWidgets import QWidget, QHBoxLayout, QTableView, QAbstractItemView, QStyledItemDelegate, QHeaderView
         from PyQt6.QtCore import Qt, QEvent, QTimer, QModelIndex, QObject
-        from PyQt6.QtGui import QColor, QPainter, QPen
+        from PyQt6.QtGui import QColor, QPainter, QPen, QFontMetrics
         import weakref
 
         if getattr(table, "_frozen_ready", False):
@@ -6552,6 +6718,7 @@ class OdevTakipFormu(QWidget):
         leftView.verticalHeader().setVisible(False)
         leftView.verticalHeader().hide() # Double safety
         leftView.horizontalHeader().setVisible(True)
+        leftView.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         leftView.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         leftView.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         leftView.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -6561,8 +6728,46 @@ class OdevTakipFormu(QWidget):
         leftView.setFrameShadow(table.frameShadow())
         leftView.setWordWrap(True)
         leftView.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        leftView.setAlternatingRowColors(table.alternatingRowColors())
-        leftView.setStyleSheet(table.styleSheet())
+        leftView.setAlternatingRowColors(True)
+        is_dark_lv = False
+        try:
+            from utils import settings as _s
+            if _s:
+                _t = (_s.ayar_get("tema", None) or _s.ayar_get("tema_mod", "açık") or "açık").lower()
+                is_dark_lv = _t in ("koyu", "dark")
+        except Exception:
+            is_dark_lv = False
+
+        lv_bg = "#0f172a" if is_dark_lv else "#f8fafc"
+        lv_alt = "#1e293b" if is_dark_lv else "#f1f5f9"
+        lv_hdr = "#334155" if is_dark_lv else "#e2e8f0"
+        lv_border = "#475569" if is_dark_lv else "#94a3b8"
+        lv_text = "#f8fafc" if is_dark_lv else "#0f172a"
+        lv_grid = "#334155" if is_dark_lv else "#e2e8f0"
+
+        leftView.setStyleSheet(f"""
+            QTableView {{
+                background-color: {lv_bg};
+                alternate-background-color: {lv_alt};
+                gridline-color: {lv_grid};
+                border: none;
+                border-right: 2px solid {lv_border};
+            }}
+            QTableView::item {{
+                padding-left: 8px;
+                padding-right: 6px;
+                color: {lv_text};
+                font-weight: 600;
+            }}
+            QHeaderView::section {{
+                background-color: {lv_hdr};
+                color: {lv_text};
+                font-weight: bold;
+                padding: 6px;
+                border: 1px solid {lv_grid};
+                border-right: 2px solid {lv_border};
+            }}
+        """)
 
         # Sadece 0. sütun açık
         for c in range(table.model().columnCount()):
@@ -6601,8 +6806,35 @@ class OdevTakipFormu(QWidget):
             try:
                 hh = table.horizontalHeader().height()
                 leftView.horizontalHeader().setFixedHeight(hh)
-                w_hint = max(table.columnWidth(0), leftView.sizeHintForColumn(0))
-                leftView.setFixedWidth(max(0, w_hint + 2))
+
+                # Gerçek font metrikleri ile tüm konu başlıklarının piksel genişliğini ölç
+                font = leftView.font()
+                font.setBold(True)
+                fm = QFontMetrics(font)
+
+                hdr_item = table.horizontalHeaderItem(0)
+                hdr_txt = str(hdr_item.text() if hdr_item else "📌 Konu Başlığı")
+                max_w = fm.horizontalAdvance(hdr_txt)
+
+                m = table.model()
+                if m is not None:
+                    rc = m.rowCount()
+                    for r in range(rc):
+                        idx = m.index(r, 0)
+                        txt = str(idx.data(Qt.ItemDataRole.DisplayRole) or "")
+                        if txt:
+                            w = fm.horizontalAdvance(txt)
+                            if w > max_w:
+                                max_w = w
+
+                # QSS hücre içi padding (sol 8 + sağ 6 = 14px) + kenarlık (4px) + okuma ferahlığı (16px) = +34px
+                w_needed = max_w + 34
+
+                # Minimum 150px (kısa derslerde ferah), maksimum 310px (kitap sütunlarını daraltmadan tek satırda sığdır)
+                w_final = max(150, min(w_needed, 310))
+
+                leftView.setFixedWidth(w_final)
+                leftView.setColumnWidth(0, w_final - 2)
             except RuntimeError:
                 pass
 
@@ -6613,7 +6845,7 @@ class OdevTakipFormu(QWidget):
                 for r in range(rc):
                     h = table.rowHeight(r)
                     h2 = leftView.sizeHintForRow(r)
-                    hh = max(h, h2)
+                    hh = max(h, h2, 28)
                     if hh != h:
                         table.setRowHeight(r, hh)
                     leftView.setRowHeight(r, hh)
@@ -6815,7 +7047,7 @@ class OdevTakipFormu(QWidget):
 
     #s
     # ------------------ SAĞ TIK MENÜSÜ EKLEYEN FONKSİYON ------------------
-    def _install_context_menu(self, table):
+    def _install_context_menu(self, table, ders=None):
         """
         Sağ tık menüsü (renk-temelli kilit kontrolü, hover efektli).
         - ✅ Tek hücre: Ödev Verildi / Geri Al (toggle)
@@ -8093,7 +8325,37 @@ class OdevTakipFormu(QWidget):
 
 
             act_parent_report.triggered.connect(do_parent_report)
-            
+
+            # V1: Menü yalnızca görsel olarak gruplanır; yukarıdaki
+            # checkbox, kilit, kayıt, rapor ve WhatsApp handler'ları AYNI kalır.
+            # Modül yüklenmezse önceki menü eksiksiz çalışmaya devam eder.
+            try:
+                from ui.homework_context_hub_v1 import install_hub
+                install_hub(
+                    menu=menu, table=table, index=idx, subject=ders,
+                    host=self,  # V2: mevcut form modüllerine yazmasız erişim köprüsü
+                    locked_index=_is_locked_index,  # Mevcut kilit kuralı aynen okunur.
+                    commands={
+                        "toggle": act_toggle,
+                        "row_give": act_row_give,
+                        "row_clear": act_row_clear,
+                        "col_give": act_col_give,
+                        "col_clear": act_col_clear,
+                        "col_clean": act_col_clean,
+                        "book_status": act_book_status,
+                        "lesson_analyze": act_lesson_analyze,
+                        "gap_analyze": act_gap_analyze,
+                        "smart_analyze": act_smart_analyze,
+                        "yt": act_yt,
+                        "gg": act_gg,
+                        "review": act_review,
+                        "plan": act_plan,
+                        "parent_report": act_parent_report,
+                    },
+                )
+            except Exception:
+                traceback.print_exc()  # Hata durumunda orijinal QMenu yedeği kullanılır.
+
             menu.exec(table.viewport().mapToGlobal(pos))
 
         table.customContextMenuRequested.connect(_popup_menu)
@@ -8147,11 +8409,41 @@ class OdevTakipFormu(QWidget):
         it = self.verilen.item(r, c)
         return it.text() if it else ""
 
-    def _ensure_vcell(self, r, c, text=""):
+    def _create_verilen_item(self, col: int, text: str):
         from PyQt6.QtWidgets import QTableWidgetItem
+        from PyQt6.QtGui import QColor
+        from PyQt6.QtCore import Qt
+        from ui.theme_tokens_v37 import semantic_palette
+        from ui.theme import readable_text
+        colors = semantic_palette()
+        val = str(text if text is not None else "").strip()
+        it = QTableWidgetItem(val)
+        font = it.font()
+        if col == 0:  # Ders
+            it.setForeground(QColor(readable_text(colors['surface'], colors['primary'],
+                                                 (colors['alt'], colors['selected']))))  # Ders: tema vurgusu
+            font.setBold(True)
+            it.setFont(font)
+        elif col == 1:  # Kitap
+            it.setForeground(QColor(colors['surface_fg']))  # Soft slate gray (ikincil)
+        elif col == 2:  # Konu (Ana Odak)
+            it.setForeground(QColor(colors['surface_fg']))  # Deep rich navy
+            font.setBold(True)
+            it.setFont(font)
+            it.setToolTip(f"📌 {val}")
+        elif col == 3:  # Süre(dk)
+            it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            it.setForeground(QColor(colors['surface_fg']))
+            font.setBold(True)
+            it.setFont(font)
+        elif col == 4:  # Açıklama
+            it.setForeground(QColor(colors['surface_fg']))
+        return it
+
+    def _ensure_vcell(self, r, c, text=""):
         it = self.verilen.item(r, c)
         if it is None:
-            it = QTableWidgetItem(str(text) if text is not None else "")
+            it = self._create_verilen_item(c, text)
             self.verilen.setItem(r, c, it)
         else:
             it.setText(str(text) if text is not None else "")
@@ -9444,15 +9736,15 @@ class OdevTakipFormu(QWidget):
             for row in getattr(self, "_verilen_rows", []):
                 r = self.verilen.rowCount()
                 self.verilen.insertRow(r)
-                self.verilen.setItem(r, 0, QTableWidgetItem(row.get('ders', '')))
-                self.verilen.setItem(r, 1, QTableWidgetItem(row.get('kitap', '')))
-                self.verilen.setItem(r, 2, QTableWidgetItem(row.get('konu', '')))
+                self.verilen.setItem(r, 0, self._create_verilen_item(0, row.get('ders', '')))
+                self.verilen.setItem(r, 1, self._create_verilen_item(1, row.get('kitap', '')))
+                self.verilen.setItem(r, 2, self._create_verilen_item(2, row.get('konu', '')))
                 s_val = str(row.get('sure', '0')).strip()
                 if not s_val or s_val == '0':
                     t_val = self._tahmini_sure(row.get('ders', ''), row.get('kitap', ''), row.get('konu', ''))
                     s_val = str(t_val if t_val and int(t_val) > 0 else 45)
-                self.verilen.setItem(r, 3, QTableWidgetItem(s_val))
-                self.verilen.setItem(r, 4, QTableWidgetItem(row.get('aciklama', '')))
+                self.verilen.setItem(r, 3, self._create_verilen_item(3, s_val))
+                self.verilen.setItem(r, 4, self._create_verilen_item(4, row.get('aciklama', '')))
         finally:
             if sorting:
                 self.verilen.setSortingEnabled(True)
@@ -10042,7 +10334,8 @@ class OdevTakipFormu(QWidget):
                 background-color: white; 
                 color: #475569;
             }
-            QPushButton:hover { background-color: #f1f5f9; }
+            QPushButton:hover { background-color: #f1f5f9; 
+                color: #15191E;}
         """)
         
         btnOk = QPushButton("Kaydet")
@@ -10056,7 +10349,8 @@ class OdevTakipFormu(QWidget):
                 font-weight: bold; 
                 border: none;
             }
-            QPushButton:hover { background-color: #4338ca; }
+            QPushButton:hover { background-color: #4338ca; 
+                color: #FFFFFF;}
         """)
         
         hb.addStretch(1)
@@ -10102,23 +10396,28 @@ class OdevTakipFormu(QWidget):
             QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; }
             QLineEdit, QDateEdit, QComboBox {
                 border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px; background: white; min-height: 20px;
-            }
-            QListWidget { border: 1px solid #cbd5e1; border-radius: 6px; background: white; padding: 4px; }
+            
+                color: #15191E;}
+            QListWidget { border: 1px solid #cbd5e1; border-radius: 6px; background: white; padding: 4px; 
+                color: #15191E;}
             QTabWidget::pane { border: 1px solid #e2e8f0; border-radius: 6px; background: white; }
             QTabBar::tab {
                 background: #f1f5f9; border: 1px solid #e2e8f0; padding: 6px 12px; margin-right: 2px;
-                border-top-left-radius: 6px; border-top-right-radius: 6px; color: #64748b;
+                border-top-left-radius: 6px; border-top-right-radius: 6px; color: #606f85;
             }
             QTabBar::tab:selected { background: white; border-bottom: none; color: #2563eb; font-weight: bold; }
             QPushButton {
                 border-radius: 6px; padding: 6px 12px; font-weight: 600;
                 background-color: white; border: 1px solid #cbd5e1; color: #475569;
             }
-            QPushButton:hover { background-color: #f1f5f9; }
+            QPushButton:hover { background-color: #f1f5f9; 
+                color: #15191E;}
             QPushButton#btnAction { background-color: #2563eb; color: white; border: none; }
-            QPushButton#btnAction:hover { background-color: #1d4ed8; }
+            QPushButton#btnAction:hover { background-color: #1d4ed8; 
+                color: #FFFFFF;}
             QPushButton#btnTool { padding: 4px; border: 1px solid transparent; background: transparent; }
-            QPushButton#btnTool:hover { background: #e2e8f0; border-color: #cbd5e1; }
+            QPushButton#btnTool:hover { background: #e2e8f0; border-color: #cbd5e1; 
+                color: #15191E;}
         """)
         
         main_layout = QVBoxLayout(dlg)
@@ -10956,13 +11255,13 @@ class OdevTakipFormu(QWidget):
                 if not matching_rows:
                     r = self.verilen.rowCount()
                     self.verilen.insertRow(r)
-                    self.verilen.setItem(r, 0, QTableWidgetItem(ders))
-                    self.verilen.setItem(r, 1, QTableWidgetItem(kitap_ad))
-                    self.verilen.setItem(r, 2, QTableWidgetItem(konu_ad))
+                    self.verilen.setItem(r, 0, self._create_verilen_item(0, ders))
+                    self.verilen.setItem(r, 1, self._create_verilen_item(1, kitap_ad))
+                    self.verilen.setItem(r, 2, self._create_verilen_item(2, konu_ad))
                     dk_val = self._tahmini_sure(ders, kitap_ad, konu_ad)
                     def_dk = self._get_default_sure()
-                    self.verilen.setItem(r, 3, QTableWidgetItem(str(dk_val if dk_val and int(dk_val) > 0 else def_dk)))
-                    self.verilen.setItem(r, 4, QTableWidgetItem(""))
+                    self.verilen.setItem(r, 3, self._create_verilen_item(3, str(dk_val if dk_val and int(dk_val) > 0 else def_dk)))
+                    self.verilen.setItem(r, 4, self._create_verilen_item(4, ""))
             else:
                 for match_row in reversed(matching_rows):
                     self.verilen.removeRow(match_row)

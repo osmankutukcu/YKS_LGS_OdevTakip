@@ -214,6 +214,22 @@ def student_topics(con, student_id):
     except Exception:
         pass
 
+    # Öğrencinin aktif tanımlı kitaplarını (ogrenci_kitap) ders bazında yükle
+    active_books_by_lesson = defaultdict(set)
+    try:
+        for b_row in con.execute(
+            'SELECT ders, kitap_ad FROM ogrenci_kitap WHERE ogrenci_id=?',
+            (student_id,),
+        ):
+            b_lesson = str(b_row[0] or '').strip().casefold()
+            b_name = str(b_row[1] or '').strip().casefold()
+            if b_lesson and b_name:
+                active_books_by_lesson[b_lesson].add(b_name)
+    except Exception:
+        pass
+
+    seen_active_cells = set()
+
     # Legacy `odev` is canonical for homework UI. No unsafe `odev_satir` double counting.
     for row in con.execute('''SELECT o.id AS homework_id, o.ders AS lesson,
        o.konu_ad AS topic, o.kitap_ad AS book, COALESCE(o.saat_dk,0) AS duration_min,
@@ -223,16 +239,29 @@ def student_topics(con, student_id):
        WHERE o.ogrenci_id=? AND k.ogrenci_id=?
        ORDER BY k.verilis_tarihi DESC, o.id DESC LIMIT 1600''', (student_id, student_id)):
         d = dict(row)
-        key = (d['lesson'].strip(), d['topic'].strip())
-        if not all(key):
+        lesson_raw = (d['lesson'] or '').strip()
+        topic_raw = (d['topic'] or '').strip()
+        book_raw = (d['book'] or '').strip()
+        if not lesson_raw or not topic_raw:
             continue
-        if not _is_lesson_valid_for_group(key[0], ana_grup):
+        if not _is_lesson_valid_for_group(lesson_raw, ana_grup):
             continue
-        info = out.setdefault(key, {'lesson': key[0], 'topic': key[1], 'book': '',
+        lesson_cf = lesson_raw.casefold()
+        topic_cf = topic_raw.casefold()
+        book_cf = book_raw.casefold()
+        if lesson_cf in active_books_by_lesson:
+            if not book_cf or book_cf not in active_books_by_lesson[lesson_cf]:
+                continue
+            cell_key = (lesson_cf, topic_cf, book_cf)
+            if cell_key in seen_active_cells:
+                continue
+            seen_active_cells.add(cell_key)
+        key = (lesson_cf, topic_cf)
+        info = out.setdefault(key, {'lesson': lesson_raw, 'topic': topic_raw, 'book': '',
                                     'last_homework_id': None, 'last_assigned_on': None,
                                     'open_count': 0, 'done_count': 0, 'legacy_tasks': 0})
         if info['last_homework_id'] is None:
-            info.update(book=(d['book'] or '').strip(), last_homework_id=d['homework_id'],
+            info.update(book=book_raw, last_homework_id=d['homework_id'],
                         last_assigned_on=_date(d['assigned_on']))
         done = str(d['status']).lower() in ('tamam', 'yapildi', 'tamamlandi')
         info['done_count' if done else 'open_count'] += 1
@@ -242,22 +271,26 @@ def student_topics(con, student_id):
            MAX(COALESCE(son_tekrar_tarihi,'')) AS last_review
            FROM koc_konu_takip WHERE ogrenci_id=? GROUP BY ders_adi, konu_adi''', (student_id,))
         for row in rows:
-            key = (str(row['lesson'] or '').strip(), str(row['topic'] or '').strip())
-            if not all(key):
+            lesson_raw = str(row['lesson'] or '').strip()
+            topic_raw = str(row['topic'] or '').strip()
+            if not lesson_raw or not topic_raw:
                 continue
-            if not _is_lesson_valid_for_group(key[0], ana_grup):
+            if not _is_lesson_valid_for_group(lesson_raw, ana_grup):
                 continue
-            info = out.setdefault(key, {'lesson': key[0], 'topic': key[1], 'book': '',
+            key = (lesson_raw.casefold(), topic_raw.casefold())
+            info = out.setdefault(key, {'lesson': lesson_raw, 'topic': topic_raw, 'book': '',
                          'last_homework_id': None, 'last_assigned_on': None,
                          'open_count': 0, 'done_count': 0, 'legacy_tasks': 0})
             info['coach_last_review'] = _date(row['last_review'])
     except Exception:  # Older/limited coaching schema; optional input
         pass
     for row in observations(con, student_id, limit=1000):
-        key = (row['lesson'].strip(), row['topic'].strip())
-        if not _is_lesson_valid_for_group(key[0], ana_grup):
+        lesson_raw = row['lesson'].strip()
+        topic_raw = row['topic'].strip()
+        if not _is_lesson_valid_for_group(lesson_raw, ana_grup):
             continue
-        info = out.setdefault(key, {'lesson': key[0], 'topic': key[1], 'book': '',
+        key = (lesson_raw.casefold(), topic_raw.casefold())
+        info = out.setdefault(key, {'lesson': lesson_raw, 'topic': topic_raw, 'book': '',
                     'last_homework_id': None, 'last_assigned_on': None,
                     'open_count': 0, 'done_count': 0, 'legacy_tasks': 0})
         info.setdefault('evidence', []).append(row)

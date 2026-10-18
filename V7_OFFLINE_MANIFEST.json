@@ -1,0 +1,30 @@
+{
+  "base": "YKS_LGS_HomeworkManager_V6_Entegre_Kaynak_Veriler_Haric.zip",
+  "version": "V7",
+  "pilot": true,
+  "timestamp": "2026-10-15",
+  "modified_relative_paths": [
+    "web_api/static/js/offline_coordinator_v7.js",
+    "web_api/static/js/offline_sync.js",
+    "web_api/static/js/offline_health_v6.js",
+    "web_api/static/sw.js",
+    "web_api/templates/index.html",
+    "tests/test_offline_v7_coordinator.cjs",
+    "tests/test_offline_v7_push.cjs",
+    "tests/test_offline_v7_readiness.cjs",
+    "tests/test_offline_v6_readiness.cjs",
+    "MOBIL_OFFLINE_V7_GUVENLI_EŞITLEME_RAPORU.md"
+  ],
+  "sha256": {
+    "web_api/static/js/offline_coordinator_v7.js": "ed2ca04c810562d209976f64966fcfc8a3036f0c05f33e9f2f67bbd5b3e11ab4",
+    "web_api/static/js/offline_sync.js": "733ff3779feda03d04500c01958ca72197171d0a2d2c4976ad0a04a38d2bf9a5",
+    "web_api/static/js/offline_health_v6.js": "3e3f87fa8e22c63b3b8fa0b78284d21d7ac6063236904a9d1542c1a148188e4e",
+    "web_api/static/sw.js": "fbd1690fb6a5d11e97929019bddc27239270a9971ceec5939d6b537f2115765e",
+    "web_api/templates/index.html": "dd4f7ae08b95b88aab5d6802a4c5b7e0e772dfe5f758a11ede114fbe3654d705",
+    "tests/test_offline_v7_coordinator.cjs": "6f9ce05edac72617a4129da6be92cd2cb8adf554852123ed1197769c1d0eb091",
+    "tests/test_offline_v7_push.cjs": "b7f5af8b7e9deabf6d72f7eb2b8a50ba1d71ed649c826063ca4731c0aa9529a1",
+    "tests/test_offline_v7_readiness.cjs": "fe38866bf3f0e84dc90dde90166e9ca3d84fd89757991181b5bcd597e29d173c",
+    "tests/test_offline_v6_readiness.cjs": "8c9fd5f7ff332ac05a6a4181dca2e2085c1befd0cbd24c164040180e98623192",
+    "MOBIL_OFFLINE_V7_GUVENLI_EŞITLEME_RAPORU.md": "e3c4dfd3abd9a898ca61121ffdfb8ab42d60a362d317c80b048547f97ab477aa"
+  }
+}

@@ -1,6 +1,10 @@
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QLabel, QWidget
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
+import re
+from ui.theme import register_theme_listener, readable_text
+from ui.theme_tokens_v37 import semantic_palette
+from ui.theme_visual_tokens_v40 import accessible_gradient
 
 class GamificationWidget(QFrame):
     """
@@ -9,6 +13,9 @@ class GamificationWidget(QFrame):
     """
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._last_alerts = []
+        self._last_hw = 0
+        self._last_students = None
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
         self.setFixedHeight(190) # İçerik sığması için yükseklik artırıldı
@@ -36,7 +43,7 @@ class GamificationWidget(QFrame):
         l_layout.setSpacing(10)
         
         # Başlık Sol
-        header_l = QLabel("🏆 Haftalık Performans & Rozetler")
+        self.header_l = header_l = QLabel("🏆 Haftalık Performans & Rozetler")
         header_l.setStyleSheet("font-size: 15px; font-weight: 800; color: #0f172a; border:none;")
         l_layout.addWidget(header_l)
         
@@ -55,7 +62,7 @@ class GamificationWidget(QFrame):
         l_layout.addStretch()
         
         # --- ARA ÇİZGİ (Ayırıcı) ---
-        line = QFrame()
+        self.divider_line = line = QFrame()
         line.setFrameShape(QFrame.Shape.VLine)
         line.setFrameShadow(QFrame.Shadow.Sunken)
         line.setStyleSheet("background-color: #f1f5f9; width: 1px; border:none;")
@@ -81,7 +88,7 @@ class GamificationWidget(QFrame):
         h_right_box = QHBoxLayout()
         icon_r = QLabel("⚡")
         icon_r.setStyleSheet("font-size:16px; border:none;")
-        header_r = QLabel("Kritik Uyarılar & Tavsiyeler")
+        self.header_r = header_r = QLabel("Kritik Uyarılar & Tavsiyeler")
         header_r.setStyleSheet("font-size: 13px; font-weight: 800; color: #9f1239; border:none;")
         h_right_box.addWidget(icon_r)
         h_right_box.addWidget(header_r)
@@ -102,6 +109,23 @@ class GamificationWidget(QFrame):
         main_layout.addWidget(self.left_widget, 1) # Esnek
         main_layout.addWidget(line)
         main_layout.addWidget(self.right_widget) # Sabit
+        register_theme_listener(self)
+        self._on_theme_changed()
+
+    def _on_theme_changed(self):
+        c = semantic_palette()
+        # The severity indicator stays red/amber. The enclosing surface follows
+        # the selected mode; children receive explicit foreground/background pairs.
+        self.setStyleSheet(f'GamificationWidget {{background:{c["surface"]};border-radius:16px;border:1px solid {c["border"]};}}')
+        self.left_widget.setStyleSheet(f'#leftWidget {{background:{c["surface"]};border-top-left-radius:16px;border-bottom-left-radius:16px;}}')
+        alert_bg = '#3F222B' if c['dark'] else '#FFF1F2'
+        self.right_widget.setStyleSheet(f'#rightWidget {{background:{alert_bg};border-top-right-radius:16px;border-bottom-right-radius:16px;}}')
+        self.header_l.setStyleSheet(f'font-size:15px;font-weight:800;color:{c["surface_fg"]};border:none;')
+        self.header_r.setStyleSheet(f'font-size:13px;font-weight:800;color:{readable_text(alert_bg, "#9f1239")};border:none;')
+        self.lbl_empty.setStyleSheet(f'color:{c["surface_fg"]};font-style:italic;font-size:12px;border:none;')
+        self.divider_line.setStyleSheet(f'background:{c["border"]};width:1px;border:none;')
+        # Repaint only the 0..3 visible cards from cached data: no DB queries.
+        self._refresh_alerts(self._last_alerts, self._last_hw, self._last_students)
 
     def refresh_badges(self, stats):
         """
@@ -201,6 +225,10 @@ class GamificationWidget(QFrame):
         self._refresh_alerts(clean_alerts, total_hw, total_students)
 
     def _refresh_alerts(self, alerts, total_hw=0, total_students=None):
+        self._last_alerts = list(alerts)
+        self._last_hw = total_hw
+        self._last_students = total_students
+        c = semantic_palette()
         while self.alerts_layout.count():
             item = self.alerts_layout.takeAt(0)
             if item.widget(): item.widget().deleteLater()
@@ -208,13 +236,13 @@ class GamificationWidget(QFrame):
         if not alerts:
             if total_students == 0:
                 lbl = QLabel("Aktif öğrenci kaydı bulunmuyor.")
-                lbl.setStyleSheet("color: #94a3b8; font-style: italic; font-size: 11px; border:none;")
+                lbl.setStyleSheet(f'color:{c["surface_fg"]};font-style:italic;font-size:11px;border:none;')
             elif total_hw == 0:
                 lbl = QLabel("Henüz analiz edilecek veri yok.")
-                lbl.setStyleSheet("color: #94a3b8; font-style: italic; font-size: 11px; border:none;")
+                lbl.setStyleSheet(f'color:{c["surface_fg"]};font-style:italic;font-size:11px;border:none;')
             else:
                 lbl = QLabel("✅ Harika! Hiç eksiğin yok.")
-                lbl.setStyleSheet("color: #059669; font-weight: 700; font-size: 13px; border:none;")
+                lbl.setStyleSheet(f'color:{readable_text("#3F222B" if c["dark"] else "#FFF1F2", "#059669")};font-weight:700;font-size:13px;border:none;')
             
             self.alerts_layout.addWidget(lbl)
             return
@@ -227,12 +255,13 @@ class GamificationWidget(QFrame):
             
             # Renk Ayarları (severity'ye göre)
             if sev == "high":
-                border_col = "#f43f5e"; bg_col = "#fff"; icon_bg="#ffe4e6"; txt_col = "#881337"
+                border_col = "#f43f5e"; bg_col = ("#30232b" if c["dark"] else "#ffffff"); icon_bg="#ffe4e6"; txt_col = "#881337"
                 icon_char = "!"
             else:
-                border_col = "#f59e0b"; bg_col = "#fff"; icon_bg="#fef3c7"; txt_col = "#92400e"
+                border_col = "#f59e0b"; bg_col = ("#302b24" if c["dark"] else "#ffffff"); icon_bg="#fef3c7"; txt_col = "#92400e"
                 icon_char = "i"
 
+            card_fg = readable_text(bg_col, c["surface_fg"])
             # Kart Yapısı
             card = QFrame()
             card.setStyleSheet(f"""
@@ -259,12 +288,12 @@ class GamificationWidget(QFrame):
             v_msg.setContentsMargins(0,0,0,0)
             
             msg_lbl = QLabel(text)
-            msg_lbl.setStyleSheet(f"color: #1e293b; font-weight: 600; font-size: 11px; border:none; background:transparent;")
+            msg_lbl.setStyleSheet(f"color:{card_fg};font-weight:600;font-size:11px;border:none;background:transparent;")
             v_msg.addWidget(msg_lbl)
             
             if tip:
                 sub = QLabel(f"💡 {tip}")
-                sub.setStyleSheet("color: #64748b; font-size: 10px; border:none; background:transparent;")
+                sub.setStyleSheet(f"color:{card_fg};font-size:10px;border:none;background:transparent;")
                 v_msg.addWidget(sub)
             
             card_lay.addWidget(icon)
@@ -281,13 +310,23 @@ class ClickableBadge(QFrame):
     def __init__(self, data, parent=None):
         super().__init__(parent)
         self.data = data
+        # The original translucent subtitle could blend into pale gradients.
+        # Use an opaque foreground checked against BOTH gradient stops.
+        stops = re.findall(r'stop:[01]\s*(#[0-9a-fA-F]{6})', str(data.get('grad','')))
+        preferred = str(data.get('text', '#334155'))
+        if len(stops) >= 2:
+            a, b, self._badge_fg = accessible_gradient(stops[0], stops[1], preferred)
+            self._badge_gradient = str(data['grad']).replace(stops[0], a).replace(stops[1], b)
+        else:
+            self._badge_fg = preferred
+            self._badge_gradient = data['grad']
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedSize(80, 105)
         
         # Gradient background
         self.setStyleSheet(f"""
             ClickableBadge {{
-                background: {data['grad']};
+                background: {self._badge_gradient};
                 border: 1px solid {data['text']}30;
                 border-radius: 12px;
             }}
@@ -307,11 +346,11 @@ class ClickableBadge(QFrame):
         
         tt = QLabel(data['title'])
         tt.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        tt.setStyleSheet(f"font-size: 11px; font-weight: 800; color: {data['text']}; background: transparent; border:none;")
+        tt.setStyleSheet(f"font-size: 11px; font-weight: 800; color: {self._badge_fg}; background: transparent; border:none;")
         
         sub = QLabel(data['subtitle'])
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub.setStyleSheet(f"font-size: 9px; font-weight: 600; color: {data['text']}bb; background: transparent; border:none;")
+        sub.setStyleSheet(f"font-size: 9px; font-weight: 600; color: {self._badge_fg}; background: transparent; border:none;")
         
         v.addWidget(ic)
         v.addWidget(tt)
@@ -331,6 +370,7 @@ class BadgeDetailDialog(QDialog):
     """
     def __init__(self, data, parent=None):
         super().__init__(parent)
+        self.data = data
         self.setWindowTitle(f"{data['title']} Rozeti Detayları")
         self.setFixedSize(400, 500) # Yüksekliği artırdık
         self.setStyleSheet("""
@@ -341,7 +381,7 @@ class BadgeDetailDialog(QDialog):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         # Ana Kapsayıcı (Gölge için)
-        main_frame = QFrame(self)
+        self._body_frame = main_frame = QFrame(self)
         main_frame.setGeometry(10, 10, 380, 480) # Yüksekliği artırdık
         main_frame.setStyleSheet("background-color: white; border-radius: 16px;")
         
@@ -379,11 +419,11 @@ class BadgeDetailDialog(QDialog):
         b_lay.setSpacing(15)
         
         # Başlık ve Alt Başlık
-        lbl_title = QLabel(data['title'])
+        self._detail_title = lbl_title = QLabel(data['title'])
         lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_title.setStyleSheet("font-size: 22px; font-weight: 800; color: #1e293b;")
         
-        lbl_sub = QLabel(data['subtitle'])
+        self._detail_sub = lbl_sub = QLabel(data['subtitle'])
         lbl_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_sub.setStyleSheet("font-size: 14px; font-weight: 600; color: #64748b; margin-bottom: 5px;")
         
@@ -400,7 +440,7 @@ class BadgeDetailDialog(QDialog):
         # Rozet tipine göre akıllı mesaj üret
         advice_text = self._get_smart_advice(data)
         
-        lbl_advice = QLabel(advice_text)
+        self._detail_advice = lbl_advice = QLabel(advice_text)
         lbl_advice.setWordWrap(True)
         lbl_advice.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_advice.setStyleSheet("font-size: 14px; line-height: 1.5; color: #475569;")
@@ -409,7 +449,7 @@ class BadgeDetailDialog(QDialog):
         b_lay.addStretch()
         
         # Kapat Butonu
-        btn_close = QPushButton("Harika, Devam Et! 🚀")
+        self._detail_button = btn_close = QPushButton("Harika, Devam Et! 🚀")
         btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_close.clicked.connect(self.accept)
         btn_close.setFixedHeight(45)
@@ -428,6 +468,18 @@ class BadgeDetailDialog(QDialog):
         b_lay.addWidget(btn_close)
         
         layout.addWidget(body)
+        register_theme_listener(self)
+        self._on_theme_changed()
+
+    def _on_theme_changed(self):
+        c = semantic_palette()
+        self._body_frame.setStyleSheet(f'background:{c["surface"]};border-radius:16px;')
+        self._detail_title.setStyleSheet(f'font-size:22px;font-weight:800;color:{c["surface_fg"]};')
+        self._detail_sub.setStyleSheet(f'font-size:14px;font-weight:600;color:{c["surface_fg"]};margin-bottom:5px;')
+        self._detail_advice.setStyleSheet(f'font-size:14px;line-height:1.5;color:{c["surface_fg"]};')
+        button_bg = self.data.get('text', '#334155')
+        button_fg = readable_text(button_bg, '#FFFFFF')
+        self._detail_button.setStyleSheet(f'QPushButton {{background-color:{button_bg};color:{button_fg};font-weight:bold;border-radius:9px;}}')
 
     def _get_smart_advice(self, data):
         title = data['title']

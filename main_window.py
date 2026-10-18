@@ -251,12 +251,7 @@ class AnaPencere(QMainWindow):
         self.sidebar = QWidget()
         self.sidebar.setObjectName("Sidebar")
         self.sidebar.setFixedWidth(240)
-        self.sidebar.setStyleSheet("""
-            QWidget#Sidebar {
-                background-color: #f8f9fa;
-                border-right: 1px solid #e9ecef;
-            }
-        """)
+        # Shared palette in ui.theme builds the #Sidebar rule for every preset.
         
         side_layout = QVBoxLayout(self.sidebar)
         side_layout.setContentsMargins(15, 20, 15, 20)
@@ -265,32 +260,16 @@ class AnaPencere(QMainWindow):
         # Başlık ve İkon
         lbl_brand = QLabel("YKS/LGS\nAsistanı v2")
         lbl_brand.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        lbl_brand.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e293b; margin-bottom: 10px;")
+        lbl_brand.setObjectName("ThemeSidebarBrand")
+        lbl_brand.setStyleSheet("font-size: 20px; font-weight: 800; margin-bottom: 10px;")
         side_layout.addWidget(lbl_brand)
         
         # --- MENÜ BUTONLARI ---
         
         # Helper: Sidebar için stil
         def style_sidebar_btn(btn, icon_char=None):
-            btn.setStyleSheet("""
-                QPushButton {
-                    text-align: left;
-                    padding: 10px 15px;
-                    border: none;
-                    border-radius: 8px;
-                    background-color: transparent;
-                    color: #475569;
-                    font-size: 14px;
-                    font-weight: 600;
-                }
-                QPushButton:hover {
-                    background-color: #e2e8f0;
-                    color: #0f172a;
-                }
-                QPushButton:pressed {
-                    background-color: #cbd5e1;
-                }
-            """)
+            # Theme action selectors are handled centrally; actions/signals unchanged.
+            btn.setObjectName("ThemeSidebarAction")
             if icon_char:
                 btn.setText(f"{icon_char}   {btn.text()}")
             # Cursor
@@ -430,7 +409,9 @@ class AnaPencere(QMainWindow):
 
         # 2. İÇERİK ALANI (SAĞ T KISIM)
         content_host = QWidget()
-        content_host.setStyleSheet("QWidget { background-color: #f1f5f9; }") # Slight gray bg for content area
+        # No recursive QWidget stylesheet: it used to force light backgrounds
+        # onto every nested form, including when a dark theme was selected.
+        content_host.setObjectName("ThemeContentHost")
         content_layout = QVBoxLayout(content_host)
         content_layout.setContentsMargins(20, 20, 20, 20)
         content_layout.setSpacing(12)
@@ -458,7 +439,8 @@ class AnaPencere(QMainWindow):
                 background-color: #059669; color: white; border: none;
                 border-radius: 6px; padding: 5px 14px; font-weight: bold; font-size: 12px;
             }
-            QPushButton:hover { background-color: #047857; }
+            QPushButton:hover { background-color: #047857; 
+                color: #FFFFFF;}
         """)
         btn_banner_action.clicked.connect(self._open_cached_update_dialog)
 
@@ -476,6 +458,14 @@ class AnaPencere(QMainWindow):
 
         self.update_banner.setVisible(False)
         content_layout.addWidget(self.update_banner)
+
+        # V4: Existing V10/V11 daily brief as a read-only, auto-refreshing
+        # priority strip. No new scoring engine and no assignment writes.
+        from ui.teacher_copilot_strip_v5 import TeacherCopilotStripV5
+        self._today_focus_v4 = TeacherCopilotStripV5(db.DB_PATH, parent=content_host)
+        self._today_focus_v4.open_details.connect(self._smart_asistan)
+        self._today_focus_v4.open_student.connect(self.open_homework_for_student)
+        content_layout.addWidget(self._today_focus_v4)
 
         # Stacked Widget (Sayfalar Arası Geçiş)
         from PyQt6.QtWidgets import QStackedWidget
@@ -910,6 +900,8 @@ class AnaPencere(QMainWindow):
         from ui.smart_assistant_dialog import SmartAssistantDialog
         dlg = SmartAssistantDialog(self)
         dlg.exec()
+        # Existing review marks were possibly updated inside the original dialog.
+        self._today_focus_v4.request_refresh()
 
     def _hedef_analiz_open(self):
         """Akıllı Hedef Analizi penceresini açar."""
@@ -1026,12 +1018,14 @@ class AnaPencere(QMainWindow):
                 background-color: #2563eb; color: white; border-radius: 6px;
                 padding: 8px 24px; font-weight: 600; border: none; font-size: 13px;
             }
-            QPushButton#btnOk:hover { background-color: #1d4ed8; }
+            QPushButton#btnOk:hover { background-color: #1d4ed8; 
+                color: #FFFFFF;}
             QPushButton#btnGithub {
                 background-color: #ffffff; color: #334155; border-radius: 6px;
                 border: 1px solid #cbd5e1; padding: 8px 16px; font-weight: 600; font-size: 13px;
             }
-            QPushButton#btnGithub:hover { background-color: #f1f5f9; }
+            QPushButton#btnGithub:hover { background-color: #f1f5f9; 
+                color: #15191E;}
             a { color: #2563eb; text-decoration: none; font-weight: 600; }
             a:hover { text-decoration: underline; }
         """)
@@ -1737,28 +1731,32 @@ class AnaPencere(QMainWindow):
                 border: 1px solid #1d4ed8;
                 color: #ffffff;
             }
-            QPushButton#Primary:hover { background-color: #1d4ed8; }
+            QPushButton#Primary:hover { background-color: #1d4ed8; 
+                color: #FFFFFF;}
             QPushButton#Success {
                 background-color: #10b981;
                 border: 1px solid #059669;
-                color: #ffffff;
+                color: #383838;
             }
-            QPushButton#Success:hover { background-color: #059669; }
+            QPushButton#Success:hover { background-color: #059669; 
+                color: #15191E;}
             QPushButton#Danger {
                 background-color: #fef2f2;
                 border: 1px solid #fecaca;
-                color: #dc2626;
+                color: #d82525;
             }
             QPushButton#Danger:hover {
                 background-color: #fee2e2;
                 border-color: #f87171;
-            }
+            
+                color: #15191E;}
             QPushButton#Close {
                 background-color: #e2e8f0;
                 border: none;
                 color: #334155;
             }
-            QPushButton#Close:hover { background-color: #cbd5e1; }
+            QPushButton#Close:hover { background-color: #cbd5e1; 
+                color: #15191E;}
         """)
 
         v = QVBoxLayout(dlg)

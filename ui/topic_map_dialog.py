@@ -74,11 +74,12 @@ class AssignmentManagerDialog(QDialog):
         
         self.setWindowTitle(f"🎯 Konu Yönetimi: {topic_name} ({lesson_name})")
         self.resize(800, 640)
-        self.setMinimumSize(740, 580)
+        self.setMinimumSize(540, 420)
         
         self.setStyleSheet("""
             QDialog {
                 background-color: #f8fafc;
+                font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             }
             QTabWidget::pane {
                 border: 1px solid #cbd5e1;
@@ -106,6 +107,7 @@ class AssignmentManagerDialog(QDialog):
                 border: 1px solid #e2e8f0;
                 border-radius: 6px;
                 gridline-color: #f1f5f9;
+                color: #15191E;
             }
             QHeaderView::section {
                 background-color: #f8fafc;
@@ -117,17 +119,18 @@ class AssignmentManagerDialog(QDialog):
             }
             QComboBox {
                 background-color: #ffffff;
-                border: 1px solid #cbd5e1;
+                border: 1.5px solid #cbd5e1;
                 border-radius: 6px;
-                padding: 6px 10px;
-                color: #1e293b;
+                padding: 4px 10px;
+                color: #0f172a;
                 font-weight: 600;
+                font-size: 13px;
             }
             QComboBox:hover { border-color: #3b82f6; }
             QComboBox::drop-down {
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
-                width: 24px;
+                width: 26px;
                 border-left: 1px solid #cbd5e1;
                 border-top-right-radius: 6px;
                 border-bottom-right-radius: 6px;
@@ -140,6 +143,52 @@ class AssignmentManagerDialog(QDialog):
                 border-top: 5px solid #475569;
                 width: 0;
                 height: 0;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #ffffff;
+                color: #0f172a;
+                selection-background-color: #eff6ff;
+                selection-color: #1d4ed8;
+                border: 1px solid #cbd5e1;
+                border-radius: 6px;
+                padding: 4px;
+            }
+            QSpinBox {
+                background-color: #ffffff;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 6px;
+                padding: 4px 8px;
+                color: #0f172a;
+                font-weight: 600;
+                font-size: 13px;
+            }
+            QSpinBox:focus { border-color: #2563eb; }
+            QTextEdit {
+                background-color: #ffffff;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 6px;
+                padding: 8px;
+                color: #0f172a;
+                font-size: 12.5px;
+            }
+            QTextEdit:focus { border-color: #2563eb; }
+            QSlider::groove:horizontal {
+                border: 1px solid #cbd5e1;
+                height: 8px;
+                background: #e2e8f0;
+                border-radius: 4px;
+            }
+            QSlider::sub-page:horizontal {
+                background: #2563eb;
+                border-radius: 4px;
+            }
+            QSlider::handle:horizontal {
+                background: #ffffff;
+                border: 2px solid #2563eb;
+                width: 18px;
+                margin-top: -6px;
+                margin-bottom: -6px;
+                border-radius: 9px;
             }
         """)
         
@@ -232,22 +281,34 @@ class AssignmentManagerDialog(QDialog):
                 border-radius: 6px;
                 padding: 10px 24px;
             }
-            QPushButton:hover { background-color: #1d4ed8; }
+            QPushButton:hover { background-color: #1d4ed8; 
+                color: #FFFFFF;}
         """)
         btn_close.clicked.connect(self.accept)
         main_lay.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignRight)
 
     def _setup_mastery_tab(self, parent):
-        lay = QVBoxLayout(parent)
+        outer_lay = QVBoxLayout(parent)
+        outer_lay.setContentsMargins(0, 0, 0, 0)
+        
+        scroll = QScrollArea(parent)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        lay = QVBoxLayout(container)
         lay.setSpacing(14)
         lay.setContentsMargins(16, 16, 16, 16)
         
         # Durum Seçimi
         g_status = QGroupBox("📌 Konu İlerleme Aşaması")
-        g_status.setStyleSheet("font-weight: bold; color: #1e293b;")
+        g_status.setStyleSheet("QGroupBox { font-weight: bold; }")
         v_stat = QVBoxLayout(g_status)
         
         self.cmb_status = QComboBox()
+        self.cmb_status.setMinimumHeight(38)
         self.cmb_status.addItem("⚪ 0 - Henüz Başlanmadı", 0)
         self.cmb_status.addItem("📖 1 - Konu Anlatımı Çalışıldı / Not Çıkarıldı", 1)
         self.cmb_status.addItem("✏️ 2 - Soru Çözüldü / Temel Testler Bitti", 2)
@@ -259,7 +320,7 @@ class AssignmentManagerDialog(QDialog):
         
         # Hakimiyet Puanı (%0 - %100)
         g_score = QGroupBox("📊 Konu Hakimiyet & Net Yüzdesi")
-        g_score.setStyleSheet("font-weight: bold; color: #1e293b;")
+        g_score.setStyleSheet("QGroupBox { font-weight: bold; }")
         v_score = QVBoxLayout(g_score)
         
         h_score = QHBoxLayout()
@@ -270,8 +331,9 @@ class AssignmentManagerDialog(QDialog):
         self.spin_score = QSpinBox()
         self.spin_score.setRange(0, 100)
         self.spin_score.setSuffix(" %")
-        self.spin_score.setFixedWidth(80)
-        self.spin_score.setStyleSheet("font-weight: bold; font-size: 14px; color: #2563eb;")
+        self.spin_score.setFixedWidth(85)
+        self.spin_score.setMinimumHeight(34)
+        self.spin_score.setStyleSheet("font-weight: bold; font-size: 14px; color: #2563eb; background: #ffffff; border: 1.5px solid #93c5fd; border-radius: 6px; padding: 4px 8px;")
         
         self.slider_score.valueChanged.connect(self.spin_score.setValue)
         self.spin_score.valueChanged.connect(self.slider_score.setValue)
@@ -283,13 +345,14 @@ class AssignmentManagerDialog(QDialog):
         
         # Soru Hedefi & Çözülen
         g_questions = QGroupBox("🎯 Soru Hedefi ve Çözülen Sayı")
-        g_questions.setStyleSheet("font-weight: bold; color: #1e293b;")
+        g_questions.setStyleSheet("QGroupBox { font-weight: bold; }")
         h_q = QHBoxLayout(g_questions)
         
         h_q.addWidget(QLabel("Çözülen Soru:"))
         self.spin_cozulen = QSpinBox()
         self.spin_cozulen.setRange(0, 10000)
         self.spin_cozulen.setSingleStep(10)
+        self.spin_cozulen.setMinimumHeight(34)
         h_q.addWidget(self.spin_cozulen)
         
         h_q.addWidget(QLabel("Hedef Soru:"))
@@ -297,16 +360,18 @@ class AssignmentManagerDialog(QDialog):
         self.spin_hedef.setRange(0, 10000)
         self.spin_hedef.setSingleStep(10)
         self.spin_hedef.setValue(100)
+        self.spin_hedef.setMinimumHeight(34)
         h_q.addWidget(self.spin_hedef)
         lay.addWidget(g_questions)
         
         # Koç Notu
         g_notes = QGroupBox("📝 Koçun Değerlendirme ve Çalışma Notu")
-        g_notes.setStyleSheet("font-weight: bold; color: #1e293b;")
+        g_notes.setStyleSheet("QGroupBox { font-weight: bold; }")
         v_notes = QVBoxLayout(g_notes)
         self.txt_koc_notu = QTextEdit()
         self.txt_koc_notu.setPlaceholderText("Örn: Formüllerde sıkıntı yok, ancak yeni nesil paragraf tipi matematik sorularında süreye dikkat etmeli...")
-        self.txt_koc_notu.setMaximumHeight(75)
+        self.txt_koc_notu.setMinimumHeight(75)
+        self.txt_koc_notu.setMaximumHeight(85)
         v_notes.addWidget(self.txt_koc_notu)
         lay.addWidget(g_notes)
         
@@ -322,14 +387,27 @@ class AssignmentManagerDialog(QDialog):
                 border-radius: 6px;
                 padding: 8px 16px;
             }
-            QPushButton:hover { background-color: #059669; }
+            QPushButton:hover { background-color: #059669; 
+                color: #15191E;}
         """)
         btn_save_mastery.clicked.connect(self.save_mastery_data)
         lay.addWidget(btn_save_mastery)
-        lay.addStretch()
+        
+        scroll.setWidget(container)
+        outer_lay.addWidget(scroll)
 
     def _setup_assign_tab(self, parent):
-        lay = QVBoxLayout(parent)
+        outer_lay = QVBoxLayout(parent)
+        outer_lay.setContentsMargins(0, 0, 0, 0)
+        
+        scroll = QScrollArea(parent)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        lay = QVBoxLayout(container)
         lay.setSpacing(12)
         lay.setContentsMargins(16, 16, 16, 16)
         
@@ -338,6 +416,7 @@ class AssignmentManagerDialog(QDialog):
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["Kaynak Kitap", "Kontrol Tarihi", "Durum", "İşlem"])
+        self.table.setMinimumHeight(150)
         
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -351,11 +430,11 @@ class AssignmentManagerDialog(QDialog):
         self.table.verticalHeader().setDefaultSectionSize(44)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        lay.addWidget(self.table, stretch=1)
+        lay.addWidget(self.table)
         
         # Yeni Ekleme Formu
         grp_new = QGroupBox("✨ Yeni Ödev Ata")
-        grp_new.setStyleSheet("font-weight: bold; color: #1e293b;")
+        grp_new.setStyleSheet("QGroupBox { font-weight: bold; }")
         frm_lay = QVBoxLayout(grp_new)
         
         h_inputs = QHBoxLayout()
@@ -394,12 +473,15 @@ class AssignmentManagerDialog(QDialog):
                 padding: 8px;
                 border-radius: 6px;
             }
-            QPushButton:hover { background-color: #2563eb; }
+            QPushButton:hover { background-color: #2563eb; 
+                color: #FFFFFF;}
         """)
         btn_add.clicked.connect(self.add_assignment)
         frm_lay.addWidget(btn_add)
         
         lay.addWidget(grp_new)
+        scroll.setWidget(container)
+        outer_lay.addWidget(scroll)
 
     def _on_status_changed(self, idx):
         val = self.cmb_status.currentData()
@@ -468,6 +550,8 @@ class AssignmentManagerDialog(QDialog):
                 
             con.commit()
             QMessageBox.information(self, "Başarılı", "Konu hakimiyet bilgileri başarıyla kaydedildi.")
+            self.raise_()
+            self.activateWindow()
         except Exception as e:
             QMessageBox.critical(self, "Hata", f"Kaydetme hatası: {e}")
 
@@ -1224,7 +1308,7 @@ class TopicMapDialog(QDialog):
         self.resize(1280, 840)
         self.setMinimumSize(1100, 720)
         self.student_id = student_id
-        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMaximizeButtonHint)
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint | Qt.WindowType.WindowCloseButtonHint)
         self.setStyleSheet("background-color: #f8fafc;")
 
         self.current_chips = [] # Aktif sayfadaki kartlar
@@ -1233,6 +1317,17 @@ class TopicMapDialog(QDialog):
         self._init_db_table()
         self.init_ui()
         self.load_students()
+        # V24.1: refresh only the read-only joint-evidence strip on commits.
+        from ui.live_change_bridge_v241 import install_live_updates
+        install_live_updates(self, self._on_committed_change_v241, student_attr="_live_student_v242")
+
+    def _live_student_v242(self):
+        return self.cmb_student.currentData()
+
+    def _on_committed_change_v241(self):
+        sid = self.cmb_student.currentData()
+        if type(sid) is int and sid > 0:
+            self._refresh_shared_map_v1(sid)
 
     def _init_db_table(self):
         try:
@@ -1389,7 +1484,8 @@ class TopicMapDialog(QDialog):
             }
             QPushButton:pressed {
                 background: #dbeafe;
-            }
+            
+                color: #15191E;}
         """)
         self.btn_topic_evidence_v18.clicked.connect(self._open_topic_evidence_v18)
         h_top_lay.addWidget(self.btn_topic_evidence_v18)
@@ -1425,13 +1521,23 @@ class TopicMapDialog(QDialog):
                 border-radius: 8px;
                 font-size: 14px;
                 padding: 8px 12px;
-            }
-            QPushButton:hover { background: #e2e8f0; }
+            
+                color: #15191E;}
+            QPushButton:hover { background: #e2e8f0; 
+                color: #15191E;}
         """)
         btn_refresh.clicked.connect(self.load_map)
         h_top_lay.addWidget(btn_refresh)
         
         root_lay.addWidget(header_frame)
+
+        # V1: Ana ödev / harita mikro ödev / koçluk kanıtları tek, salt-okunur açıklama.
+        self.lbl_shared_map_v1 = QLabel('Ortak kayıt özeti için öğrenci seçin.')
+        self.lbl_shared_map_v1.setWordWrap(True)
+        self.lbl_shared_map_v1.setStyleSheet(
+            'QLabel { background: #eff6ff; color: #1e3a8a; padding: 10px; '
+            'border: 1px solid #bfdbfe; border-radius: 8px; font-size: 11px; }')
+        root_lay.addWidget(self.lbl_shared_map_v1)
         
         # ==========================================================
         # 2. ÜST KPI ÖZET ŞERİDİ (Key Performance Indicators)
@@ -1651,6 +1757,7 @@ class TopicMapDialog(QDialog):
         self.scroll_strategy = QScrollArea()
         self.scroll_strategy.setWidgetResizable(True)
         self.scroll_strategy.setFixedHeight(140)
+        from ui.theme_scrollbar_v41 import scrollbar_qss
         self.scroll_strategy.setStyleSheet("""
             QScrollArea {
                 background: #f8fafc;
@@ -1679,6 +1786,8 @@ class TopicMapDialog(QDialog):
                 line-height: 1.35;
             }
         """)
+        self.scroll_strategy.setStyleSheet(self.scroll_strategy.styleSheet() +
+            scrollbar_qss('#f1f5f9', '#334155', '#2563eb', 9))
         self.scroll_strategy.setWidget(self.txt_strategy)
         r_lay.addWidget(self.scroll_strategy)
         
@@ -1709,7 +1818,8 @@ class TopicMapDialog(QDialog):
                 font-weight: 700;
                 font-size: 11.5px;
             }
-            QPushButton:hover { background: #e2e8f0; border-color: #94a3b8; }
+            QPushButton:hover { background: #e2e8f0; border-color: #94a3b8; 
+                color: #15191E;}
         """)
         btn_print_current.clicked.connect(self.open_poster_dialog)
         r_lay.addWidget(btn_print_current)
@@ -1847,9 +1957,10 @@ class TopicMapDialog(QDialog):
         db.init_curriculum(con)
         config = db.get_lesson_config(con)
         
-        allowed = ["LGS", "Genel"] if ana_grup == "LGS" else ["YKS", "Ara Sınıf", "Genel"]
-        lessons = sorted([l for l in config.values() if l['aktif'] and (l.get('grup', 'Genel') in allowed or l.get('grup') == 'Genel')], 
-                         key=lambda x: x.get('siralama', 99))
+        # Aynı öğrenci için Ödev Takip ve Müfredat sayfalarıyla aynı dersler.
+        assigned_ids = db.get_student_curriculum(int(student_id))
+        lessons = [config[lid] for lid in assigned_ids
+                   if lid in config and config[lid].get('aktif', 1)]
                          
         # 3. Ödev ve Hakimiyet Verilerini Çek
         # a) odev_takip
@@ -1893,6 +2004,7 @@ class TopicMapDialog(QDialog):
             print("koc_konu_takip load error:", e)
 
         # 4. Sol Listeyi ve Orta Stack Sayfalarını İnşa Et
+        prev_row = self.list_lessons.currentRow()
         self.list_lessons.blockSignals(True)
         self.list_lessons.clear()
         
@@ -2016,11 +2128,33 @@ class TopicMapDialog(QDialog):
             self.list_lessons.addItem(l_item)
             
         self.list_lessons.blockSignals(False)
-        if self.list_lessons.count() > 0:
+        if prev_row >= 0 and prev_row < self.list_lessons.count():
+            self.list_lessons.setCurrentRow(prev_row)
+        elif self.list_lessons.count() > 0:
             self.list_lessons.setCurrentRow(0)
             
         self.update_kpis()
         self.update_sidebar()
+        self._refresh_shared_map_v1(student_id)
+
+    def _refresh_shared_map_v1(self, student_id):
+        """Read all-topic evidence for selected student, with source labels."""
+        try:
+            from services.coach_shared_topic_v1 import read_shared_topic_summary
+            con = db.get_conn()
+            try:
+                con.execute('PRAGMA query_only=ON')
+                snap = read_shared_topic_summary(con, int(student_id))
+            finally:
+                con.close()
+            if student_id != self.cmb_student.currentData():
+                return
+            a, b = snap.lines()
+            self.lbl_shared_map_v1.setText(
+                f'🔗 Ödev Takip + Konu Haritası + Koçluk | {snap.student_name}\n{a}\n{b}\n{snap.note()}')
+        except (ValueError, sqlite3.Error, ImportError, OSError) as exc:
+            self.lbl_shared_map_v1.setText('Ortak kayıt özeti şu an okunamadı; mevcut Konu Haritası işleyişi sürüyor.')
+            print('shared map summary:', exc)
 
     def on_lesson_changed(self, row):
         if row >= 0 and row < self.stack.count():
@@ -2071,6 +2205,8 @@ class TopicMapDialog(QDialog):
         dlg.exec()
         # Yenile
         self.load_map()
+        self.raise_()
+        self.activateWindow()
 
     def update_kpis(self):
         total = self.global_stats['total']
@@ -2125,7 +2261,7 @@ class TopicMapDialog(QDialog):
                 high_yield_topics.append(f"{status_icon} <b>{tname}</b>: {q_cnt}")
                 
         if high_yield_topics:
-            strat_html = "<b style='color: #1e3a8a;'>ÖSYM'de En Çok Soru Çıkan Konular:</b><br><br>"
+            strat_html = "<b style='color: #1e3a8a;'>Yerel müfredatta önemli işaretlenen konular:</b><br><br>"
             strat_html += "<br>".join(high_yield_topics[:6])
             if len(high_yield_topics) > 6:
                 strat_html += f"<br><i>...ve {len(high_yield_topics)-6} kritik konu daha</i>"

@@ -132,22 +132,28 @@ class UserManagerDialog(QWidget):
                 background: #f1f3f5; border: 1px solid #ddd; padding: 10px 20px; font-weight: bold; color: #555;
                 border-top-left-radius: 6px; border-top-right-radius: 6px; margin-right: 2px;
             }
-            QTabBar::tab:selected { background: #fff; border-bottom-color: #fff; color: #007bff; }
-            QTabBar::tab:hover { background: #e9ecef; }
+            QTabBar::tab:selected { background: #fff; border-bottom-color: #fff; color: #0071eb; }
+            QTabBar::tab:hover { background: #e9ecef; 
+                color: #15191E;}
 
             QGroupBox { font-weight: bold; border: 1px solid #e0e0e0; border-radius: 6px; margin-top: 20px; padding-top: 15px; }
             QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; color: #007bff; }
 
             QPushButton {
                 background-color: #f8f9fa; border: 1px solid #ced4da; padding: 6px 12px; border-radius: 4px; font-weight: 600;
-            }
-            QPushButton:hover { background-color: #e2e6ea; }
+            
+                color: #15191E;}
+            QPushButton:hover { background-color: #e2e6ea; 
+                color: #15191E;}
             QPushButton#btnPrimary { background-color: #007bff; color: white; border: none; }
-            QPushButton#btnPrimary:hover { background-color: #0056b3; }
+            QPushButton#btnPrimary:hover { background-color: #0056b3; 
+                color: #FFFFFF;}
             QPushButton#btnDanger { background-color: #dc3545; color: white; border: none; }
-            QPushButton#btnDanger:hover { background-color: #bd2130; }
+            QPushButton#btnDanger:hover { background-color: #bd2130; 
+                color: #FFFFFF;}
             QPushButton#btnSuccess { background-color: #28a745; color: white; border: none; }
-            QPushButton#btnSuccess:hover { background-color: #218838; }
+            QPushButton#btnSuccess:hover { background-color: #218838; 
+                color: #000000;}
 
             QLineEdit, QComboBox { padding: 6px; border: 1px solid #ced4da; border-radius: 4px; }
             QLineEdit:focus, QComboBox:focus { border-color: #80bdff; }

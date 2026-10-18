@@ -66,7 +66,8 @@ class StudentSelectionDialog(QDialog):
                 font-size: 13px;
                 outline: none;
                 padding: 4px;
-            }
+            
+                color: #15191E;}
             QListWidget::item {
                 padding: 10px 12px;
                 border-bottom: 1px solid #f1f5f9;
@@ -139,7 +140,8 @@ class StudentSelectionDialog(QDialog):
             }
             QPushButton#btnPrint:hover {
                 background-color: #059669;
-            }
+            
+                color: #15191E;}
         """)
 
         layout = QVBoxLayout(self)

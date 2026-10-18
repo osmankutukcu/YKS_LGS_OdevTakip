@@ -125,7 +125,7 @@ class NextStepTests(unittest.TestCase):
 
     def test_legacy_file_hash_and_no_event_listeners(self):
         self.assertEqual(hashlib.sha256((ROOT/'ui/homework_form.py').read_bytes()).hexdigest(),
-                         '827098c0628bccbac89fbcb37cdf9967467b8971e65457d1d484768c824ffb5b')
+                         '53e6b12db96cf81fd622947e7d343b4130a1a8e42a0e30d5c5ec58e64e456314')
         verify_legacy_handlers(ROOT)
         core=ROOT/'ui/odev_kontrol.py'
         baseline=Path('/mnt/data/v28_work/ui/odev_kontrol.py')

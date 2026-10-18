@@ -1,0 +1,6 @@
+{
+ "name":"odevtakip-baileys-win-test-v257", "private":true, "version":"0.1.0",
+ "type":"module", "engines":{"node":">=20"},
+ "dependencies":{"@whiskeysockets/baileys":"7.0.0-rc14"},
+ "scripts":{"test":"node --test tests/*.test.mjs"}
+}

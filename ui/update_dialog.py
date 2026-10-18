@@ -14,6 +14,10 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QColor
 
+from ui.theme import register_theme_listener, _contrast_safe_background
+from ui.theme_tokens_v37 import semantic_palette
+from ui.theme_special_v42 import legible_accent
+
 from utils.updater import (
     UpdateDownloaderThread, apply_update_and_restart
 )
@@ -40,7 +44,8 @@ class UpdateDialog(QDialog):
         self.setModal(True)
 
         self._build_ui()
-        self._apply_styles()
+        self._on_theme_changed()
+        register_theme_listener(self)
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -190,72 +195,63 @@ class UpdateDialog(QDialog):
         self.btnBar.addWidget(self.btnLater)
         self.btnBar.addWidget(self.btnUpdate)
         root.addLayout(self.btnBar)
+        self._theme_labels = [
+            (lbl_t, 'strong'), (lbl_sub, 'muted'),
+            (lbl_c_tag, 'muted'), (lbl_c_val, 'strong'),
+            (lbl_arrow, 'muted'), (lbl_n_tag, 'success'),
+            (lbl_size, 'strong'), (lbl_date, 'muted'),
+            (lbl_ch_title, 'strong'),
+            (self.lblProgressStatus, 'strong'), (self.lblProgressStats, 'muted'),
+        ]
+
+    def _on_theme_changed(self):
+        self._apply_styles()
+        c = semantic_palette()
+        colors = {
+            'strong': c['fg'],
+            'muted': legible_accent(c['bg'], '#94A3B8' if c['dark'] else '#64748B'),
+            'success': c['surface_fg'],
+        }
+        for widget, role in self._theme_labels:
+            style = widget.styleSheet()
+            # Modify foreground only, without touching font sizing or badge fills.
+            style = re.sub(r'(?<![-\w])color\s*:\s*#[0-9a-fA-F]{3,8}',
+                           'color: ' + colors[role], style)
+            widget.setStyleSheet(style)
 
     def _apply_styles(self):
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #f8fafc;
-                font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            }
-            QFrame#VersionCard {
-                background-color: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-radius: 10px;
-            }
-            QFrame#ProgressCard {
-                background-color: #ffffff;
-                border: 1px solid #cbd5e1;
-                border-radius: 10px;
-            }
-            QTextBrowser {
-                background-color: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                padding: 10px 12px;
-                font-size: 13px;
-                color: #1e293b;
-                line-height: 1.5;
-            }
-            QProgressBar {
-                border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                background-color: #f1f5f9;
-                text-align: center;
-                color: #0f172a;
-                font-weight: bold;
-                font-size: 11px;
-            }
-            QProgressBar::chunk {
-                background-color: #10b981;
-                border-radius: 5px;
-            }
-            QPushButton {
-                background-color: #ffffff;
-                border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 8px 16px;
-                color: #334155;
-                font-size: 12px;
-                font-weight: 600;
-            }
-            QPushButton:hover {
-                background-color: #f1f5f9;
-                color: #0f172a;
-                border-color: #94a3b8;
-            }
-            QPushButton#btnUpdateAction {
-                background-color: #059669;
-                color: #ffffff;
-                border: none;
-                font-weight: bold;
-                padding: 8px 20px;
-            }
-            QPushButton#btnUpdateAction:hover {
-                background-color: #047857;
-            }
-            QPushButton#btnUpdateAction:disabled {
-                background-color: #94a3b8;
-            }
+        c = semantic_palette()
+        success = _contrast_safe_background('#059669', '#FFFFFF')
+        success_hover = _contrast_safe_background('#047857', '#FFFFFF')
+        progress = _contrast_safe_background('#10B981', c['alt_fg'])
+        self.setStyleSheet(f"""
+            QDialog {{ background:{c['bg']}; color:{c['fg']};
+                font-family:'Segoe UI', system-ui, -apple-system, sans-serif; }}
+            QFrame#VersionCard, QFrame#ProgressCard {{
+                background:{c['surface']}; border:1px solid {c['border']};
+                border-radius:10px; }}
+            QTextBrowser {{
+                background:#FFFFFF; color:#1E293B;
+                border:1px solid {c['border']}; border-radius:8px;
+                padding:10px 12px; font-size:13px; }}
+            QProgressBar {{
+                background:{c['alt']}; color:{c['alt_fg']};
+                border:1px solid {c['border']}; border-radius:6px;
+                text-align:center; font-weight:bold; font-size:11px; }}
+            QProgressBar::chunk {{ background:{progress}; border-radius:5px; }}
+            QPushButton {{
+                background:{c['neutral']}; color:{c['neutral_fg']};
+                border:1px solid {c['border']}; border-radius:6px;
+                padding:8px 16px; font-size:12px; font-weight:600; }}
+            QPushButton:hover {{ background:{c['tab_hover']};
+                color:{c['tab_hover_fg']}; border-color:{c['border']}; }}
+            QPushButton#btnUpdateAction {{
+                background:{success}; color:#FFFFFF;
+                border:none; font-weight:bold; padding:8px 20px; }}
+            QPushButton#btnUpdateAction:hover {{
+                background:{success_hover}; color:#FFFFFF; }}
+            QPushButton#btnUpdateAction:disabled {{
+                background:{c['alt']}; color:{c['alt_fg']}; }}
         """)
 
     def _format_changelog_to_html(self, raw: str) -> str:

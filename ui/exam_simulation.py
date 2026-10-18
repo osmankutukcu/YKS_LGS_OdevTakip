@@ -442,7 +442,8 @@ class ExamSimulationDialog(QDialog):
                 border-radius: 10px;
                 border: none;
             }
-            QPushButton:hover { background: #1d4ed8; }
+            QPushButton:hover { background: #1d4ed8; 
+                color: #FFFFFF;}
         """)
         self.btn_start.clicked.connect(self._start_exam)
         lay.addWidget(self.btn_start)
@@ -576,7 +577,8 @@ class ExamSimulationDialog(QDialog):
         self.tab_subjects = QTabWidget()
         self.tab_subjects.setStyleSheet("""
             QTabWidget::pane { border: 1px solid #cbd5e1; border-radius: 6px; background: white; }
-            QTabBar::tab { font-weight: 700; padding: 8px 14px; background: #f1f5f9; border-top-left-radius: 6px; border-top-right-radius: 6px; }
+            QTabBar::tab { font-weight: 700; padding: 8px 14px; background: #f1f5f9; border-top-left-radius: 6px; border-top-right-radius: 6px; 
+                color: #15191E;}
             QTabBar::tab:selected { background: white; color: #2563eb; border-bottom: 2px solid #2563eb; }
         """)
         self.tab_subjects.currentChanged.connect(self._on_subject_tab_changed)
@@ -781,7 +783,7 @@ class ExamSimulationDialog(QDialog):
             if s <= 15 * 60:
                 self.prog_time.setStyleSheet("QProgressBar { border-radius: 5px; background: #e2e8f0; } QProgressBar::chunk { background: #dc2626; border-radius: 5px; }")
                 self.lbl_exit_ban_badge.setText("🔴 SON 15 DAKİKA - Çıkış Yasaktır!")
-                self.lbl_exit_ban_badge.setStyleSheet("background: #fee2e2; color: #dc2626; font-weight: bold; font-size: 11px; padding: 4px 10px; border-radius: 6px;")
+                self.lbl_exit_ban_badge.setStyleSheet("background: #fee2e2; color: #ca2323; font-weight: bold; font-size: 11px; padding: 4px 10px; border-radius: 6px;")
             elif s >= (self.total_seconds - self.current_exam_config.get("exit_ban_minutes", 120) * 60):
                 self.lbl_exit_ban_badge.setText("⚠️ İlk Süre Çıkış Yasağı")
             else:

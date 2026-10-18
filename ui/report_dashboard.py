@@ -111,7 +111,8 @@ class ReportDashboard(QDialog):
                 gridline-color: #f1f5f9;
                 selection-background-color: #eff6ff;
                 selection-color: #1e3a8a;
-            }
+            
+                color: #15191E;}
             QHeaderView::section {
                 background-color: #f1f5f9;
                 padding: 6px;
@@ -139,32 +140,37 @@ class ReportDashboard(QDialog):
             }
             QPushButton:pressed {
                 background-color: #e2e8f0;
-            }
+            
+                color: #15191E;}
 
             /* -- Özel Butonlar (Object Name ile) -- */
             /* Primary (Mavi) - Yenile */
             QPushButton#btnPrimary {
                 background-color: #2563eb; color: white; border: 1px solid #2563eb;
             }
-            QPushButton#btnPrimary:hover { background-color: #1d4ed8; border-color: #1d4ed8; }
+            QPushButton#btnPrimary:hover { background-color: #1d4ed8; border-color: #1d4ed8; 
+                color: #FFFFFF;}
 
             /* Success (Yeşil) - Excel */
             QPushButton#btnExcel {
-                background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0;
+                background-color: #ecfdf5; color: #04825b; border: 1px solid #a7f3d0;
             }
-            QPushButton#btnExcel:hover { background-color: #d1fae5; }
+            QPushButton#btnExcel:hover { background-color: #d1fae5; 
+                color: #15191E;}
 
             /* PDF (Pastel Kırmızı) */
             QPushButton#btnPdf {
                 background-color: #fff1f2; color: #be123c; border: 1px solid #fb7185;
             }
-            QPushButton#btnPdf:hover { background-color: #ffe4e6; }
+            QPushButton#btnPdf:hover { background-color: #ffe4e6; 
+                color: #15191E;}
             
             /* Info (Mor) - Settings */
             QPushButton#btnInfo {
                 background-color: #f3e8ff; color: #7c3aed; border: 1px solid #e9d5ff;
             }
-            QPushButton#btnInfo:hover { background-color: #e9d5ff; }
+            QPushButton#btnInfo:hover { background-color: #e9d5ff; 
+                color: #15191E;}
 
             /* -- Inputs -- */
             QComboBox, QSpinBox {
@@ -172,7 +178,8 @@ class ReportDashboard(QDialog):
                 border-radius: 6px;
                 padding: 4px 8px;
                 background-color: #ffffff;
-            }
+            
+                color: #15191E;}
             QComboBox:focus, QSpinBox:focus {
                 border: 2px solid #3b82f6;
             }

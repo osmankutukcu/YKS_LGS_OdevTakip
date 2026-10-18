@@ -39,6 +39,25 @@ def _default_db_path() -> str:
         return mac
     return os.path.join(_appdata_dir(), "YKS_LGS_HomeworkManager.db")
 
+def _get_check_icon_path() -> str:
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    assets_dir = os.path.join(base_dir, "assets")
+    os.makedirs(assets_dir, exist_ok=True)
+    icon_path = os.path.join(assets_dir, "check_white.png")
+    if not os.path.exists(icon_path):
+        from PyQt6.QtGui import QImage, QPainter, QColor, QPen
+        from PyQt6.QtCore import QPoint
+        img = QImage(32, 32, QImage.Format.Format_ARGB32_Premultiplied)
+        img.fill(Qt.GlobalColor.transparent)
+        p = QPainter(img)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(QColor(255, 255, 255), 3.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        p.setPen(pen)
+        p.drawPolyline([QPoint(7, 16), QPoint(13, 23), QPoint(25, 9)])
+        p.end()
+        img.save(icon_path)
+    return icon_path.replace("\\", "/")
+
 def _connect_db() -> sqlite3.Connection:
     try:
         import db
@@ -199,16 +218,16 @@ class MailGonderDialog(QDialog):
         super().__init__(ebeveyn)
         self.setWindowTitle("İletişim – Mail & WhatsApp")
         
-        # Ekran boyutuna duyarlı akıllı boyutlandırma (laptop ekranlarında butonların taşmasını önler)
+        # Ekran boyutuna duyarlı akıllı boyutlandırma
         screen = QApplication.primaryScreen()
         if screen:
             avail = screen.availableGeometry()
-            w = min(1200, max(900, int(avail.width() * 0.92)))
-            h = min(670, max(520, int(avail.height() * 0.86)))
+            w = min(1260, max(1080, int(avail.width() * 0.90)))
+            h = min(740, max(620, int(avail.height() * 0.88)))
             self.resize(w, h)
         else:
-            self.resize(1100, 640)
-        self.setMinimumSize(860, 490)
+            self.resize(1180, 680)
+        self.setMinimumSize(980, 580)
         self.con = con or _connect_db()
         self.smtp = SmtpSettings.load(self.con)
         
@@ -229,7 +248,8 @@ class MailGonderDialog(QDialog):
         self.tabs.addTab(WhatsAppTab(self.con), "💬 WhatsApp")
 
     def _apply_modern_styles(self):
-        self.setStyleSheet("""
+        chk_icon = _get_check_icon_path()
+        style = """
             QWidget {
                 font-family: 'Segoe UI', system-ui, sans-serif;
                 font-size: 13px;
@@ -397,18 +417,20 @@ class MailGonderDialog(QDialog):
             QCheckBox::indicator:hover, QRadioButton::indicator:hover {
                 border-color: #3b82f6;
             }
-            QCheckBox::indicator:checked, QRadioButton::indicator:checked {
+            QCheckBox::indicator:checked {
                 background-color: #2563eb;
                 border-color: #2563eb;
-                image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'></polyline></svg>");
+                image: url("__CHECK_ICON__");
             }
             QRadioButton::indicator {
                 border-radius: 8px;
             }
             QRadioButton::indicator:checked {
-                 image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'><circle cx='12' cy='12' r='6'/></svg>");
+                border-color: #2563eb;
+                background: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, stop:0 #ffffff, stop:0.42 #ffffff, stop:0.43 #2563eb, stop:1 #2563eb);
             }
-        """)
+        """.replace("__CHECK_ICON__", chk_icon)
+        self.setStyleSheet(style)
 
     # ======== E-POSTA SEKME ========
     def _build_email_tab(self) -> QWidget:
@@ -536,7 +558,7 @@ class MailGonderDialog(QDialog):
         self.chkStuInfo  = QCheckBox("Öğrenci bilgisi eklensin")
         self.chkBcc      = QCheckBox("Kendime BCC"); self.chkBcc.setChecked(SmtpSettings.load(self.con).bcc_self)
         self.chkLastKume = QCheckBox("Son ödev kümesi özeti")
-        self.chkAllKume  = QCheckBox("Tüm ödev kümeleri & içerikleri")
+        self.chkAllKume  = QCheckBox("Tüm ödev kümeleri ve içerikleri")
 
         for chk in (self.chkStuInfo, self.chkBcc, self.chkLastKume, self.chkAllKume):
             chk.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)

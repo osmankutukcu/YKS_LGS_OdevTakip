@@ -2449,76 +2449,94 @@ def init_curriculum(con: sqlite3.Connection):
         con.commit()
 
 def get_lesson_config(con=None):
-    """Tüm ders yapılandırmasını {id: {ad, grup, aktif}} formatında döner."""
-    if not con: con = get_conn()
+    """Ders tanımlarını ID bazında döndürür; yalnızca açtığı bağlantıyı kapatır."""
+    owned = con is None
+    if owned:
+        con = get_conn()
     try:
         rows = con.execute("SELECT * FROM ders_tanimlari ORDER BY siralama, id").fetchall()
-        # Row objesini dict'e çevir
-        res = {}
-        for r in rows:
-            # sqlite3.Row ise dict gibi davranır ama emin olalım
-            d = dict(r) if hasattr(r, 'keys') else {
-                'id': r[0], 'ad': r[1], 'grup': r[2], 'aktif': r[3], 'ozel': r[4], 'siralama': r[5]
-            }
-            res[d['id']] = d
-        return res
-    except:
-        return {}
+        return {
+            d['id']: d for d in (
+                dict(r) if hasattr(r, 'keys') else
+                dict(zip(('id', 'ad', 'grup', 'aktif', 'ozel', 'siralama'), r))
+                for r in rows
+            )
+        }
+    except sqlite3.Error:
+        return {}  # Eski veritabanlarında ilk kurulum uyumluluğu
+    finally:
+        if owned:
+            con.close()
+
 
 def add_custom_lesson(ad_gosterim, grup, tablo_adi=None):
-    """
-    Yeni bir ders ekler. 
-    1. Tablo adı üretilir.
-    2. Tablo oluşturulur.
-    3. Config'e eklenir.
-    4. DERS_TABLOLARI listesine eklenir.
-    """
-    if not tablo_adi:
-        # Otomatik üret: "Hızlı Okuma" -> "hizli_okuma"
-        import unicodedata
-        s = ad_gosterim.lower().strip()
-        # Türkçe karakterleri basitçe değiştir
-        replacements = {'ı': 'i', 'ğ': 'g', 'ü': 'u', 'ş': 's', 'ö': 'o', 'ç': 'c'}
-        for tr, eng in replacements.items():
-            s = s.replace(tr, eng)
-            
-        s = "".join([c if c.isalnum() else "_" for c in s])
-        tablo_adi = "ozel_" + s # Çakışmayı önlemek için prefix
-    
+    """Özel ders oluşturur. SQL kimliği doğrulanır; DDL ve kayıt tek işlemdir."""
+    import re
+    import unicodedata
+
+    ad = str(ad_gosterim or '').strip()
+    grup = str(grup or '').strip()
+    if not ad or len(ad) > 100:
+        return False, "Ders adı 1–100 karakter arasında olmalıdır."
+    if not grup or len(grup) > 80:
+        return False, "Geçerli bir grup seçiniz."
+
+    if tablo_adi is None:
+        normalized = ad.casefold().replace('ı', 'i')
+        normalized = unicodedata.normalize('NFKD', normalized)
+        normalized = ''.join(c for c in normalized if not unicodedata.combining(c))
+        slug = re.sub(r'[^a-z0-9]+', '_', normalized).strip('_')
+        if not slug:
+            return False, "Ders adından geçerli bir kimlik üretilemedi."
+        tablo_adi = 'ozel_' + slug[:64]
+    if not isinstance(tablo_adi, str) or not re.fullmatch(r'[a-z][a-z0-9_]{0,79}', tablo_adi):
+        return False, "Geçersiz ders kimliği."
+
     con = get_conn()
-    cur = con.cursor()
-    
-    # 1. Ders tablosunu oluştur
-    cur.execute(f"""
-    CREATE TABLE IF NOT EXISTS {tablo_adi}(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        konu TEXT NOT NULL,
-        ort_soru INTEGER,
-        ort_sure INTEGER,
-        aciklama TEXT,
-        zorluk INTEGER
-    )""")
-    
-    # 2. Tanımlara ekle
     try:
-        cur.execute("INSERT INTO ders_tanimlari(id, ad, grup, aktif, ozel, siralama) VALUES(?, ?, ?, 1, 1, 999)",
-                   (tablo_adi, ad_gosterim, grup))
+        init_curriculum(con)
+        if con.execute("SELECT 1 FROM ders_tanimlari WHERE lower(ad)=lower(?) AND grup=?",
+                       (ad, grup)).fetchone():
+            return False, "Bu grupta aynı isimde bir ders zaten tanımlı."
+        if con.execute("SELECT 1 FROM ders_tanimlari WHERE id=?", (tablo_adi,)).fetchone():
+            return False, "Bu ders kimliği kullanılıyor. Farklı bir isim seçin."
+
+        # CREATE TABLE ve ders tanımı birlikte geri alınabilir; başarısız ekleme boş tablo bırakmaz.
+        con.execute("BEGIN IMMEDIATE")
+        con.execute(f"""CREATE TABLE {tablo_adi}(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            konu TEXT NOT NULL,
+            ort_soru INTEGER,
+            ort_sure INTEGER,
+            aciklama TEXT,
+            zorluk INTEGER
+        )""")
+        con.execute("""INSERT INTO ders_tanimlari(id, ad, grup, aktif, ozel, siralama)
+                       VALUES (?, ?, ?, 1, 1, 999)""", (tablo_adi, ad, grup))
         con.commit()
-    except Exception as e:
-        return False, f"Ders eklenemedi (Zaten var olabilir): {e}"
-        
-    # 3. Global listeye yansıt (Runtime)
+    except sqlite3.Error as exc:
+        con.rollback()
+        return False, f"Ders eklenemedi: {exc}"
+    finally:
+        con.close()
+
     if 'DERS_TABLOLARI' in globals() and tablo_adi not in DERS_TABLOLARI:
         DERS_TABLOLARI.append(tablo_adi)
-        
-    return True, f"'{ad_gosterim}' dersi eklendi.", tablo_adi
+    return True, f"'{ad}' dersi eklendi.", tablo_adi
+
 
 def update_lesson_status(lesson_id, is_active: bool):
-    """Dersin aktif/pasif durumunu değiştirir."""
+    """Ders kayıtlarını silmeden görünürlüğünü değiştirir."""
     con = get_conn()
-    val = 1 if is_active else 0
-    con.execute("UPDATE ders_tanimlari SET aktif=? WHERE id=?", (val, lesson_id))
-    con.commit()
+    try:
+        cur = con.execute("UPDATE ders_tanimlari SET aktif=? WHERE id=?",
+                          (1 if is_active else 0, lesson_id))
+        if cur.rowcount != 1:
+            raise ValueError(f"Ders bulunamadı: {lesson_id}")
+        con.commit()
+    finally:
+        con.close()
+
 
 def load_custom_lessons():
     """DB'deki özel dersleri global DERS_TABLOLARI listesine ekler (Başlangıçta çağrılmalı)."""
@@ -2551,27 +2569,35 @@ def init_group_lessons(con: sqlite3.Connection):
     con.commit()
 
 def get_lessons_for_group(grup_adi: str) -> list:
-    """Belirtilen grubun ders ID listesini döner."""
+    """Eski API: kayıt yoksa [] döner; 'varsayılan' yorumunu çağıran yapar."""
     con = get_conn()
     try:
-        rows = con.execute("SELECT ders_id FROM grup_dersleri WHERE grup_adi=?", (grup_adi,)).fetchall()
+        rows = con.execute("SELECT ders_id FROM grup_dersleri WHERE grup_adi=?",
+                           (grup_adi,)).fetchall()
         return [r[0] for r in rows]
-    except:
+    except sqlite3.Error:
         return []
+    finally:
+        con.close()
+
 
 def set_lessons_for_group(grup_adi: str, lesson_ids: list):
-    """Bir grubun derslerini günceller (önce siler sonra ekler)."""
+    """Eski sözleşmeyi korur: [] kayıtları siler ve varsayılanları etkinleştirir."""
+    if not isinstance(grup_adi, str) or not grup_adi.strip():
+        raise ValueError("Öğrenci grubu seçilmelidir.")
+    lesson_ids = list(dict.fromkeys(lesson_ids or []))
     con = get_conn()
-    cur = con.cursor()
-    
-    # Tablo yoksa oluştur (her ihtimale karşı)
-    init_group_lessons(con)
-    
-    cur.execute("DELETE FROM grup_dersleri WHERE grup_adi=?", (grup_adi,))
-    if lesson_ids:
-        data = [(grup_adi, lid) for lid in lesson_ids]
-        cur.executemany("INSERT INTO grup_dersleri(grup_adi, ders_id) VALUES(?,?)", data)
-    con.commit()
+    try:
+        init_group_lessons(con)
+        with con:
+            con.execute("DELETE FROM grup_dersleri WHERE grup_adi=?", (grup_adi,))
+            if lesson_ids:
+                con.executemany(
+                    "INSERT INTO grup_dersleri(grup_adi, ders_id) VALUES(?,?)",
+                    [(grup_adi, lid) for lid in lesson_ids])
+    finally:
+        con.close()
+
 
 DEFAULT_GRUP_DERSLER = {
     "YKS": ["tyt_matematik", "problemler", "ayt_matematik", "geometri", "fizik", "kimya",
@@ -2581,35 +2607,84 @@ DEFAULT_GRUP_DERSLER = {
     "LGS": ["lgs_matematik", "lgs_fen", "lgs_turkce", "lgs_inkilap", "lgs_dinkulturu", "lgs_ingilizce"]
 }
 
-def get_student_curriculum(student_id: int) -> list:
-    """
-    Öğrencinin grubuna (alt_grup) göre atanmış ders listesini döner.
-    1. Eğer özel grup ataması varsa onu döner.
-    2. Yoksa, 'ana_grup' bilgisine göre varsayılan orjinal listeyi döner.
-    """
+# Hem ayarlardaki eşleştirme hem de ana ekrandaki konu düzenleyici aynı
+# grupları temel alır. Veritabanındaki kuruma özel gruplar da eklenir.
+CURRICULUM_GROUPS = {
+    "YKS": ["12-say", "12-ea", "12-söz", "mezun-say", "mezun-ea", "mezun-söz"],
+    "Ara Sınıf": ["11-say", "11-ea", "11-söz", "10.sınıf", "9.sınıf"],
+    "LGS": ["8.sınıf", "7.sınıf", "6.sınıf"],
+}
+
+
+def get_curriculum_groups(ana_grup=None):
+    """Kayıtlı öğrenci grupları + uygulamanın standart grupları (eski gruplar korunur)."""
+    group_map = {k: list(v) for k, v in CURRICULUM_GROUPS.items()}
     con = get_conn()
     try:
-        # ana_grup bilgisini de çekiyoruz
-        row = con.execute("SELECT alt_grup, ana_grup FROM ogrenci WHERE id=?", (student_id,)).fetchone()
+        for row in con.execute("SELECT DISTINCT ana_grup, alt_grup FROM ogrenci WHERE trim(coalesce(alt_grup,'')) <> ''"):
+            top, sub = (row[0] or 'YKS'), row[1]
+            group_map.setdefault(top, [])
+            if sub not in group_map[top]:
+                group_map[top].append(sub)
+    except sqlite3.Error:
+        pass
+    try:
+        for row in con.execute("SELECT DISTINCT grup_adi FROM grup_dersleri"):
+            sub = row[0]
+            if sub and not any(sub in values for values in group_map.values()):
+                group_map.setdefault('Diğer', []).append(sub)
+    except sqlite3.Error:
+        pass
+    finally:
+        con.close()
+    if ana_grup is not None:
+        return group_map.get(ana_grup, [])
+    return group_map
+
+
+def get_group_main_group(alt_grup):
+    """Gerçek öğrenci kayıtlarına göre üst grubu belirle; yoksa standart haritaya bak."""
+    con = get_conn()
+    try:
+        row = con.execute(
+            "SELECT ana_grup FROM ogrenci WHERE alt_grup=? AND trim(coalesce(ana_grup,'')) <> '' "
+            "GROUP BY ana_grup ORDER BY count(*) DESC LIMIT 1", (alt_grup,)).fetchone()
+        if row:
+            return row[0]
+    except sqlite3.Error:
+        pass
+    finally:
+        con.close()
+    for main, subgroups in CURRICULUM_GROUPS.items():
+        if alt_grup in subgroups:
+            return main
+    return 'YKS'  # Eski uygulamanın varsayılanı
+
+
+def get_effective_group_lessons(alt_grup, ana_grup=None):
+    """Ödev Takip, Ayarlar ve Konu Düzenleyici için tek ders çözümleme kuralı."""
+    assigned = get_lessons_for_group(alt_grup) if alt_grup else []
+    main = ana_grup or get_group_main_group(alt_grup)
+    selected = assigned if assigned else DEFAULT_GRUP_DERSLER.get(main, DEFAULT_GRUP_DERSLER['YKS'])
+    # Pasif dersleri yeni listelerde gizle; geçmiş ödev ve konular silinmez.
+    config = get_lesson_config()
+    return [lid for lid in selected if not config or (lid in config and bool(config[lid].get('aktif', 1)))]
+
+
+def get_student_curriculum(student_id: int) -> list:
+    """Öğrencinin etkin derslerini, grup eşleştirmelerini gözeterek döndürür."""
+    con = get_conn()
+    try:
+        row = con.execute("SELECT alt_grup, ana_grup FROM ogrenci WHERE id=?",
+                          (student_id,)).fetchone()
         if not row:
             return []
-            
-        alt_grup = row[0]
-        ana_grup = row[1] or "YKS"
-        
-        # 1. Özel atama var mı?
-        if alt_grup:
-            ozel_liste = get_lessons_for_group(alt_grup)
-            if ozel_liste:
-                return ozel_liste
-
-        # 2. Yoksa varsayılan listeye dön (Orjinal Yapı)
-        return DEFAULT_GRUP_DERSLER.get(ana_grup, DEFAULT_GRUP_DERSLER.get("YKS", []))
-
-    except Exception as e:
-        print(f"Curriculum Error: {e}")
+        return get_effective_group_lessons(row[0], row[1] or 'YKS')
+    except sqlite3.Error as exc:
+        print(f"Curriculum Error: {exc}")
         return []
-
+    finally:
+        con.close()
 
 
 

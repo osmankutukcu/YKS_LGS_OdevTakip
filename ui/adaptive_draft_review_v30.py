@@ -36,9 +36,11 @@ class AdaptiveDraftReviewV30(QDialog):
         QLabel{color:#334155;}
         QPushButton{background:white;border:1px solid #cbd5e1;border-radius:7px;
             padding:7px 12px;color:#1e293b;font-weight:650;}
-        QPushButton:hover{background:#eff6ff;}
+        QPushButton:hover{background:#eff6ff;
+                color: #15191E;}
         QTableWidget{background:white;alternate-background-color:#f8fafc;
-            border:1px solid #dbe4ef;gridline-color:#e2e8f0;}
+            border:1px solid #dbe4ef;gridline-color:#e2e8f0;
+                color: #15191E;}
         QHeaderView::section{background:#eef2f7;padding:7px;font-weight:650;}
         ''')
         body = QVBoxLayout(self)

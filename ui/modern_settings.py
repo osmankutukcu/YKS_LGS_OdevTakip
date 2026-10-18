@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QGridLayout, QFrame, QFileDialog, QMessageBox, QSpinBox, QRadioButton, QButtonGroup,
     QScrollArea, QTabWidget, QDialog, QDialogButtonBox, QApplication, QTextEdit, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QSize, QUrl
+from PyQt6.QtCore import Qt, QSize, QUrl, QEvent
 from PyQt6.QtGui import QIcon, QPixmap, QColor, QFont, QCursor
 import importlib
 
@@ -35,6 +35,7 @@ class ModernSettingsDialog(QWidget):
         self.setWindowTitle("Sistem & Uygulama Ayarları")
         self.resize(980, 680)
         self.setMinimumSize(880, 580)
+        self._close_approved = False
         self._apply_theme_styles()
 
         # Ana Layout
@@ -129,7 +130,6 @@ class ModernSettingsDialog(QWidget):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self.scroll.setStyleSheet("background-color: #f8fafc;")
 
         self.stack = QStackedWidget()
         self.scroll.setWidget(self.stack)
@@ -142,7 +142,7 @@ class ModernSettingsDialog(QWidget):
         flay.setContentsMargins(24, 12, 24, 12)
         flay.setSpacing(12)
 
-        lbl_foot_info = QLabel("💡 Değişikliklerin kaydedilmesi için \"Kaydet ve Kapat\" butonuna tıklayınız.")
+        lbl_foot_info = QLabel("💡 Grup seçimleri Kaydet ile; ders durumu ve yeni dersler anında kaydedilir.")
         lbl_foot_info.setStyleSheet("color: #64748b; font-size: 12px;")
         flay.addWidget(lbl_foot_info)
         flay.addStretch()
@@ -184,11 +184,42 @@ class ModernSettingsDialog(QWidget):
 
         # Başlangıç seçimi
         self.sidebar.setCurrentRow(0)
+        # Dış QDialog'un X düğmesiyle kapatılması da kaydedilmemiş grup
+        # seçimlerini sessizce düşürmemelidir.
+        if parent is not None:
+            parent.installEventFilter(self)
+
+    def eventFilter(self, watched, event):
+        if watched is self.parentWidget() and not self._close_approved:
+            # QDialog Esc ile reject() çağırıp Close olayını atlayabilir.
+            if (event.type() == QEvent.Type.KeyPress and
+                    event.key() == Qt.Key.Key_Escape):
+                self.reject()
+                return True
+            if event.type() == QEvent.Type.Close:
+                if not self._confirm_discard_or_close():
+                    event.ignore()
+                    return True
+        return super().eventFilter(watched, event)
+
+    def _confirm_discard_or_close(self):
+        if not self.page_curriculum.confirm_leave():
+            return False
+        if self.page_curriculum.immediate_changes:
+            answer = QMessageBox.question(
+                self, "Anında kaydedilmiş değişiklikler",
+                "Derslerin aktif/pasif durumu ve oluşturulan özel dersler zaten kaydedildi. "
+                "Diğer sekmelerde henüz kaydetmediğiniz ayarlar uygulanmayacak. Kapatılsın mı?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes)
+            return answer == QMessageBox.StandardButton.Yes
+        return True
 
     def _apply_theme_styles(self):
         self.setStyleSheet("""
             QWidget {
                 font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+                background: #f8fafc;
                 color: #1e293b;
             }
             QFrame#SidebarFrame {
@@ -326,10 +357,13 @@ class ModernSettingsDialog(QWidget):
         """)
 
     def accept(self):
+        self._close_approved = True
         self.window().close()
 
     def reject(self):
-        self.window().close()
+        if self._confirm_discard_or_close():
+            self._close_approved = True
+            self.window().close()
 
     def _change_page(self, idx):
         titles = [
@@ -348,11 +382,13 @@ class ModernSettingsDialog(QWidget):
 
     def _save_all(self):
         try:
+            # Önce grup eşleştirmesini doğrula; hata varsa diğer ayarları
+            # kısmen kaydetmeye başlamadan işlemi durdur.
+            self.page_curriculum.save()
             self.page_general.save()
             self.page_appearance.save()
             self.page_motivation.save()
             self.page_integration.save()
-            self.page_curriculum.save()
             QMessageBox.information(self, "Başarılı", "Tüm sistem ve uygulama ayarları başarıyla kaydedildi!")
             self.accept()
         except Exception as e:
@@ -408,7 +444,7 @@ class GeneralPage(QWidget):
                 background-color: #f8fafc;
                 border: 1.5px dashed #cbd5e1;
                 border-radius: 8px;
-                color: #94a3b8;
+                color: #687281;
                 font-size: 11px;
                 font-weight: 600;
             }
@@ -552,7 +588,7 @@ class AppearancePage(QWidget):
         self.modeGroup.addButton(self.radLight)
         self.modeGroup.addButton(self.radDark)
 
-        current_theme = (appset.ayar_get('tema', 'açık') or "açık").lower()
+        current_theme = (appset.ayar_get('tema_mod', None) or appset.ayar_get('tema', 'açık') or "açık").lower()
         if current_theme in ("koyu", "dark"):
             self.radDark.setChecked(True)
         else:
@@ -630,8 +666,14 @@ class AppearancePage(QWidget):
         mode = "koyu" if self.radDark.isChecked() else "açık"
         density_data = self.cmbDensity.currentData() or "compact"
         
-        appset.ayar_set('tema_seti', self.cmbPreset.currentText())
+        # Reset previous custom overrides and synchronize both legacy/new mode keys.
+        self.tema_apply_preset(self.cmbPreset.currentText())
         appset.ayar_set('tema', mode)
+        appset.ayar_set('tema_mod', mode)
+        chosen = self.tema_presets().get(self.cmbPreset.currentText(), {})
+        if chosen.get('mode') != ('dark' if mode == 'koyu' else 'light'):
+            # Manually flipping the mode must not keep the old preset background.
+            appset.ayar_set('tema_bg', '')
         appset.ayar_set('tema_density', density_data)
         appset.ayar_set('tema_font', self.spinFont.value())
         appset.ayar_set('tema_radius', self.spinRadius.value())

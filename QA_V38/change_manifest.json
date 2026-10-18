@@ -1,0 +1,22 @@
+{
+  "version": "V38",
+  "baseline": "YKS_LGS_Tema_V37_GuvenliPilot_TamProje.zip",
+  "baseline_sha256": "499393b1b9ef9243278eaf28fff1f50b26904fbdc18a1795d8cfb8bc63397a23",
+  "modified_files": [
+    "ui/app_settings.py",
+    "ui/book_dialog.py",
+    "ui/motivation_toast.py",
+    "ui/theme.py",
+    "ui/toast.py"
+  ],
+  "new_files": [
+    "QA_V38/preview_notification_windows_v38.py",
+    "QA_V38/test_notification_theme_v38.py",
+    "V38_BILDIRIM_TEMA_GUVENLI_PILOT_OKU.md",
+    "ui/theme_notification_tokens_v38.py",
+    "ui/theme_popup_runtime_v38.py"
+  ],
+  "database_files_changed": false,
+  "type": "pilot - presentation only",
+  "gui_test": "not run; PyQt6 unavailable in analysis environment"
+}

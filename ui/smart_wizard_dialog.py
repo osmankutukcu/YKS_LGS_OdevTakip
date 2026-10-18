@@ -7,6 +7,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QIcon, QFont, QColor
+from ui.theme import register_theme_listener, readable_text
+from ui.theme_tokens_v37 import semantic_palette
+from ui.theme_special_v42 import legible_accent
 import db
 import random
 import json
@@ -51,11 +54,53 @@ class SmartWizardDialog(QDialog):
 
         self._build_ui()
         self._load_students()
+        self._on_theme_changed()
+        register_theme_listener(self)
 
         if self.ogrenci_id:
             QTimer.singleShot(400, self._run_analysis)
 
         self.showMaximized()
+
+    def _on_theme_changed(self):
+        c = semantic_palette()
+        self._v42_title.setStyleSheet(
+            'font-size:20px; font-weight:bold; color:'
+            + legible_accent(c['bg'], '#4338CA') + ';')
+        self._v42_description.setStyleSheet(
+            'font-size:12px; color:'
+            + legible_accent(c['bg'], '#64748B') + ';')
+        self.tabs.setStyleSheet(f"""
+            QTabWidget::pane {{background:{c['surface']}; border:1px solid {c['border']};
+                border-radius:8px; top:-1px;}}
+            QTabBar::tab {{background:{c['alt']}; color:{c['alt_fg']};
+                border:1px solid {c['border']}; padding:9px 20px;
+                font-weight:600; border-radius:8px; margin-right:4px;}}
+            QTabBar::tab:selected {{background:{c['surface']};
+                color:{c['surface_fg']}; font-weight:bold;}}
+            QTabBar::tab:hover:!selected {{background:{c['tab_hover']};
+                color:{c['tab_hover_fg']};}}
+        """)
+        # Reports are authored with many explicit dark HTML colors. Every
+        # reader has an explicitly LIGHT document surface to avoid inherited
+        # white text from a dark application palette.
+        for attr, bg in (
+            ('txtEvidence', '#FFFFFF'), ('txtOfficial', '#FFFFFF'),
+            ('txtCurriculum', '#FFFFFF'), ('txtStrategy', '#FAFAFA'),
+            ('txtPdrSummary', '#FFFFFF'), ('txtWaStudent', '#F0FDF4'),
+            ('txtWaParent', '#EFF6FF')):
+            browser = getattr(self, attr, None)
+            if browser is None:
+                continue
+            original = getattr(browser, '_v42_base_qss', None)
+            if original is None:
+                original = browser.styleSheet()
+                browser._v42_base_qss = original
+            # Existing accent surfaces stay intact. Set readable base color;
+            # child HTML can still carry its own semantic warning colors.
+            browser.setStyleSheet(
+                original + f' background:{bg}; color:{readable_text(bg, "#172033")};'
+            )
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -74,6 +119,8 @@ class SmartWizardDialog(QDialog):
         lbl_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #4338ca;")
         lbl_desc = QLabel("Ödev geçmişi • Deneme verisi • Öğretmen onaylı eylemler • İsteğe bağlı resmî kaynaklar")
         lbl_desc.setStyleSheet("color: #64748b; font-size: 12px;")
+        self._v42_title = lbl_title
+        self._v42_description = lbl_desc
         vbox.addWidget(lbl_title)
         vbox.addWidget(lbl_desc)
 
@@ -85,7 +132,8 @@ class SmartWizardDialog(QDialog):
         self.cmbStudent = QComboBox()
         self.cmbStudent.setMinimumWidth(220)
         self.cmbStudent.setStyleSheet("""
-            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 12px; font-weight: bold; }
+            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 12px; font-weight: bold; 
+                color: #15191E;}
             QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 24px; border: none; background: transparent; }
             QComboBox::down-arrow { border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #64748b; margin-right: 8px; }
         """)
@@ -400,7 +448,8 @@ class SmartWizardDialog(QDialog):
             "📘 Müfredat Kontrolü (Koç Özeti)"
         ])
         self.cmbStrategyMode.setStyleSheet("""
-            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; font-size: 12px; }
+            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; font-size: 12px; 
+                color: #15191E;}
             QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 22px; border: none; background: transparent; }
             QComboBox::down-arrow { border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #64748b; margin-right: 6px; }
         """)
@@ -415,7 +464,7 @@ class SmartWizardDialog(QDialog):
         self.spTargetMinutes.setSingleStep(30)
         self.spTargetMinutes.setValue(180)
         self.spTargetMinutes.setSuffix(" dk")
-        self.spTargetMinutes.setStyleSheet("background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px;")
+        self.spTargetMinutes.setStyleSheet("background: white; color: #172033; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px;")
         self.spTargetMinutes.valueChanged.connect(self._on_target_minutes_changed)
         h_dur.addWidget(self.spTargetMinutes)
         lay_left.addLayout(h_dur)
@@ -424,7 +473,8 @@ class SmartWizardDialog(QDialog):
         self.btnReanalyze = QPushButton("🔄 Yeniden Analiz Et")
         self.btnReanalyze.setStyleSheet("""
             QPushButton { background: #4f46e5; color: white; font-weight: bold; border-radius: 6px; padding: 8px; font-size: 12px; }
-            QPushButton:hover { background: #4338ca; }
+            QPushButton:hover { background: #4338ca; 
+                color: #FFFFFF;}
         """)
         self.btnReanalyze.clicked.connect(self._run_analysis)
         lay_left.addWidget(self.btnReanalyze)
@@ -443,7 +493,7 @@ class SmartWizardDialog(QDialog):
 
         self.txtSearch = QLineEdit()
         self.txtSearch.setPlaceholderText("🔍 Konu, ders veya kitap ara...")
-        self.txtSearch.setStyleSheet("background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px;")
+        self.txtSearch.setStyleSheet("background: white; color: #172033; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px;")
         self.txtSearch.textChanged.connect(self._filter_table_items)
         tools_lay.addWidget(self.txtSearch, 2)
 
@@ -493,7 +543,8 @@ class SmartWizardDialog(QDialog):
         ])
         self.tableSuggestions.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tableSuggestions.setStyleSheet("""
-            QTableWidget { background: white; gridline-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; }
+            QTableWidget { background: white; gridline-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; 
+                color: #15191E;}
             QHeaderView::section { background-color: #f8fafc; padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: bold; color: #334155; }
             QTableWidget::item { padding: 4px 6px; }
         """)
@@ -525,7 +576,8 @@ class SmartWizardDialog(QDialog):
         self.btnAddSelected = QPushButton("✅ Seçilenleri Ödev Takip Formuna Aktar")
         self.btnAddSelected.setStyleSheet("""
             QPushButton { background-color: #059669; color: white; padding: 10px 22px; font-weight: bold; border-radius: 8px; font-size: 13px; }
-            QPushButton:hover { background-color: #047857; }
+            QPushButton:hover { background-color: #047857; 
+                color: #FFFFFF;}
         """)
         self.btnAddSelected.clicked.connect(self._accept_selection)
         footer.addWidget(self.btnAddSelected)
@@ -542,12 +594,12 @@ class SmartWizardDialog(QDialog):
         layout.addWidget(info)
 
         self.txtStrategy = QTextBrowser()
-        self.txtStrategy.setStyleSheet("background: #fafafa; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-family: 'Segoe UI', sans-serif;")
+        self.txtStrategy.setStyleSheet("background: #fafafa; color: #172033; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-family: 'Segoe UI', sans-serif;")
         layout.addWidget(self.txtStrategy, 1)
 
         btn_bar = QHBoxLayout()
         self.btnCopyPlan = QPushButton("📋 Haftalık Planı Kopyala")
-        self.btnCopyPlan.setStyleSheet("background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 14px; font-weight: bold;")
+        self.btnCopyPlan.setStyleSheet("background: #f8fafc; color: #172033; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 14px; font-weight: bold;")
         self.btnCopyPlan.clicked.connect(self._copy_plan_text)
 
         self.btnRefreshPlan = QPushButton("🔄 Planı Yenile")
@@ -576,7 +628,7 @@ class SmartWizardDialog(QDialog):
         lay_pdr = QVBoxLayout(pdr_box)
         lay_pdr.addWidget(QLabel("<b>📋 Kanıta Dayalı Takip Özeti:</b>"))
         self.txtPdrSummary = QTextBrowser()
-        self.txtPdrSummary.setStyleSheet("background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; font-size: 13px;")
+        self.txtPdrSummary.setStyleSheet("background: white; color: #172033; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; font-size: 13px;")
         lay_pdr.addWidget(self.txtPdrSummary)
         split.addWidget(pdr_box)
 
@@ -587,7 +639,7 @@ class SmartWizardDialog(QDialog):
         
         lay_wa.addWidget(QLabel("<b>📱 Öğrenciye Özel WhatsApp Mesajı:</b>"))
         self.txtWaStudent = QTextBrowser()
-        self.txtWaStudent.setStyleSheet("background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px; font-size: 12px;")
+        self.txtWaStudent.setStyleSheet("background: #f0fdf4; color: #172033; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px; font-size: 12px;")
         lay_wa.addWidget(self.txtWaStudent)
         
         btn_cp_st = QPushButton("📋 Öğrenci Mesajını Kopyala")
@@ -597,7 +649,7 @@ class SmartWizardDialog(QDialog):
 
         lay_wa.addWidget(QLabel("<b>👨‍👩‍👦 Veliye Özel Bilgilendirme Mesajı:</b>"))
         self.txtWaParent = QTextBrowser()
-        self.txtWaParent.setStyleSheet("background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px; font-size: 12px;")
+        self.txtWaParent.setStyleSheet("background: #eff6ff; color: #172033; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px; font-size: 12px;")
         lay_wa.addWidget(self.txtWaParent)
 
         btn_cp_pr = QPushButton("📋 Veli Mesajını Kopyala")

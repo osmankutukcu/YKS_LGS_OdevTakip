@@ -1,6 +1,9 @@
 """Ödev Takip Formu, Öğrenci 360°, Adaptif Koçluk ve Karar Masası Kapsamlı Kullanım Rehberi."""
 from __future__ import annotations
 from PyQt6.QtCore import Qt
+from ui.theme import register_theme_listener, _contrast_safe_background
+from ui.theme_tokens_v37 import semantic_palette
+from ui.theme_special_v42 import legible_accent
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QScrollArea, QWidget, QFrame, QTabWidget, QTextBrowser
@@ -21,6 +24,8 @@ class OdevTakipRehberDialog(QDialog):
         self.setModal(True)
         self._initial_tab = initial_tab
         self._init_ui()
+        self._on_theme_changed()
+        register_theme_listener(self)
 
     def _init_ui(self):
         root = QVBoxLayout(self)
@@ -31,6 +36,7 @@ class OdevTakipRehberDialog(QDialog):
         header = QHBoxLayout()
         icon_title = QLabel("🧠 Akıllı Koçluk & Ödev Yönetimi Karar Destek Rehberi")
         icon_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #0f172a;")
+        self._theme_header = icon_title
         header.addWidget(icon_title)
         header.addStretch(1)
 
@@ -49,6 +55,7 @@ class OdevTakipRehberDialog(QDialog):
         )
         sub_desc.setWordWrap(True)
         sub_desc.setStyleSheet("font-size: 12px; color: #475569; margin-bottom: 4px;")
+        self._theme_subtitle = sub_desc
         root.addWidget(sub_desc)
 
         # Sekmeli Yapı
@@ -80,7 +87,8 @@ class OdevTakipRehberDialog(QDialog):
             }
             QTabBar::tab:hover:!selected {
                 background: #e2e8f0;
-            }
+            
+                color: #15191E;}
         """)
 
         self.tabs.setElideMode(Qt.TextElideMode.ElideNone)
@@ -104,6 +112,7 @@ class OdevTakipRehberDialog(QDialog):
         footer = QHBoxLayout()
         tip_lbl = QLabel("💡 İpucu: Ödev formunda 'F5' ile listeyi tazeleyebilir, 'Ctrl+S' ile kaydedebilirsiniz.")
         tip_lbl.setStyleSheet("font-size: 11px; color: #64748b; font-style: italic;")
+        self._theme_footer = tip_lbl
         footer.addWidget(tip_lbl)
         footer.addStretch(1)
 
@@ -115,11 +124,44 @@ class OdevTakipRehberDialog(QDialog):
                 background: #2563eb; color: white; font-weight: 700;
                 font-size: 12px; border-radius: 6px; padding: 4px 22px; border: none;
             }
-            QPushButton:hover { background: #1d4ed8; }
+            QPushButton:hover { background: #1d4ed8; 
+                color: #FFFFFF;}
         """)
+        self._theme_close_btn = btn_close
         btn_close.clicked.connect(self.accept)
         footer.addWidget(btn_close)
         root.addLayout(footer)
+
+    def _on_theme_changed(self):
+        c = semantic_palette()
+        strong = c['fg']
+        muted = legible_accent(c['bg'], '#94A3B8' if c['dark'] else '#64748B')
+        self.setStyleSheet(f"QDialog {{background:{c['bg']}; color:{strong};}}")
+        self._theme_header.setStyleSheet(
+            f"font-size:16px; font-weight:800; color:{strong};")
+        self._theme_subtitle.setStyleSheet(
+            f"font-size:12px; color:{muted}; margin-bottom:4px;")
+        self._theme_footer.setStyleSheet(
+            f"font-size:11px; color:{muted}; font-style:italic;")
+        self.tabs.setStyleSheet(f"""
+            QTabWidget::pane {{background:#FFFFFF; border:1px solid {c['border']};
+                border-radius:8px; top:-1px;}}
+            QTabBar::tab {{background:{c['alt']}; color:{c['alt_fg']};
+                font-weight:600; font-size:11.5px; padding:8px 14px;
+                border:1px solid {c['border']}; margin-right:3px;}}
+            QTabBar::tab:selected {{background:#FFFFFF; color:#172033;
+                font-weight:700; border-bottom:1px solid #FFFFFF;}}
+            QTabBar::tab:hover:!selected {{background:{c['tab_hover']};
+                color:{c['tab_hover_fg']};}}
+        """)
+        button_bg = _contrast_safe_background(c['primary'], '#FFFFFF')
+        hover_bg = _contrast_safe_background(c['btn_hover'], '#FFFFFF')
+        self._theme_close_btn.setStyleSheet(f"""
+            QPushButton {{background:{button_bg}; color:#FFFFFF;
+                font-weight:700; font-size:12px; border-radius:6px;
+                padding:4px 22px; border:none;}}
+            QPushButton:hover {{background:{hover_bg}; color:#FFFFFF;}}
+        """)
 
     def _create_scroll_page(self, html_content: str) -> QWidget:
         browser = QTextBrowser()

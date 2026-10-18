@@ -113,9 +113,10 @@ def next_step_for_homework(con, student_id, homework_id, *, today=None):
     lesson, topic = str(row['ders'] or '').strip(),str(row['konu_ad'] or '').strip()
     note = None
     if _exists(con,'adaptive_quick_note_v28'):
+        end_day = max(day, date.today())
         found = con.execute('''SELECT reason_code,updated_at FROM adaptive_quick_note_v28
             WHERE student_id=? AND homework_id=? AND substr(updated_at,1,10)<=?
-            LIMIT 1''',(sid,hid,day.isoformat())).fetchone()
+            LIMIT 1''',(sid,hid,end_day.isoformat())).fetchone()
         if found and _as_day(found['updated_at']) and (day-_as_day(found['updated_at'])).days<=30:
             note = dict(found)
     return _build(sid,hid,lesson,topic,row['durum'] or '',note,
@@ -137,11 +138,12 @@ def student_next_steps(con, student_id, *, today=None, limit=3):
         return []
     cap=max(1,min(int(limit),5))
     since=(day-timedelta(days=14)).isoformat()
+    until=(max(day, date.today())+timedelta(days=1)).isoformat()
     notes=con.execute('''SELECT homework_id,lesson,topic,reason_code,updated_at
         FROM adaptive_quick_note_v28 WHERE student_id=?
           AND updated_at>=? AND updated_at<?
         ORDER BY updated_at DESC,id DESC LIMIT ?''',
-        (sid,since, (day+timedelta(days=1)).isoformat(),cap)).fetchall()
+        (sid,since, until,cap)).fetchall()
     result=[]
     for n in notes:
         if n['reason_code'] not in _REASONS:

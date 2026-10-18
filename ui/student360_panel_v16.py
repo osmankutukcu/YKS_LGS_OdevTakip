@@ -41,6 +41,13 @@ class Student360Panel(QWidget):
         self.output.setReadOnly(True)
         lay.addWidget(self.output)
         self.set_student(None)
+        # V24.1: visible Student 360° overview follows committed SQLite updates.
+        from ui.live_change_bridge_v241 import install_live_updates
+        install_live_updates(self, self._on_committed_change_v241, student_attr="student_id")
+
+    def _on_committed_change_v241(self):
+        if type(self.student_id) is int and self.student_id > 0:
+            self.refresh()
 
     def set_student(self, student_id):
         self.student_id = int(student_id) if student_id is not None else None
@@ -85,6 +92,13 @@ class Student360Panel(QWidget):
                 con.execute('PRAGMA query_only=ON')
                 data = read_student_overview(con, sid)
                 academic_target = read_saved_target(con, sid)
+                # V7: existing survey records, no scoring or diagnosis.
+                try:
+                    from services.survey_evidence_v7 import read_survey_evidence, brief_lines
+                    survey_lines = brief_lines(read_survey_evidence(con, sid))
+                except (Exception,) as _survey_exc:
+                    survey_lines = ('Anket kanıt özeti şu an okunamadı.',)
+
                 # Read-only optional decision summary. Missing V25 schema is a normal state.
                 adaptive_text = None
                 try:
@@ -117,6 +131,7 @@ class Student360Panel(QWidget):
         parts += [f'• {x}' for x in suggestions(data)]
         if adaptive_text:
             parts += ['', adaptive_text]
+        parts += ['', 'ANKET KANITLARI · TANISAL DEĞİL', *survey_lines]
         if data.source_warnings:
             parts += ['', 'VERİ UYARILARI', *[f'• {w}' for w in data.source_warnings]]
         self.output.setPlainText('\n'.join(parts))

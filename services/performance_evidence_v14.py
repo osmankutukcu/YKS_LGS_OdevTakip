@@ -141,7 +141,7 @@ def compute_evidence(con: sqlite3.Connection, reference_day: date | None = None)
     ws = today - timedelta(days=today.weekday())
     we = ws + timedelta(days=6)
     # Future deadlines in an unfinished week are not yet included in completion %.
-    effective_we = min(we, date.today())
+    effective_we = min(we, today)
     last30_start = today - timedelta(days=29)
     prev_start = today - timedelta(days=59)
     prev_end = last30_start - timedelta(days=1)

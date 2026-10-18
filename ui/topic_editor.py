@@ -386,17 +386,10 @@ class DersKonuEditor(QWidget):
             ana = self.cmbAnaGrup.currentText()
             if alt:
                 try:
-                    # Özel grup ayarı var mı?
-                    import db
-                    config_ids = db.get_lessons_for_group(alt)
-                    if config_ids:
-                        allowed_ids = config_ids
-                    else:
-                        # Yoksa varsayılanlar
-                        if hasattr(db, 'DEFAULT_GRUP_DERSLER'):
-                            allowed_ids = db.DEFAULT_GRUP_DERSLER.get(ana, [])
-                except: pass
-        
+                    allowed_ids = db.get_effective_group_lessons(alt, ana)
+                except Exception:
+                    pass
+
         # 2. Tüm Dersleri Config'den Config'den al (İsimler için)
         active_lessons = []
         try:
@@ -414,7 +407,7 @@ class DersKonuEditor(QWidget):
                 for k, v in config.items():
                     # Eğer filtre varsa sadece izin verilenleri ekle
                     if allowed_ids is not None:
-                        if k in allowed_ids:
+                        if k in allowed_ids and v.get('aktif', 1):
                             active_lessons.append(v)
                     else:
                         # Genel modda sadece AKTİF olanlar mı? Yoksa hepsi mi?
@@ -464,7 +457,10 @@ class DersKonuEditor(QWidget):
     # Gruplar / öğrenciler
     def _populate_groups(self):
         self.cmbAnaGrup.clear()
-        self.cmbAnaGrup.addItems(ANA_GRUPLAR)
+        try:
+            self.cmbAnaGrup.addItems(list(db.get_curriculum_groups()))
+        except Exception:
+            self.cmbAnaGrup.addItems(ANA_GRUPLAR)
         self._update_alt_gruplar()
 
     def _update_alt_gruplar(self):
@@ -472,8 +468,11 @@ class DersKonuEditor(QWidget):
         self.cmbAltGrup.blockSignals(True)
         self.cmbAltGrup.clear()
         self.cmbAltGrup.addItem("")
-        if ag in ALT_GRUPLAR:
-            self.cmbAltGrup.addItems(ALT_GRUPLAR[ag])
+        try:
+            self.cmbAltGrup.addItems(db.get_curriculum_groups(ag))
+        except Exception:
+            if ag in ALT_GRUPLAR:
+                self.cmbAltGrup.addItems(ALT_GRUPLAR[ag])
         self.cmbAltGrup.blockSignals(False)
 
     def _populate_students(self):

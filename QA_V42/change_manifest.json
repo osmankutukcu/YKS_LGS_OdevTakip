@@ -1,0 +1,42 @@
+{
+  "version": "V42",
+  "base": "V41",
+  "kind": "safe pilot",
+  "modified_existing": [
+    "ui/homework_guide_dialog.py",
+    "ui/odev_kontrol.py",
+    "ui/performans_paneli.py",
+    "ui/plan_settings_dialog.py",
+    "ui/smart_wizard_dialog.py",
+    "ui/student_workspace_panel_v21.py",
+    "ui/update_dialog.py"
+  ],
+  "added": [
+    "ui/theme_special_v42.py",
+    "QA_V42/README.md",
+    "QA_V42/TEKNIK_RAPOR.md",
+    "QA_V42/test_v42_special_colors.py"
+  ],
+  "baseline_files": {
+    "ui/homework_guide_dialog.py": "d579c7b280a477b1809d65de10751456835bcd639ba916aee52af28597fc72f0",
+    "ui/odev_kontrol.py": "d4c4434e400b8e0867b87bdee1773a94f62e4e11fb3766adbd77998ae48db07c",
+    "ui/performans_paneli.py": "8507ba0f702dcae63917a7a2be60f0046521b0933398fc28e650f5901fefee47",
+    "ui/plan_settings_dialog.py": "8ec10f98c230a07060f0beea4be534686eab6260660e6f04cf8d5f76b40249f2",
+    "ui/smart_wizard_dialog.py": "1ec1634a1b57a0b70be085cdde140961a8e6f5b141559aca0e181530d3056e6b",
+    "ui/student_workspace_panel_v21.py": "d00c9a2163bb1d206e134c9bbee28d93b285f4473d233801cf721adf2e6267fe",
+    "ui/update_dialog.py": "a6c29abbd2165f63b9f7e45d975fd2f8e22611467d41709d3ca1d2580f21561d"
+  },
+  "updated_files": {
+    "ui/homework_guide_dialog.py": "a3f5dd0c022eb17fddca5c39581f1ab1b196dbc58d8c43bbbd89f90481bf57e1",
+    "ui/odev_kontrol.py": "da0f9c272f528f18dcadf4548b837039371780b9509039df5da2585ab51b095e",
+    "ui/performans_paneli.py": "fea8b9f2242cbb2ae3ef2d35f1ddb93d8818f1b3ed46238eb2ec8e6986a83c0a",
+    "ui/plan_settings_dialog.py": "5b1c01cabe1b4023790b9bd3360f03fbb9ae64ae4d2fd16e274f6ddbec12441c",
+    "ui/smart_wizard_dialog.py": "edb4d855518846d6f076dbe1c27a2f3e0a23ea8cfcba6b1d2ab6cfe20206ff61",
+    "ui/student_workspace_panel_v21.py": "89bbbc6ef0ed74b4f068a6644a7d0e9b5cc900368178d3ad68a9daf05ac260a2",
+    "ui/update_dialog.py": "77d8da91f8379d69439a75855a5a01e6be5ff7383f7f91e794074771de79f4a6",
+    "ui/theme_special_v42.py": "75f0ddf80df8485eb1b086f5f27d5e0702387f3b7271624c529faf77898e975e",
+    "QA_V42/README.md": "c489365e524882ce5a503fc349247d2a18cecb77ab91a892c2384de8f22031fd",
+    "QA_V42/TEKNIK_RAPOR.md": "0c7ff6cd071cd7f77433e1be95e4c93fa993b167f839dcce913fe425360a7e37",
+    "QA_V42/test_v42_special_colors.py": "85d0e498b41028aed596f73308333888d4d529ede4f1984b5de6f92d9fbdfca6"
+  }
+}

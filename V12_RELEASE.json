@@ -1,0 +1,11 @@
+{
+  "release": "V12_RC",
+  "source_files": 536,
+  "databases_included": false,
+  "user_data_included": false,
+  "limitations": [
+    "needs real database or isolated generated test db",
+    "fonts from original install are not redistributed",
+    "remote production cloud not certified"
+  ]
+}

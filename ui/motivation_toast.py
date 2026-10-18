@@ -110,26 +110,27 @@ class MotivationToast(QWidget):
         self._position = (position or "center").lower()
         self._target_geo: Optional[QRect] = None
 
-        # Arka plan ve Stil
-        self.bg_color = QColor(color)
-        
-        # QPalette yerine stylesheet kullanmak daha güvenli (global temalar widget'i bozmasın)
+        # V38: preserve the caller's status/background color, but choose a
+        # readable foreground (white on pale/yellow backgrounds was invisible).
+        resolved = QColor(color)
+        if not resolved.isValid():
+            resolved = QColor('#15803d')
+        self.bg_color = resolved
+        resolved_bg = resolved.name(QColor.NameFormat.HexRgb)
+        from ui.theme_notification_tokens_v38 import toast_colors
+        _bg, foreground = toast_colors('success', resolved_bg)
+        self.setObjectName('MotivationToastV38')
         self.setStyleSheet(f"""
-            QWidget {{
-                background-color: {color};
-                border-radius: {self._radius}px;
-            }}
-            QLabel {{
-                color: #ffffff !important;
-                font-weight: 700;
-                padding: 8px 14px;
-                background-color: transparent !important;
-                border: none;
+            QWidget#MotivationToastV38 {{ background: transparent; border:none; }}
+            QLabel#MotivationToastTextV38 {{
+                color:{foreground}; font-weight:700;
+                padding:8px 14px; background:transparent; border:none;
             }}
         """)
 
         # Metin
         self.label = QLabel(message)
+        self.label.setObjectName('MotivationToastTextV38')
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # label style is now handled in parent stylesheet to ensure specificity
         

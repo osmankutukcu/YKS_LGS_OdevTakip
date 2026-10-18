@@ -29,27 +29,14 @@ class IlerlemePenceresi(QDialog):
         self.setFixedHeight(150)
         self.setWindowTitle(baslik if baslik else "İşlem Yapılıyor")
 
-        # Stil (Beyaz zemin, Siyah yazı - Sade)
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #ffffff;
-            }
-            QLabel {
-                color: #000000;
-                font-size: 14px;
-                font-weight: 500;
-            }
-            QProgressBar {
-                border: 1px solid #cbd5e1;
-                border-radius: 4px;
-                text-align: center;
-                background: #f1f5f9;
-                color: #000000;
-            }
-            QProgressBar::chunk {
-                background-color: #3b82f6;
-            }
-        """)
+        # V39: presentation-only theme listener.  The old fixed white dialog
+        # was legible but visually inconsistent after theme changes.
+        self._apply_theme_style()
+        try:
+            from ui.theme import register_theme_listener
+            register_theme_listener(self)
+        except Exception:
+            pass
 
         # Layout
         root = QVBoxLayout(self)
@@ -58,6 +45,7 @@ class IlerlemePenceresi(QDialog):
 
         # Metin
         self.lbl = QLabel("Veriler hazırlanıyor…", self)
+        self.lbl.setTextFormat(Qt.TextFormat.PlainText)
         self.lbl.setWordWrap(True)
         self.lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
@@ -73,9 +61,28 @@ class IlerlemePenceresi(QDialog):
         if baslik:
             self.lbl.setText(baslik)
 
+    def _apply_theme_style(self):
+        from ui.theme_tokens_v37 import semantic_palette
+        from ui.theme import readable_text, _mix
+        c = semantic_palette()
+        bg = c['surface']
+        fg = readable_text(bg, c['surface_fg'])
+        track = _mix(bg, c['fg'], 0.07 if c['dark'] else 0.035)
+        progress_fg = readable_text(track, fg)
+        self.setStyleSheet(f"""
+            QDialog {{ background-color:{bg}; }}
+            QLabel {{ color:{fg}; font-size:14px; font-weight:500; }}
+            QProgressBar {{ border:1px solid {c['border']}; border-radius:4px;
+                text-align:center; background:{track}; color:{progress_fg}; }}
+            QProgressBar::chunk {{ background-color:{c['success_bg']}; }}
+        """)
+
+    def _on_theme_changed(self):
+        self._apply_theme_style()
+
     def _set_text(self, text: str):
-        # Yazı rengini HTML ile de garantiye alalım (eski güvenilir yöntem)
-        self.lbl.setText(f"<span style='color:#000000;'>{text}</span>")
+        # Plain text, not rich-text markup with an unchangeable black font.
+        self.lbl.setText(str(text))
 
     def showEvent(self, e):
         super().showEvent(e)

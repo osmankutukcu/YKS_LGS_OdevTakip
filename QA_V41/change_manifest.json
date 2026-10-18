@@ -1,0 +1,21 @@
+{
+  "version": "V41",
+  "base": "V40",
+  "changed": [
+    "ui/homework_form.py",
+    "ui/info_board_widget.py",
+    "ui/mail_send_whatsapp.py",
+    "ui/theme.py",
+    "ui/theme_tokens_v37.py",
+    "ui/topic_map_dialog.py"
+  ],
+  "added": [
+    "QA_V41/README.md",
+    "QA_V41/preview_v41_scrollbars.py",
+    "QA_V41/test_v41_scrollbars.py",
+    "V41_TEMA_SCROLLBAR_RENK_UYUMU_OKU.md",
+    "ui/theme_scrollbar_v41.py"
+  ],
+  "gui_test": "not_executed_no_PyQt6",
+  "status": "pilot"
+}

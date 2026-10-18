@@ -5,16 +5,26 @@ from __future__ import annotations
 import os, sys, re, time, sqlite3, urllib.parse, datetime as _dt
 from typing import List, Tuple, Optional, Dict, Any
 
+from services.whatsapp_queue.queue_v246 import (
+    SafeWhatsAppQueue, queue_path_for, normalize_phone,
+    PENDING, UI_UNVERIFIED, UNKNOWN, INVALID, FAILED, QueueBusyError
+)
+
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QLineEdit, QPushButton, QCheckBox,
     QLabel, QGroupBox, QRadioButton, QTextEdit, QMessageBox, QSizePolicy,
     QSplitter, QDialog, QListWidget, QSpinBox, QInputDialog, QApplication,
-    QGridLayout, QScrollArea, QFrame
+    QGridLayout, QScrollArea, QFrame, QComboBox
 )
 
-# ========= Genel yardımcılar =========
+from services.whatsapp_queue.transport_v249 import (
+    CHOICES, SELENIUM, BAILEYS_BULK, MANUAL_LINKS, validate_choice,
+)
+from services.whatsapp_queue.manual_handoff_v249 import open_one_pending_chat
+
+# ========= Genel yardımcılar ========= 
 
 def _appdata_dir() -> str:
     home = os.path.expanduser("~")
@@ -33,6 +43,25 @@ def _default_db_path() -> str:
     if sys.platform == "darwin":
         return mac
     return os.path.join(_appdata_dir(), "YKS_LGS_HomeworkManager.db")
+
+def _get_check_icon_path() -> str:
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    assets_dir = os.path.join(base_dir, "assets")
+    os.makedirs(assets_dir, exist_ok=True)
+    icon_path = os.path.join(assets_dir, "check_white.png")
+    if not os.path.exists(icon_path):
+        from PyQt6.QtGui import QImage, QPainter, QColor, QPen
+        from PyQt6.QtCore import QPoint
+        img = QImage(32, 32, QImage.Format.Format_ARGB32_Premultiplied)
+        img.fill(Qt.GlobalColor.transparent)
+        p = QPainter(img)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(QColor(255, 255, 255), 3.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        p.setPen(pen)
+        p.drawPolyline([QPoint(7, 16), QPoint(13, 23), QPoint(25, 9)])
+        p.end()
+        img.save(icon_path)
+    return icon_path.replace("\\", "/")
 
 def _ogrenci_bilgi_satiri(row) -> str:
     tel = ", ".join([t for t in [row["ogr_tel"], row["veli_tel1"], row["veli_tel2"]] if t])
@@ -234,31 +263,15 @@ def _kumeler_detay_tarih(con: sqlite3.Connection, ogr_id: int, date_str: str) ->
     return "\n".join(lines).rstrip()
 
 def _try_import_selenium():
-    """
-    Selenium + webdriver-manager yüklü mü diye kontrol eder.
-    Yüklü değilse OTOMATİK yüklemeye çalışır.
-    """
+    """Bağımlılık yoksa ASLA pip yüklemeye çalışma; Windows EXE'yi bozma."""
     try:
-        import selenium  # noqa
-        from selenium import webdriver  # noqa
-        from webdriver_manager.chrome import ChromeDriverManager  # noqa
+        import selenium  # noqa: F401
+        from selenium import webdriver  # noqa: F401
+        from webdriver_manager.chrome import ChromeDriverManager  # noqa: F401
         return True
     except ImportError:
-        # Otomatik kurulum denemesi
-        try:
-            import subprocess
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "selenium", "webdriver-manager"])
-            
-            # Tekrar dene
-            import selenium  # noqa
-            from selenium import webdriver  # noqa
-            from webdriver_manager.chrome import ChromeDriverManager  # noqa
-            return True
-        except Exception as e:
-            print(f"Auto-install error: {e}")
-            return False
-    except Exception:
         return False
+
 
 class WhatsAppWebClient:
     """Selenium ile WhatsApp Web gönderici. Login oturumu profil klasöründe saklanır."""
@@ -295,101 +308,52 @@ class WhatsAppWebClient:
         return True
 
     def send_text(self, phone_e164: str, message: str, per_number_timeout: int = 45) -> str:
-        """
-        phone_e164: '90...' gibi ülke kodlu numara ( + işareti olmadan )
-        döndürür: 'OK' | 'INVALID' | 'FAIL'
+        """Tek gönderim denemesi. UI hareketi teslim kanıtı değildir.
+
+        UI_UNVERIFIED: WhatsApp kutusu boşaldı, teslim doğrulanmadı.
+        UNKNOWN: Gönder tuşuna basılmış olabilir ama sonucu belirsiz.
+        FAILED: Gönderim girişimi başlamadan güvenli şekilde duruldu.
         """
         from selenium.webdriver.common.by import By
         from selenium.webdriver.support.ui import WebDriverWait
         from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.common.keys import Keys
-        from selenium.webdriver import ActionChains
 
-        # Senin sevdiğin yöntem: URL ile mesajı hazır doldur
-        q = urllib.parse.quote(message)
-        self.driver.get(f"https://web.whatsapp.com/send?phone={phone_e164}&text={q}")
-        w = WebDriverWait(self.driver, per_number_timeout)
-
+        attempted = False
         try:
-            # 1) Sohbet ekranı ve asıl mesaj kutusu gelsin
+            q = urllib.parse.quote(message)
+            self.driver.get(f"https://web.whatsapp.com/send?phone={phone_e164}&text={q}")
+            w = WebDriverWait(self.driver, per_number_timeout)
             w.until(EC.presence_of_element_located((By.ID, "main")))
-            box = w.until(
-                EC.presence_of_element_located(
-                    (By.CSS_SELECTOR, "div[contenteditable='true'][data-tab]")
-                )
-            )
-            try:
-                box.click()
-            except Exception:
-                pass
-            time.sleep(0.5)  # URL'deki text kutuya tam düşsün
-
-            # 2) JS ile gönder butonunu yakala ve tıkla (daha gelişmiş selektörler)
-            btn = None
-            # Maksimum 10 saniye boyunca butonun görünmesini bekle
-            end_time = time.time() + 10
-            while time.time() < end_time:
-                btn = self.driver.execute_script("""
-                    return (
-                        document.querySelector('footer [data-testid="send"]') ||
-                        document.querySelector('footer span[data-icon="send"]') ||
-                        document.querySelector('footer button[aria-label="Send"]') ||
-                        document.querySelector('footer button[aria-label="Gönder"]') ||
-                        document.querySelector('div[role="button"][aria-label="Gönder"]') ||
-                        document.querySelector('div[role="button"][aria-label="Send"]')
-                    );
-                """)
-                if btn:
-                    break
-                time.sleep(0.5)
-
-            if btn:
-                # JS ile tıkla
-                self.driver.execute_script("arguments[0].click();", btn)
-                time.sleep(0.5)
-                
-                # Tıklama sonrası kutu boşaldı mı kontrol et (Başarılı gönderim kanıtı)
-                # Kutu boşalmadıysa ENTER dene
+            # Arama kutusunu mesaj alanı sanmamak için sohbet alt bölümüne kısıtla.
+            box = w.until(EC.presence_of_element_located(
+                (By.CSS_SELECTOR, "#main footer [contenteditable='true']")))
+            # WhatsApp arayüzünde gönder düğmesi değişmiş olabilir.
+            # Bilinmeyen öğeye Enter uygulayıp yanlış kişiye gönderme.
+            btn = self.driver.execute_script("""
+                let footer = document.querySelector('#main footer');
+                if (!footer) return null;
+                let el = footer.querySelector('[data-testid="send"]') ||
+                    footer.querySelector('[data-icon="send"]') ||
+                    footer.querySelector('button[aria-label="Send"]') ||
+                    footer.querySelector('button[aria-label="Gönder"]');
+                return el && (el.closest('button') || el);
+            """)
+            if not btn or not box.text.strip():
+                return FAILED
+            # Kritik sınır: yalnızca BİR defa tıkla, belirsizde tekrar deneme.
+            attempted = True
+            self.driver.execute_script("arguments[0].click();", btn)
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
                 try:
-                    box_text = box.text
-                    if box_text.strip():
-                        # Kutu hala dolu, demek ki tıklama işe yaramadı, ENTER bas
-                         ActionChains(self.driver).move_to_element(box).click(box).send_keys(Keys.ENTER).perform()
-                except:
-                    pass
-            else:
-                # 3) Yedek plan: Buton bulunamadıysa direkt kutuya ENTER gönder
-                try:
-                    ActionChains(self.driver).move_to_element(box).click(box).send_keys(Keys.ENTER).perform()
+                    if not box.text.strip():
+                        return UI_UNVERIFIED
                 except Exception:
-                    # Son çare: aktif elemana ENTER
-                    try:
-                        active = self.driver.switch_to.active_element
-                        ActionChains(self.driver).move_to_element(active).click(active).send_keys(Keys.ENTER).perform()
-                    except Exception:
-                        pass
-
-            # Mesajın gerçekten gidip gitmediğini (kutunun boşalmasıyla) kontrol et
-            # 5 saniye bekle
-            final_wait = time.time() + 5
-            while time.time() < final_wait:
-                try:
-                    current_text = box.text
-                    if not current_text.strip():
-                        # Kutu boş, gönderildi say
-                        return "OK"
-                except:
-                    pass
-                time.sleep(0.5)
-            
-            # Süre bitti ama kutu hala dolu olabilir veya emin değiliz
-            # "OK" dönelim çünkü bazen DOM erişimi hatası olabilir ama gitmiş olabilir.
-            # Ancak genel akışta bir sonraki numaraya geçince sorun çıkmıyor.
-            return "OK"
-
+                    return UNKNOWN
+                time.sleep(.25)
+            return UNKNOWN
         except Exception:
-            # numara hatalı / sohbet açılamadı vs.
-            return "INVALID"
+            return UNKNOWN if attempted else FAILED
 
     def close(self):
         if self.alive:
@@ -404,6 +368,7 @@ class WhatsAppWebClient:
 class WhatsAppWorker(QThread):
     finishedSummary = pyqtSignal(int, int, int)   # sent, invalid, failed
     error = pyqtSignal(str, str)                  # title, message
+    progress = pyqtSignal(str)                     # Kullanıcıya kısa kuyruk durumu
 
     def __init__(
         self,
@@ -424,7 +389,9 @@ class WhatsAppWorker(QThread):
         wait_between: float,
         use_emoji_headers: bool,
         pdf_summary: bool,
-        parent=None
+        parent=None,
+        resume_batch_id: Optional[str] = None,
+        transport_key: str = SELENIUM,
     ):
         super().__init__(parent)
         self.db_path = db_path
@@ -444,6 +411,8 @@ class WhatsAppWorker(QThread):
         self.wait_between = max(0.1, float(wait_between))
         self.use_emoji_headers = use_emoji_headers
         self.pdf_summary = pdf_summary
+        self.resume_batch_id = resume_batch_id
+        self.transport_key = transport_key
 
     def _norm_numbers(self, raw_list: List[str], cc: str) -> List[str]:
         cc = re.sub(r"\D", "", cc or "90")
@@ -461,156 +430,186 @@ class WhatsAppWorker(QThread):
             out.append(n)
         return list(dict.fromkeys(out))
 
-    def run(self):
-        if not _try_import_selenium():
-            self.error.emit(
-                "Eksik Bağımlılık",
-                "Selenium / ChromeDriver bulunamadı.\n\nKurulum (tek seferlik):\n"
-                "  pip install selenium webdriver-manager\n"
-                "Ayrıca Google Chrome kurulu olmalı."
-            )
-            return
+    def _prepare_snapshot(self, con: sqlite3.Connection) -> list[dict]:
+        """Mesajları hazırlarken öğrenci kimliğini daima kaynaktan teyit et."""
+        jobs: list[dict] = []
+        has_filters = any((self.verilis_bugun, self.kontrol_bugun, self.kontrol_yarin,
+                           self.kontrol_2gun, self.kontrol_gecmis))
+        for sid, _adsoyad, raw_nums in self.rows_snapshot:
+            stu = con.execute("SELECT * FROM ogrenci WHERE id=? AND aktif=1", (sid,)).fetchone()
+            if stu is None:
+                continue
+            ad, soyad = str(stu["ad"] or ""), str(stu["soyad"] or "")
+            text_i = self.text_base.replace("{ad}", ad).replace("{soyad}", soyad)
+            if self.personal_mode:
+                extras = []
+                if self.add_stuinfo:
+                    extras.append("• " + _ogrenci_bilgi_satiri(stu))
+                if self.add_lastkume_full:
+                    extras.append("\n" + _son_kume_detay(con, sid, emoji_headers=self.use_emoji_headers))
+                if has_filters:
+                    detail = _kumeler_detay_tarih_filtre(
+                        con, sid, verilis_bugun=self.verilis_bugun,
+                        kontrol_bugun=self.kontrol_bugun, kontrol_yarin=self.kontrol_yarin,
+                        kontrol_2gun=self.kontrol_2gun, kontrol_gecmis=self.kontrol_gecmis,
+                        emoji_headers=self.use_emoji_headers)
+                    if not detail:
+                        continue
+                    extras.append("\n" + detail)
+                elif self.add_allkume:
+                    extras.append("\n" + _tum_kumeler_detay(con, sid, emoji_headers=self.use_emoji_headers))
+                if extras:
+                    text_i = (text_i + "\n\n" + "\n".join(extras)).strip()
+            for raw in dict.fromkeys(raw_nums or [""]):
+                jobs.append({"student_id": int(sid), "recipient": raw,
+                             "message": text_i, "country_code": self.cc_text})
+        return jobs
 
-        # Thread için yeni DB bağlantısı
+    def _log_legacy(self, con: sqlite3.Connection, job: dict, result: str) -> None:
+        """Eski tabloda yalnızca OK/FAIL var. Doğrulanmamışa ASLA OK yazma."""
         try:
-            con = sqlite3.connect(self.db_path)
-            con.row_factory = sqlite3.Row
-        except Exception as e:
-            self.error.emit("Veritabanı Hatası", f"DB açılırken hata:\n{e}")
-            return
-
-        profile_dir = os.path.join(_appdata_dir(), "wa_web_profile")
-        from selenium.common.exceptions import WebDriverException
-
-        try:
-            wa = WhatsAppWebClient(profile_dir)
-        except WebDriverException as e:
-            self.error.emit(
-                "Tarayıcı Hatası",
-                f"Chrome başlatılamadı:\n{e}\n\nChrome kurulu ve güncel mi,\n"
-                "Mac’te Güvenlik & Gizlilik izinlerine baktın mı?"
-            )
-            con.close()
-            return
-
-        try:
+            sid = int(job["student_id"])
+            stu = con.execute("SELECT ad, soyad FROM ogrenci WHERE id=?", (sid,)).fetchone()
+            ad = str(stu["ad"] or "") if stu else ""
+            soyad = str(stu["soyad"] or "") if stu else ""
+            message = str(job["message"])
+            num = "+" + str(job["recipient"])
+            con.execute("""
+                INSERT INTO whatsapp_log
+                (ogrenci_id,numara,mesaj_onizleme,durum,hata,ts,
+                 numaralar,mesaj,ogrenci_ad,ogrenci_soyad,ogrenci_adsoyad)
+                VALUES(?,?,?,?,?,datetime('now'),?,?,?,?,?)""",
+                (sid, num, message[:200], "FAIL", result,
+                 num, message, ad, soyad, f"{ad} {soyad}"))
+            con.commit()
+        except Exception:
+            # Esas detaylı günlük kuyruk SQLite içindedir; eski log uyumsuzluğu
+            # hiçbir zaman gerçek gönderimi yeniden tetiklemez.
             try:
-                # Login için geniş bir süre kalsın (ayarlardan bağımsız)
-                wa.ensure_login(timeout_sec=150)
-            except Exception:
-                self.error.emit(
-                    "Giriş Zaman Aşımı",
-                    "WhatsApp Web açıldı ama giriş tamamlanmadı.\n"
-                    "Lütfen QR kodunu telefondan okut ve tekrar dene."
-                )
-                con.close()
-                wa.close()
-                return
-
-            sent = invalid = failed = 0
-
-            has_filters = any([
-                self.verilis_bugun,
-                self.kontrol_bugun,
-                self.kontrol_yarin,
-                self.kontrol_2gun,
-                self.kontrol_gecmis
-            ])
-
-            for sid, adsoyad, raw_nums in self.rows_snapshot:
-                try:
-                    stu = con.execute("SELECT * FROM ogrenci WHERE id=?", (sid,)).fetchone()
-                except Exception:
-                    stu = None
-
-                ad = stu["ad"] if stu else ""
-                soyad = stu["soyad"] if stu else ""
-
-                text_i = self.text_base.replace("{ad}", ad).replace("{soyad}", soyad)
-
-                if self.personal_mode:
-                    extras: List[str] = []
-                    if self.add_stuinfo and stu:
-                        extras.append("• " + _ogrenci_bilgi_satiri(stu))
-                    if self.add_lastkume_full:
-                        extras.append("\n" + _son_kume_detay(con, sid, emoji_headers=self.use_emoji_headers))
-
-                    if has_filters:
-                        detay = _kumeler_detay_tarih_filtre(
-                            con,
-                            sid,
-                            verilis_bugun=self.verilis_bugun,
-                            kontrol_bugun=self.kontrol_bugun,
-                            kontrol_yarin=self.kontrol_yarin,
-                            kontrol_2gun=self.kontrol_2gun,
-                            kontrol_gecmis=self.kontrol_gecmis,
-                            emoji_headers=self.use_emoji_headers,
-                        )
-                        # Seçilen filtreye uygun küme yoksa bu öğrenciye mesaj gitmesin
-                        if not detay:
-                            continue
-                        extras.append("\n" + detay)
-                    else:
-                        if self.add_allkume:
-                            extras.append("\n" + _tum_kumeler_detay(con, sid, emoji_headers=self.use_emoji_headers))
-
-                    if extras:
-                        text_i = (text_i + "\n\n" + "\n".join(extras)).strip()
-
-                numbers = self._norm_numbers(raw_nums, self.cc_text)
-                if not numbers:
-                    failed += 1
-                    continue
-
-                # NOT: PDF özeti istersen burada utils.ogrenci_rapor_pdf çağırabilirsin (TODO)
-                # if self.pdf_summary:
-                #     try:
-                #         from utils.ogrenci_rapor import ogrenci_rapor_pdf
-                #         ogrenci_rapor_pdf(con, sid, ...)
-                #     except Exception:
-                #         pass
-
-                for num in numbers:
-                    # Mesajı gönder
-                    res = wa.send_text(num, text_i, per_number_timeout=self.per_chat_timeout)
-                    
-                    # Log
-                    try:
-                        con.execute("""
-                            INSERT INTO whatsapp_log
-                            (ogrenci_id, numara, mesaj_onizleme, durum, ts,
-                             numaralar, mesaj, ogrenci_ad, ogrenci_soyad, ogrenci_adsoyad)
-                            VALUES(?,?,?,?,datetime('now'),?,?,?,?)
-                        """, (
-                            sid,
-                            f"+{num}",
-                            text_i[:200],
-                            "OK" if res == "OK" else "FAIL",
-                            ",".join([f"+{n}" for n in numbers]),
-                            text_i,
-                            ad, soyad, f"{ad} {soyad}",
-                        ))
-                        con.commit()
-                    except Exception:
-                        pass
-
-                    if res == "OK":
-                        sent += 1
-                    elif res == "INVALID":
-                        invalid += 1
-                    else:
-                        failed += 1
-
-                    time.sleep(self.wait_between)
-
-            self.finishedSummary.emit(sent, invalid, failed)
-
-        finally:
-            try:
-                wa.close()
+                con.rollback()
             except Exception:
                 pass
+
+    def run(self):
+        """Kalıcı kuyrukla seri işle. Bir alıcının hatası diğerlerini silmez."""
+        try:
+            q = SafeWhatsAppQueue(queue_path_for(self.db_path, _appdata_dir()))
+            lock_fd = q.acquire_lock()
+            try:
+                con = sqlite3.connect(self.db_path)
+                con.row_factory = sqlite3.Row
+            except BaseException:
+                q.release_lock(lock_fd)
+                raise
+        except Exception as exc:
+            self.error.emit("Veritabanı/Kuyruk Hatası", str(exc))
+            return
+        wa = None
+        try:
+            if self.resume_batch_id:
+                batch_id = self.resume_batch_id
+            else:
+                try:
+                    jobs = self._prepare_snapshot(con)
+                except Exception as exc:
+                    self.error.emit("Mesaj Hazırlama Hatası", str(exc))
+                    return
+                if not jobs:
+                    self.error.emit("Boş Kuyruk", "Gönderilecek uygun mesaj bulunamadı.")
+                    return
+                try:
+                    batch_id = q.create_batch(self.db_path, jobs)
+                except Exception as exc:
+                    self.error.emit("Kuyruk Oluşturulamadı", str(exc))
+                    return
+            # Otomatik tekrar yok: yarım kalan gönderim belirsiz olarak işaretlenir.
+            recovered = q.recover_interrupted(batch_id)
+            if recovered:
+                self.progress.emit(f"{recovered} yarım kalan gönderimin sonucu belirsiz; tekrar denenmeyecek.")
+            counts = q.counts(batch_id)
+            pending = counts.get(PENDING, 0)
+            self.progress.emit(f"Kuyruk kaydedildi: {pending} bekleyen alıcı.")
+            if not pending:
+                self.finishedSummary.emit(counts.get(UI_UNVERIFIED, 0), counts.get(INVALID, 0),
+                                          counts.get(UNKNOWN, 0) + counts.get(FAILED, 0))
+                return
+            # Yöntem kesin olarak kullanıcı tarafından seçilir. Bilinmeyen veya
+            # güvenlik karantinasındaki kanala otomatik geçiş yapılmaz.
+            try:
+                choice = validate_choice(self.transport_key)
+            except Exception as exc:
+                self.error.emit('Yöntem Kullanılamıyor', str(exc))
+                return
+            if self.transport_key in MANUAL_LINKS:
+                # Öğretmenin her gerçek tıklaması yalnızca bir sohbet açar.
+                # İzinli manuel devir bile gerçek gönderim onayı değildir.
+                handoff = open_one_pending_chat(q, batch_id, self.transport_key)
+                if handoff.attempted:
+                    self.progress.emit(
+                        'Bir sohbet açılmaya çalışıldı. WhatsApp Gönder öğretmene aittir. '
+                        f'{handoff.pending} alıcı kuyrukta bekliyor.')
+                counts = q.counts(batch_id)
+                self.finishedSummary.emit(counts.get(UI_UNVERIFIED, 0),
+                    counts.get(INVALID, 0), counts.get(UNKNOWN, 0) + counts.get(FAILED, 0))
+                return
+            if not choice.automated:
+                self.error.emit('Yöntem', 'Bu yöntem otomatik gönderimi desteklemiyor.')
+                return
+            if not _try_import_selenium():
+                self.error.emit("Gönderim motoru kullanılamıyor",
+                    "Mesajlar güvenli kuyrukta saklandı. Bu sürümün otomatik gönderim "
+                    "motoru Selenium gerektiriyor; uygulama onu kendiliğinden kurmayacak. "
+                    "Mevcut WhatsApp masaüstü yöntemini kullanabilir veya "
+                    "desteklenen başka bir taşıyıcı eklenmesini bekleyebilirsiniz.")
+                return
+            try:
+                wa = WhatsAppWebClient(os.path.join(_appdata_dir(), "wa_web_profile"))
+                wa.ensure_login(timeout_sec=150)
+            except Exception as exc:
+                self.error.emit("WhatsApp Oturumu Açılmadı",
+                                f"Kuyruk korundu. WhatsApp Web/Chrome oturumunu kontrol edin: {exc}")
+                return
+            while True:
+                try:
+                    job = q.claim_next(batch_id)
+                except QueueBusyError as exc:
+                    self.error.emit("Kuyruk Meşgul", str(exc))
+                    return
+                if not job:
+                    break
+                try:
+                    result = wa.send_text(job["recipient"], job["message"],
+                                          per_number_timeout=self.per_chat_timeout)
+                except Exception:
+                    result = UNKNOWN
+                if result not in (UI_UNVERIFIED, UNKNOWN, FAILED):
+                    result = UNKNOWN
+                try:
+                    q.finish(job["id"], job["attempt_token"], result)
+                except Exception as exc:
+                    self.error.emit("Kuyruk Durumu Kaydedilemedi", str(exc))
+                    return
+                self._log_legacy(con, job, result)
+                counts = q.counts(batch_id)
+                self.progress.emit(
+                    f"İşlendi: {sum(v for k,v in counts.items() if k != PENDING)} / {sum(counts.values())}; "
+                    f"teslimi belirsiz: {counts.get(UI_UNVERIFIED,0) + counts.get(UNKNOWN,0)}")
+                if result == FAILED:
+                    # Arayüz bozulmuş olabilir; hepsine başarısız denemesi yapma.
+                    self.error.emit("WhatsApp Arayüzü Değişmiş Olabilir",
+                        "Gönderim öğesi bulunamadı. Diğer bekleyen işler kuyrukta korundu. "
+                        "Uygulama güncellemesini/oturumu kontrol edin.")
+                    break
+                time.sleep(self.wait_between)
+            counts = q.counts(batch_id)
+            self.finishedSummary.emit(counts.get(UI_UNVERIFIED, 0), counts.get(INVALID, 0),
+                                      counts.get(UNKNOWN, 0) + counts.get(FAILED, 0))
+        finally:
+            if wa:
+                try: wa.close()
+                except Exception: pass
             con.close()
+            q.release_lock(lock_fd)
 
 
 # ========= WhatsApp Ayarları / Şablonlar Dialog =========
@@ -813,7 +812,8 @@ class WhatsAppTab(QWidget):
 
     def _apply_modern_styles(self):
         # Modern, ferah ve profesyonel bir tema
-        self.setStyleSheet("""
+        chk_icon = _get_check_icon_path()
+        style = """
             QWidget {
                 font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
                 font-size: 13px;
@@ -937,16 +937,17 @@ class WhatsAppTab(QWidget):
             QCheckBox::indicator:hover, QRadioButton::indicator:hover {
                 border-color: #3b82f6;
             }
-            QCheckBox::indicator:checked, QRadioButton::indicator:checked {
+            QCheckBox::indicator:checked {
                 background-color: #2563eb;
                 border-color: #2563eb;
-                image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'></polyline></svg>");
+                image: url("__CHECK_ICON__");
             }
             QRadioButton::indicator {
                 border-radius: 8px;
             }
             QRadioButton::indicator:checked {
-                 image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'><circle cx='12' cy='12' r='6'/></svg>");
+                border-color: #2563eb;
+                background: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, stop:0 #ffffff, stop:0.42 #ffffff, stop:0.43 #2563eb, stop:1 #2563eb);
             }
             
             /* Scrollbar */
@@ -965,7 +966,12 @@ class WhatsAppTab(QWidget):
             QScrollBar::handle:vertical:hover {
                 background: #94a3b8;
             }
-        """)
+        """.replace("__CHECK_ICON__", chk_icon)
+        # V41: the WA composer remains an intentionally light panel; harmonize
+        # its local scrollbars with that panel, including hover/pressed states.
+        from ui.theme_scrollbar_v41 import scrollbar_qss
+        style += scrollbar_qss('#f1f5f9', '#334155', '#2563eb', 10)
+        self.setStyleSheet(style)
         
         # Give specific ObjectNames for styling
         self.btnGonderWA.setObjectName("btnGonderWA")
@@ -996,6 +1002,12 @@ class WhatsAppTab(QWidget):
             if templates:
                 first_name = next(iter(templates))
                 self.txtBodyWA.setPlainText(templates[first_name])
+
+    def _open_baileys_test_v257(self):
+        """Separate gated single-contact test; never switches the actual send transport."""
+        from ui.baileys_test_v257 import BaileysSingleTestDialog
+        dialog = BaileysSingleTestDialog(self)
+        dialog.exec()
 
     # --- Ayar dialogunu aç ---
     def _open_settings_dialog(self):
@@ -1028,12 +1040,14 @@ class WhatsAppTab(QWidget):
         lv.addLayout(srch)
 
         self.tblWA = QTableWidget(0, 6)
-        self.tblWA.setHorizontalHeaderLabels(["#", "Öğrenci", "Öğr. Tel", "Veli Tel1", "Veli Tel2", "Seç"])
+        self.tblWA.setHorizontalHeaderLabels(["#", "ÖĞRENCİ", "ÖĞR. TEL", "VELİ TEL1", "VELİ TEL2", "SEÇ"])
         hh = self.tblWA.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        for c in (2, 3, 4, 5):
+        for c in (2, 3, 4):
             hh.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        self.tblWA.setColumnWidth(5, 52)
         self.tblWA.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tblWA.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tblWA.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -1041,16 +1055,35 @@ class WhatsAppTab(QWidget):
         lv.addWidget(self.tblWA, 1)
 
         bar = QHBoxLayout()
-        self.btnHepsiWA = QPushButton("✅ Tümünü Seç")
+        self.btnHepsiWA = QPushButton("Tümünü İşaretle")
         self.btnGonderWA = QPushButton("📤 Gönder (WhatsApp)")
         bar.addWidget(self.btnHepsiWA)
         bar.addStretch(1)
         bar.addWidget(self.btnGonderWA)
         lv.addLayout(bar)
+        # V24.9 - alternatifler: kullanıcı açıkça seçer, arka planda otomatik
+        # taşıyıcı değiştirilmez. Baileys karantinadadır.
+        method_line = QHBoxLayout()
+        method_line.addWidget(QLabel('Gönderim yöntemi:'))
+        self.cmbWAMethod = QComboBox()
+        for choice in CHOICES:
+            self.cmbWAMethod.addItem(choice.label, choice.key)
+            if not choice.enabled:
+                self.cmbWAMethod.model().item(self.cmbWAMethod.count() - 1).setEnabled(False)
+        method_line.addWidget(self.cmbWAMethod, 1)
+        lv.addLayout(method_line)
+        self.lblWAMethodInfo = QLabel('')
+        self.lblWAMethodInfo.setWordWrap(True)
+        self.lblWAMethodInfo.setStyleSheet('color: #64748b; font-size: 11px;')
+        lv.addWidget(self.lblWAMethodInfo)
+        self.cmbWAMethod.currentIndexChanged.connect(self._on_method_changed)
+        self._on_method_changed()
+
         spl.addWidget(left)
 
         # SAĞ: ayarlar + mesaj (Scrollable ve responsive)
         right_container = QWidget()
+        right_container.setMinimumWidth(500)
         rc_lay = QVBoxLayout(right_container)
         rc_lay.setContentsMargins(4, 0, 0, 0)
         rc_lay.setSpacing(6)
@@ -1087,6 +1120,7 @@ class WhatsAppTab(QWidget):
         # Hangi numaralar kullanılacak?
         numGrp = QGroupBox("Kullanılacak numaralar")
         nv = QHBoxLayout(numGrp)
+        nv.setSpacing(16)
         self.chkUseOgr = QCheckBox("Öğrenci tel")
         self.chkUseOgr.setChecked(True)
         self.chkUseV1 = QCheckBox("Veli Tel1")
@@ -1102,23 +1136,33 @@ class WhatsAppTab(QWidget):
 
         # İçerik seçenekleri (2 sütunlu ferah ve profesyonel grid)
         optGrp = QGroupBox("İçerik Seçenekleri")
-        optGrp.setMinimumHeight(175)
+        optGrp.setMinimumHeight(180)
         og = QGridLayout(optGrp)
-        og.setContentsMargins(12, 10, 12, 10)
-        og.setHorizontalSpacing(16)
+        og.setContentsMargins(12, 12, 12, 12)
+        og.setHorizontalSpacing(20)
         og.setVerticalSpacing(8)
 
         self.chkStuInfoWA = QCheckBox("Öğrenci bilgisi eklensin")
-        self.chkLastKumeWA = QCheckBox("Son ödev kümesinin TAMAMI eklensin")
-        self.chkAllKumeWA = QCheckBox("Tüm ödev kümeleri ve içerikleri")
-        self.chkEmojiHeaders = QCheckBox("Küme başlıklarına emoji eklensin")
-        self.chkPdfSummary = QCheckBox("Her öğrenci için PDF özet (beta)")
+        self.chkStuInfoWA.setToolTip("Mesaja öğrencinin sınıf, okul ve veli irtibat bilgilerini ekler.")
+        self.chkLastKumeWA = QCheckBox("Son ödev kümesi (Tamamı)")
+        self.chkLastKumeWA.setToolTip("Son verilen ödev kümesindeki tüm ders ve görevleri eksiksiz ekler.")
+        self.chkAllKumeWA = QCheckBox("Tüm ödev kümeleri ve içerik")
+        self.chkAllKumeWA.setToolTip("Öğrenciye tanımlı tüm ödev kümelerini ve içeriklerini detaylı ekler.")
+        self.chkEmojiHeaders = QCheckBox("Küme başlıklarına emoji")
+        self.chkEmojiHeaders.setToolTip("Ödev kümelerinin başlıklarına görsel ikon/emoji ekler.")
+        self.chkPdfSummary = QCheckBox("PDF özet raporu (Beta)")
+        self.chkPdfSummary.setToolTip("Her öğrenci için ödev özetini ek PDF dosyası olarak hazırlar.")
 
-        self.chkBugunVerilen = QCheckBox("Bugün ÖDEV VERİLEN kümeler")
-        self.chkKontrolBugun = QCheckBox("KONTROL TARİHİ BUGÜN olanlar")
-        self.chkKontrolYarin = QCheckBox("KONTROL TARİHİ YARIN olanlar")
-        self.chkKontrol2Gun = QCheckBox("KONTROL TARİHİ 2 gün sonra")
-        self.chkKontrolGecmis = QCheckBox("KONTROL TARİHİ GEÇMİŞ (gecikmiş)")
+        self.chkBugunVerilen = QCheckBox("Bugün verilen ödevler")
+        self.chkBugunVerilen.setToolTip("Yalnızca bugün tarihiyle verilmiş olan ödev kümelerini içerir.")
+        self.chkKontrolBugun = QCheckBox("Kontrolü BUGÜN olanlar")
+        self.chkKontrolBugun.setToolTip("Kontrol tarihi bugün olan ödevleri filtreler.")
+        self.chkKontrolYarin = QCheckBox("Kontrolü YARIN olanlar")
+        self.chkKontrolYarin.setToolTip("Kontrol tarihi yarın olan ödevleri filtreler.")
+        self.chkKontrol2Gun = QCheckBox("Kontrolü 2 gün sonra")
+        self.chkKontrol2Gun.setToolTip("Kontrol tarihi iki gün sonra olan ödevleri filtreler.")
+        self.chkKontrolGecmis = QCheckBox("Kontrolü GEÇMİŞ (gecikmiş)")
+        self.chkKontrolGecmis.setToolTip("Kontrol tarihi geçmiş ancak henüz tamamlanmamış ödevleri filtreler.")
 
         col1 = [self.chkStuInfoWA, self.chkLastKumeWA, self.chkAllKumeWA, self.chkEmojiHeaders, self.chkPdfSummary]
         col2 = [self.chkBugunVerilen, self.chkKontrolBugun, self.chkKontrolYarin, self.chkKontrol2Gun, self.chkKontrolGecmis]
@@ -1141,8 +1185,8 @@ class WhatsAppTab(QWidget):
         rv.addWidget(self.txtBodyWA, 1)
 
         info = QLabel(
-            "ℹ️  İlk kullanımda WhatsApp Web’de QR kodunu okutman gerekir.\n"
-            "Profil bu bilgisayarda saklanır; sonraki gönderimlerde tekrar istemez."
+            "ℹ️ Selenium yönteminde ilk kullanımda WhatsApp Web QR eşleştirmesi gerekebilir.\n"
+            "Masaüstü/Web bağlantıları ise yalnızca sohbeti hazırlar; gönderme kullanıcıdadır."
         )
         info.setWordWrap(True)
         info.setStyleSheet("color: #64748b; font-size: 11px;")
@@ -1152,14 +1196,23 @@ class WhatsAppTab(QWidget):
         rc_lay.addWidget(right_scroll, 1)
 
         spl.addWidget(right_container)
-        spl.setStretchFactor(0, 3)
-        spl.setStretchFactor(1, 2)
-        spl.setSizes([820, 520])
+        spl.setStretchFactor(0, 4)
+        spl.setStretchFactor(1, 3)
+        spl.setSizes([640, 480])
 
-        # Alt sağ: Ayarlar butonu
+        # Alt bar: Kuyruk ve Ayarlar butonları
         bottom = QHBoxLayout()
-        bottom.addStretch(1)
+        bottom.setContentsMargins(0, 4, 0, 0)
+        bottom.setSpacing(10)
+        self.lblKuyrukWA = QLabel("Mesaj sonucu WhatsApp teslimatı doğrulanmadan başarılı sayılmaz.")
+        self.lblKuyrukWA.setStyleSheet("color: #64748b; font-size: 11px;")
+        self.lblKuyrukWA.setWordWrap(True)
+        bottom.addWidget(self.lblKuyrukWA, 1)
+        self.btnBaileysTest = QPushButton("🧪 Baileys Testi (tek alıcı)")
+        self.btnKuyrukWA = QPushButton("📋 Kuyruğu Gör / Sürdür")
         self.btnSettingsWA = QPushButton("⚙️ Ayarlar / Şablonlar")
+        bottom.addWidget(self.btnBaileysTest)
+        bottom.addWidget(self.btnKuyrukWA)
         bottom.addWidget(self.btnSettingsWA)
         root.addLayout(bottom)
 
@@ -1167,6 +1220,8 @@ class WhatsAppTab(QWidget):
         self.btnBulWA.clicked.connect(self._do_search_wa)
         self.btnHepsiWA.clicked.connect(self._toggle_all_wa)
         self.btnGonderWA.clicked.connect(self._on_send_clicked)
+        self.btnBaileysTest.clicked.connect(self._open_baileys_test_v257)
+        self.btnKuyrukWA.clicked.connect(self._on_queue_clicked)
         self.btnSettingsWA.clicked.connect(self._open_settings_dialog)
 
         # Filtre + şablon entegrasyonu: gecikmiş filtresi açılırsa "gecikmiş" şablonu yükle
@@ -1241,8 +1296,122 @@ class WhatsAppTab(QWidget):
                 cw.setChecked(target)
         self.btnHepsiWA.setText("Tümünü Kaldır" if target else "Tümünü İşaretle")
 
+    def _selected_transport(self) -> str:
+        return str(self.cmbWAMethod.currentData() or SELENIUM)
+
+    def _on_method_changed(self, *args):
+        try:
+            choice = validate_choice(self._selected_transport())
+            self.lblWAMethodInfo.setText(choice.explanation +
+                ' Yöntem değişikliği bekleyen/belirsiz işleri yeniden göndermez.')
+            self.btnGonderWA.setEnabled(not (self.worker and self.worker.isRunning()))
+        except Exception:
+            self.lblWAMethodInfo.setText('Bu yöntem güvenlik kontrolü nedeniyle kapalıdır.')
+            self.btnGonderWA.setEnabled(False)
+
+    def _on_queue_clicked(self):
+        if self.worker and self.worker.isRunning():
+            QMessageBox.information(self, "Kuyruk", "Gönderim zaten sürüyor.")
+            return
+        if self._selected_transport() == BAILEYS_BULK:
+            from services.whatsapp_queue.baileys_bulk_v258 import open_baileys_queue
+            try:
+                q = open_baileys_queue(self.db_path, _appdata_dir())
+            except Exception as exc:
+                QMessageBox.warning(self, 'Baileys şifreli kuyruk', str(exc))
+                return
+        else:
+            q = SafeWhatsAppQueue(queue_path_for(self.db_path, _appdata_dir()))
+        # Önce bekleyen işler; yalnızca yoksa son tamamlanmış parti.
+        batch = q.current_batch(self.db_path) or q.latest_batch(self.db_path)
+        if not batch:
+            QMessageBox.information(self, "Kuyruk", "Henüz kayıtlı WhatsApp gönderim kuyruğu yok.")
+            return
+        # Geçmiş süreç yarım kaldıysa kilit altında belirsiz olarak işaretle;
+        # bu kayıtları hiçbir koşulda otomatik yeniden gönderme.
+        try:
+            fd = q.acquire_lock()
+            try:
+                q.recover_interrupted(batch)
+            finally:
+                q.release_lock(fd)
+        except QueueBusyError as exc:
+            QMessageBox.information(self, "Kuyruk Meşgul", str(exc))
+            return
+        # V25.8: A previously saved Baileys queue MUST NOT be resumed using
+        # Selenium/Desktop/Web. Likewise a legacy queue cannot be switched to
+        # Baileys without fresh approval and an attributable transport marker.
+        from services.whatsapp_queue.baileys_bulk_v258 import batch_transport, TRANSPORT_MARKER
+        existing_method = batch_transport(q, batch)
+        requested_baileys = self._selected_transport() == BAILEYS_BULK
+        if (existing_method == TRANSPORT_MARKER) != requested_baileys:
+            QMessageBox.warning(self, 'Kuyruk yöntem uyuşmazlığı',
+                'Bu kuyruk farklı bir WhatsApp gönderim yöntemiyle oluşturuldu. '
+                'Lütfen ilk gönderim yöntemini seçin. Sonucu belirsiz işler tekrar gönderilmez.')
+            return
+        counts = q.counts(batch)
+        pending = counts.get(PENDING, 0)
+        lines = [f"Bekleyen: {pending}",
+                 f"Numara geçersiz: {counts.get(INVALID, 0)}",
+                 f"Arayüzce işlenen (teslim belirsiz): {counts.get(UI_UNVERIFIED, 0)}",
+                 f"Sonucu belirsiz: {counts.get(UNKNOWN, 0)}",
+                 f"Gönderilmedi: {counts.get(FAILED, 0)}"]
+        errors = [r for r in q.rows(batch) if r['state'] in (INVALID, UNKNOWN, FAILED)]
+        if errors:
+            lines.append("\nİncelenecek alıcılar (son 4 hane):")
+            for row in errors[:8]:
+                lines.append(f"• ***{str(row['recipient'])[-4:]} — {row['state']}")
+            if len(errors) > 8:
+                lines.append(f"… {len(errors)-8} kayıt daha")
+        summary = "\n".join(lines)
+        if not pending:
+            QMessageBox.information(self, "Son Gönderim Sonuçları", summary +
+                "\n\nTeslim durumları kişisel WhatsApp üzerinden kesin doğrulanamaz.")
+            return
+        manual_reminder = ("\n\nSeçili manuel bağlantı yöntemi HER TIKLAMADA yalnızca BİR sohbet açar. "
+            "Gönderme işlemini siz yaparsınız." if self._selected_transport() in MANUAL_LINKS else "")
+        if QMessageBox.question(self, "Kaydedilmiş Kuyruğu Sürdür",
+                summary + "\n\nBekleyen mesajlar eski içerikleriyle işlenecek. "
+                "Sonucu belirsiz mesajlar tekrar gönderilmeyecek." + manual_reminder + " Devam edilsin mi?") != QMessageBox.StandardButton.Yes:
+            return
+        if requested_baileys:
+            self._open_baileys_bulk_v258(resume_batch=batch)
+        else:
+            self._start_worker(resume_batch_id=batch)
+
+    def _start_worker(self, resume_batch_id=None):
+        if self.worker and self.worker.isRunning():
+            return
+        if resume_batch_id is not None:
+            self.btnGonderWA.setEnabled(False)
+            self.worker = WhatsAppWorker(self.db_path, [], "", "90", False, False,
+                False, False, False, False, False, False, False, 45, 2,
+                False, False, parent=self, resume_batch_id=resume_batch_id,
+                transport_key=self._selected_transport())
+            self.worker.finishedSummary.connect(self._on_worker_finished)
+            self.worker.error.connect(self._on_worker_error)
+            self.worker.progress.connect(self.lblKuyrukWA.setText)
+            self.worker.finished.connect(lambda: self.btnGonderWA.setEnabled(True))
+            self.worker.start()
+
     # --- Gönder butonu ---
     def _on_send_clicked(self):
+        try:
+            choice = validate_choice(self._selected_transport())
+        except Exception as exc:
+            QMessageBox.warning(self, 'Yöntem Kullanılamıyor', str(exc))
+            return
+        if self._selected_transport() in MANUAL_LINKS:
+            reply = QMessageBox.question(self, 'Manuel WhatsApp Bağlantısı',
+                'Bu yöntem 30 mesajı kendi kendine GÖNDERMEZ. Her seferinde '
+                'yalnızca bir sohbeti açar. Gönder tuşunu siz kullanırsınız. '
+                'İşlenen alıcının sonucu BELİRSİZ kalır ve otomatik tekrar edilmez. '
+                'Devam edilsin mi?')
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+        if self.worker and self.worker.isRunning():
+            QMessageBox.information(self, "Gönderim", "Başka bir gönderim işlemi sürüyor.")
+            return
         text_base = (self.txtBodyWA.toPlainText() or "").strip()
         if not text_base:
             QMessageBox.warning(self, "Eksik", "Önce mesaj metnini yaz.")
@@ -1270,6 +1439,36 @@ class WhatsAppTab(QWidget):
             QMessageBox.information(self, "Seçim Yok", "Soldan en az bir öğrenciyi işaretle.")
             return
 
+        # Korumalı Baileys kuyruğunda bekleyen işler varken başka kanaldan
+        # aynı numaralara yanlışlıkla ikinci otomatik işlem başlatma.
+        try:
+            from services.whatsapp_queue.baileys_bulk_v258 import open_baileys_queue
+            if sys.platform == 'win32':
+                _secure_q = open_baileys_queue(self.db_path, _appdata_dir())
+                if _secure_q.current_batch(self.db_path):
+                    QMessageBox.warning(self, 'Baileys bekleyen kuyruk',
+                        'Önce Baileys yöntemini seçerek bekleyen işleri gözden geçirin. '
+                        'Yeni bir parti başlatılmadı.')
+                    return
+        except Exception as exc:
+            QMessageBox.warning(self, 'Baileys kuyruk doğrulaması', str(exc))
+            return
+
+        # Daha önce başlatılmış gönderimler kaybolmadan yeni bir toplu gönderime
+        # geçilirse aynı veliye istemeden ikinci mesaj gitme riski doğar.
+        try:
+            _q = SafeWhatsAppQueue(queue_path_for(self.db_path, _appdata_dir()))
+            _prior = _q.current_batch(self.db_path)
+            if _prior and (_q.counts(_prior).get(PENDING, 0) or _q.counts(_prior).get("DENENIYOR", 0)):
+                QMessageBox.warning(self, "Bekleyen WhatsApp Kuyruğu",
+                    "Önceki gönderimden bekleyen mesajlar var. "
+                    "Lütfen önce 'Kuyruğu Gör / Sürdür' bölümünü açın. "
+                    "Yeni bir parti oluşturulmadı.")
+                return
+        except Exception as exc:
+            QMessageBox.warning(self, "Kuyruk Kontrolü", f"Güvenli kontrol yapılamadı: {exc}")
+            return
+
         cc_text = (self.txtUlkeKodu.text() or "90").strip()
         add_stuinfo  = self.chkStuInfoWA.isChecked()
         add_lastkume_full = self.chkLastKumeWA.isChecked()
@@ -1288,6 +1487,24 @@ class WhatsAppTab(QWidget):
 
         per_chat_timeout = int(self.wa_settings.get("open_timeout", 45))
         wait_between = float(self.wa_settings.get("wait_between", 2))
+
+        if self._selected_transport() == BAILEYS_BULK:
+            # Reuse EXACTLY the existing per-student message preparation;
+            # do not touch either Homework Follow-up or Homework Control saves.
+            preparer = WhatsAppWorker(
+                self.db_path, rows_snapshot, text_base, cc_text, add_stuinfo,
+                add_lastkume_full, add_allkume, verilis_bugun, kontrol_bugun,
+                kontrol_yarin, kontrol_2gun, kontrol_gecmis, personal_mode,
+                per_chat_timeout, wait_between, use_emoji_headers, pdf_summary,
+                parent=self, transport_key=BAILEYS_BULK)
+            try:
+                with sqlite3.connect(self.db_path) as reader:
+                    reader.row_factory = sqlite3.Row
+                    jobs = preparer._prepare_snapshot(reader)
+                self._open_baileys_bulk_v258(raw_jobs=jobs)
+            except Exception as exc:
+                QMessageBox.warning(self, 'Baileys ön kontrolü', str(exc))
+            return
 
         self.btnGonderWA.setEnabled(False)
 
@@ -1310,9 +1527,11 @@ class WhatsAppTab(QWidget):
             use_emoji_headers,
             pdf_summary,
             parent=self,
+            transport_key=self._selected_transport(),
         )
         self.worker.finishedSummary.connect(self._on_worker_finished)
         self.worker.error.connect(self._on_worker_error)
+        self.worker.progress.connect(self.lblKuyrukWA.setText)
         self.worker.finished.connect(lambda: self.btnGonderWA.setEnabled(True))
         self.worker.start()
 
@@ -1323,5 +1542,18 @@ class WhatsAppTab(QWidget):
         QMessageBox.information(
             self,
             "WhatsApp",
-            f"Gönderim bitti.\n\nBaşarılı: {sent}\nGeçersiz Numara: {invalid}\nHatalı: {failed}"
+            f"İşlem sona erdi.\n\nArayüzde gönderim denemesi görülen (teslim onayı yok): {sent}"
+            f"\nGeçersiz Numara: {invalid}\nBelirsiz / İşlenemeyen: {failed}"
+            "\n\nBekleyen mesajlar kuyrukta korunur. Kuyruğu Gör / Sürdür bölümünü kullanabilirsiniz."
         )
+
+    def _open_baileys_bulk_v258(self, *, raw_jobs=None, resume_batch=None):
+        """Independent modal wizard; current send transport untouched."""
+        try:
+            from ui.baileys_bulk_v258 import BaileysBulkDialog
+            dialog = BaileysBulkDialog(self, self.db_path, _appdata_dir(),
+                                       raw_jobs=raw_jobs, resume_batch=resume_batch)
+            dialog.exec()
+            self.lblKuyrukWA.setText('Baileys toplu gönderimi: Kuyruğu Gör / Sürdür üzerinden sonuçları kontrol edin.')
+        except Exception as exc:
+            QMessageBox.warning(self, 'Baileys toplu pilotu', str(exc))

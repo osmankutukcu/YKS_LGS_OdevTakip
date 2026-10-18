@@ -288,7 +288,8 @@ class LicenseDialog(QDialog):
             }
             QPushButton#btnCopy:hover {
                 background-color: #e2e8f0;
-            }
+            
+                color: #15191E;}
             QPushButton#btnActivate {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #2563eb, stop:1 #1d4ed8);
                 color: #ffffff;
@@ -303,7 +304,8 @@ class LicenseDialog(QDialog):
             }
             QPushButton#btnActivate:pressed {
                 background: #1e40af;
-            }
+            
+                color: #FFFFFF;}
             QPushButton#btnClose {
                 background-color: #e2e8f0;
                 color: #334155;
@@ -315,10 +317,11 @@ class LicenseDialog(QDialog):
             }
             QPushButton#btnClose:hover {
                 background-color: #cbd5e1;
-            }
+            
+                color: #15191E;}
             QPushButton#btnQuit {
                 background-color: #fee2e2;
-                color: #dc2626;
+                color: #ca2323;
                 border: 1px solid #fecaca;
                 padding: 12px 18px;
                 font-size: 13px;
@@ -327,11 +330,12 @@ class LicenseDialog(QDialog):
             }
             QPushButton#btnQuit:hover {
                 background-color: #fca5a5;
-                color: #991b1b;
+                color: #941a1a;
             }
             QPushButton#btnQuit:pressed {
                 background-color: #f87171;
-            }
+            
+                color: #15191E;}
         """)
 
     def _copy_mid(self):

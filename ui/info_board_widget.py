@@ -398,6 +398,7 @@ class _SimulationDialog(QDialog):
 
     def _apply_theme(self):
         accent = self.cfg["accent"]
+        from ui.theme_scrollbar_v41 import scrollbar_qss
         self.setStyleSheet(f"""
             QDialog {{
                 background-color: #0b1120;
@@ -482,19 +483,7 @@ class _SimulationDialog(QDialog):
                 border: none;
                 background: transparent;
             }}
-            QScrollBar:vertical {{
-                background: #0b1120;
-                width: 7px;
-                margin: 0px;
-            }}
-            QScrollBar::handle:vertical {{
-                background: #334155;
-                min-height: 24px;
-                border-radius: 3px;
-            }}
-            QScrollBar::handle:vertical:hover {{
-                background: #475569;
-            }}
+            {scrollbar_qss('#0b1120', '#E2E8F0', accent, 9)}
         """)
 
     def _init_ui(self):

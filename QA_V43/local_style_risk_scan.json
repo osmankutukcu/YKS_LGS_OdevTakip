@@ -1,0 +1,184 @@
+{
+  "warning": "Source heuristics only; background-only :hover rules are normal; a candidate is not a proven defect",
+  "ui_files_scanned": 131,
+  "with_local_style_or_painter_calls": 90,
+  "total_local_styles": 1617,
+  "total_background_only_candidates": 499,
+  "highest_attention_files": [
+    {
+      "path": "ui/homework_form.py",
+      "local_style_calls": 120,
+      "css_literal_calls": 113,
+      "css_background_without_same_block_foreground_candidates": 75,
+      "qt_painter_color_calls": 29
+    },
+    {
+      "path": "ui/coaching_manager.py",
+      "local_style_calls": 136,
+      "css_literal_calls": 136,
+      "css_background_without_same_block_foreground_candidates": 42,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/randevu_takvimi.py",
+      "local_style_calls": 118,
+      "css_literal_calls": 118,
+      "css_background_without_same_block_foreground_candidates": 28,
+      "qt_painter_color_calls": 1
+    },
+    {
+      "path": "ui/info_board_widget.py",
+      "local_style_calls": 54,
+      "css_literal_calls": 54,
+      "css_background_without_same_block_foreground_candidates": 27,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/topic_map_dialog.py",
+      "local_style_calls": 81,
+      "css_literal_calls": 81,
+      "css_background_without_same_block_foreground_candidates": 23,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/weekly_plan.py",
+      "local_style_calls": 23,
+      "css_literal_calls": 23,
+      "css_background_without_same_block_foreground_candidates": 22,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/odev_kontrol.py",
+      "local_style_calls": 23,
+      "css_literal_calls": 23,
+      "css_background_without_same_block_foreground_candidates": 19,
+      "qt_painter_color_calls": 13
+    },
+    {
+      "path": "ui/survey_manager.py",
+      "local_style_calls": 40,
+      "css_literal_calls": 40,
+      "css_background_without_same_block_foreground_candidates": 18,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/exam_simulation.py",
+      "local_style_calls": 52,
+      "css_literal_calls": 51,
+      "css_background_without_same_block_foreground_candidates": 13,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/mobile_schedule.py",
+      "local_style_calls": 68,
+      "css_literal_calls": 68,
+      "css_background_without_same_block_foreground_candidates": 12,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/book_dialog.py",
+      "local_style_calls": 41,
+      "css_literal_calls": 37,
+      "css_background_without_same_block_foreground_candidates": 12,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/gamification_widget.py",
+      "local_style_calls": 40,
+      "css_literal_calls": 40,
+      "css_background_without_same_block_foreground_candidates": 9,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/whatsapp_dialog.py",
+      "local_style_calls": 29,
+      "css_literal_calls": 29,
+      "css_background_without_same_block_foreground_candidates": 9,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/smart_wizard_dialog.py",
+      "local_style_calls": 47,
+      "css_literal_calls": 47,
+      "css_background_without_same_block_foreground_candidates": 8,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/plan_settings_dialog.py",
+      "local_style_calls": 37,
+      "css_literal_calls": 37,
+      "css_background_without_same_block_foreground_candidates": 8,
+      "qt_painter_color_calls": 22
+    },
+    {
+      "path": "ui/modern_settings.py",
+      "local_style_calls": 19,
+      "css_literal_calls": 19,
+      "css_background_without_same_block_foreground_candidates": 8,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/whatsapp_quick.py",
+      "local_style_calls": 15,
+      "css_literal_calls": 15,
+      "css_background_without_same_block_foreground_candidates": 8,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/dashboard_widget.py",
+      "local_style_calls": 24,
+      "css_literal_calls": 24,
+      "css_background_without_same_block_foreground_candidates": 7,
+      "qt_painter_color_calls": 5
+    },
+    {
+      "path": "ui/missing_topics_dialog.py",
+      "local_style_calls": 19,
+      "css_literal_calls": 19,
+      "css_background_without_same_block_foreground_candidates": 7,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/license_dialog.py",
+      "local_style_calls": 18,
+      "css_literal_calls": 18,
+      "css_background_without_same_block_foreground_candidates": 7,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/performans_paneli.py",
+      "local_style_calls": 19,
+      "css_literal_calls": 19,
+      "css_background_without_same_block_foreground_candidates": 6,
+      "qt_painter_color_calls": 18
+    },
+    {
+      "path": "ui/whatsapp_logs.py",
+      "local_style_calls": 9,
+      "css_literal_calls": 9,
+      "css_background_without_same_block_foreground_candidates": 6,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/trial_exam_manager.py",
+      "local_style_calls": 52,
+      "css_literal_calls": 52,
+      "css_background_without_same_block_foreground_candidates": 5,
+      "qt_painter_color_calls": 0
+    },
+    {
+      "path": "ui/web_access_dialog.py",
+      "local_style_calls": 30,
+      "css_literal_calls": 30,
+      "css_background_without_same_block_foreground_candidates": 5,
+      "qt_painter_color_calls": 4
+    },
+    {
+      "path": "ui/theme_selector_dialog.py",
+      "local_style_calls": 18,
+      "css_literal_calls": 18,
+      "css_background_without_same_block_foreground_candidates": 5,
+      "qt_painter_color_calls": 0
+    }
+  ]
+}

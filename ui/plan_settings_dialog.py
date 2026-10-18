@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTime, QRectF
 from PyQt6.QtGui import QIcon, QPainter, QColor, QPen, QBrush, QFont, QLinearGradient
+from ui.theme import register_theme_listener
+from ui.theme_special_v42 import timeline_colors
 
 from services.plan_profile_store import (load_profiles, save_profiles, profile_path,
                                          load_assignments, save_assignments)
@@ -70,13 +72,8 @@ class DayTimelineWidget(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumHeight(96)
-        self.setStyleSheet("""
-            DayTimelineWidget {
-                background: #ffffff;
-                border-radius: 8px;
-                border: 1px solid #e2e8f0;
-            }
-        """)
+        self._on_theme_changed()
+        register_theme_listener(self)
         
         self.day_name = "Pazartesi"
         self.school_times = None # (start_min, end_min)
@@ -86,6 +83,15 @@ class DayTimelineWidget(QFrame):
         self.wake_min = 420
         self.sleep_min = 1410
         
+    def _on_theme_changed(self):
+        colors = timeline_colors()
+        self.setStyleSheet(
+            f"DayTimelineWidget {{ background:{colors['surface']}; "
+            f"color:{colors['text']}; border-radius:8px; "
+            f"border:1px solid {colors['border']}; }}"
+        )
+        self.update()
+
     def update_data(self, day, school_active, s_time, e_time, block_list):
         self.day_name = day or "Pazartesi"
         
@@ -145,6 +151,7 @@ class DayTimelineWidget(QFrame):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         try:
+            tc = timeline_colors()  # colors match the current mode after live theme switches
             w = self.width()
             h = self.height()
             
@@ -152,7 +159,7 @@ class DayTimelineWidget(QFrame):
             hours = self.total_free // 60
             mins = self.total_free % 60
             
-            p.setPen(QColor("#0f172a"))
+            p.setPen(QColor(tc["text"]))
             p.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
             header_text = f"📅 {self.day_name} 24 Saatlik Zaman Çizelgesi"
             p.drawText(16, 24, header_text)
@@ -160,7 +167,7 @@ class DayTimelineWidget(QFrame):
             # Kalan kapasite rozeti
             cap_text = f"🟢 Kısıt sonrası boş aralık: {hours} sa {mins} dk"
             p.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-            p.setPen(QColor("#059669"))
+            p.setPen(QColor(tc["capacity"]))
             p.drawText(w - p.fontMetrics().horizontalAdvance(cap_text) - 18, 24, cap_text)
             
             # Çubuk Koordinatları
@@ -175,13 +182,13 @@ class DayTimelineWidget(QFrame):
                 return 20 + ratio * (w - 40)
                 
             # Zemin (Serbest çalışma açık mavi/gri)
-            p.setBrush(QColor("#f1f5f9"))
-            p.setPen(QPen(QColor("#cbd5e1"), 1))
+            p.setBrush(QColor(tc["track"]))
+            p.setPen(QPen(QColor(tc["border"]), 1))
             p.drawRoundedRect(QRectF(20, bar_y, w - 40, bar_h), 5, 5)
             
             # Yeşil çalışma pencereleri: günün gerçekten kullanılabilir alanları.
-            p.setBrush(QColor('#dcfce7'))
-            p.setPen(QPen(QColor('#4ade80'), 1))
+            p.setBrush(QColor(tc['free']))
+            p.setPen(QPen(QColor(tc['free_border']), 1))
             for start, end in self.study_windows:
                 x1 = max(20, min_to_x(start))
                 x2 = min(w - 20, min_to_x(end))
@@ -195,13 +202,13 @@ class DayTimelineWidget(QFrame):
                 x2 = min_to_x(e)
                 if x2 > x1:
                     grad_school = QLinearGradient(x1, bar_y, x2, bar_y + bar_h)
-                    grad_school.setColorAt(0, QColor("#fecaca"))
-                    grad_school.setColorAt(1, QColor("#fee2e2"))
+                    grad_school.setColorAt(0, QColor(tc["school_start"]))
+                    grad_school.setColorAt(1, QColor(tc["school_end"]))
                     p.setBrush(grad_school)
-                    p.setPen(QPen(QColor("#f87171"), 1))
+                    p.setPen(QPen(QColor(tc["school_border"]), 1))
                     p.drawRoundedRect(QRectF(x1, bar_y + 2, x2 - x1, bar_h - 4), 4, 4)
                     if x2 - x1 > 45: 
-                        p.setPen(QColor("#991b1b"))
+                        p.setPen(QColor(tc["school_text"]))
                         p.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
                         p.drawText(QRectF(x1, bar_y + 2, x2 - x1, bar_h - 4), Qt.AlignmentFlag.AlignCenter, "🏫 OKUL")
             
@@ -211,19 +218,19 @@ class DayTimelineWidget(QFrame):
                 x2 = min_to_x(e)
                 if x2 > x1:
                     grad_block = QLinearGradient(x1, bar_y, x2, bar_y + bar_h)
-                    grad_block.setColorAt(0, QColor("#fed7aa"))
-                    grad_block.setColorAt(1, QColor("#ffedd5"))
+                    grad_block.setColorAt(0, QColor(tc["course_start"]))
+                    grad_block.setColorAt(1, QColor(tc["course_end"]))
                     p.setBrush(grad_block)
-                    p.setPen(QPen(QColor("#fb923c"), 1))
+                    p.setPen(QPen(QColor(tc["course_border"]), 1))
                     p.drawRoundedRect(QRectF(x1, bar_y + 3, x2 - x1, bar_h - 6), 4, 4)
                     if x2 - x1 > 35: 
-                        p.setPen(QColor("#9a3412"))
+                        p.setPen(QColor(tc["course_text"]))
                         p.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
                         short_lbl = lbl[:8] + ".." if len(lbl) > 8 else lbl
                         p.drawText(QRectF(x1, bar_y + 3, x2 - x1, bar_h - 6), Qt.AlignmentFlag.AlignCenter, short_lbl)
                          
             # Saat İşaretleri (Her 3 saatte bir)
-            p.setPen(QColor("#64748b"))
+            p.setPen(QColor(tc["muted"]))
             p.setFont(QFont("Segoe UI", 8))
             for h_val in range(6, 25, 3):
                 mx = min_to_x(h_val * 60)
@@ -236,19 +243,19 @@ class DayTimelineWidget(QFrame):
             # Kırmızı nokta - Okul
             p.setBrush(QColor("#ef4444")); p.setPen(Qt.PenStyle.NoPen)
             p.drawEllipse(22, leg_y - 7, 7, 7)
-            p.setPen(QColor("#475569"))
+            p.setPen(QColor(tc["muted"]))
             p.drawText(33, leg_y, "Okul Saatleri")
             
             # Turuncu nokta - Kurs
             p.setBrush(QColor("#f97316")); p.setPen(Qt.PenStyle.NoPen)
             p.drawEllipse(118, leg_y - 7, 7, 7)
-            p.setPen(QColor("#475569"))
+            p.setPen(QColor(tc["muted"]))
             p.drawText(129, leg_y, "Sabit Ders/Kurs")
             
             # Yeşil nokta - Serbest
             p.setBrush(QColor("#10b981")); p.setPen(Qt.PenStyle.NoPen)
             p.drawEllipse(235, leg_y - 7, 7, 7)
-            p.setPen(QColor("#475569"))
+            p.setPen(QColor(tc["muted"]))
             p.drawText(246, leg_y, "Ödev & Çalışma Alanı")
         except Exception:
             pass
@@ -377,7 +384,8 @@ class PlanSettingsDialog(QDialog):
                 background: #ffffff;
                 selection-background-color: #2563eb;
                 font-size: 12px;
-            }
+            
+                color: #15191E;}
             QLineEdit:focus, QTimeEdit:focus, QSpinBox:focus, QComboBox:focus {
                 border-color: #2563eb;
             }
@@ -422,7 +430,8 @@ class PlanSettingsDialog(QDialog):
                 border-radius: 5px;
                 background: #ffffff;
                 padding: 3px;
-            }
+            
+                color: #15191E;}
             QListWidget::item {
                 padding: 4px 6px;
                 border-bottom: 1px solid #f1f5f9;
@@ -497,7 +506,8 @@ class PlanSettingsDialog(QDialog):
             QPushButton {
                 background: #10b981; color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 10px; font-size: 11.5px;
             }
-            QPushButton:hover { background: #059669; }
+            QPushButton:hover { background: #059669; 
+                color: #15191E;}
         """)
         btn_save_prof.clicked.connect(self._save_current_profile)
 
@@ -508,7 +518,8 @@ class PlanSettingsDialog(QDialog):
             QPushButton {
                 background: #2563eb; color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 10px; font-size: 11.5px;
             }
-            QPushButton:hover { background: #1d4ed8; }
+            QPushButton:hover { background: #1d4ed8; 
+                color: #FFFFFF;}
         """)
         btn_update_prof.clicked.connect(self._update_current_profile)
         
@@ -520,8 +531,9 @@ class PlanSettingsDialog(QDialog):
             QPushButton {
                 background: #7c3aed; color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 10px; font-size: 11.5px;
             }
-            QPushButton:hover { background: #6d28d9; }
-            QPushButton:disabled { background: #94a3b8; color: #e2e8f0; }
+            QPushButton:hover { background: #6d28d9; 
+                color: #FFFFFF;}
+            QPushButton:disabled { background: #94a3b8; color: #36383a; }
         """)
         btn_assign.clicked.connect(self._assign_to_student)
 
@@ -531,7 +543,8 @@ class PlanSettingsDialog(QDialog):
             QPushButton {
                 background: rgba(239, 68, 68, 0.85); color: white; font-weight: bold; border: none; border-radius: 5px; padding: 4px 9px; font-size: 11.5px;
             }
-            QPushButton:hover { background: #dc2626; }
+            QPushButton:hover { background: #dc2626; 
+                color: #FFFFFF;}
         """)
         btn_del_prof.clicked.connect(self._delete_profile)
 
@@ -682,7 +695,8 @@ class PlanSettingsDialog(QDialog):
             QPushButton {
                 background: #2563eb; color: white; font-weight: bold; border-radius: 6px; padding: 6px 14px;
             }
-            QPushButton:hover { background: #1d4ed8; }
+            QPushButton:hover { background: #1d4ed8; 
+                color: #FFFFFF;}
         """)
         btn_add_block.clicked.connect(self._add_block_item)
         
@@ -1053,7 +1067,8 @@ class PlanSettingsDialog(QDialog):
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #7c3aed, stop:1 #4f46e5); 
                 color: white; font-weight: bold; border-radius: 6px; padding: 10px; font-size: 13px;
             }
-            QPushButton:hover { background: #6d28d9; }
+            QPushButton:hover { background: #6d28d9; 
+                color: #FFFFFF;}
         """)
         btn_ai.clicked.connect(self._perform_ai_analysis)
         lay_focus.addWidget(btn_ai)
@@ -1113,7 +1128,8 @@ class PlanSettingsDialog(QDialog):
                     font-size: 11px; padding: 4px 8px; color: #4338ca; 
                     background: #eef2ff; border: 1px dashed #a5b4fc; border-radius: 4px;
                 }
-                QPushButton:hover { background: #e0e7ff; }
+                QPushButton:hover { background: #e0e7ff; 
+                color: #15191E;}
             """)
             btn.clicked.connect(lambda _, x=t: self._append_template_note(x))
             h_tmps.addWidget(btn)
@@ -1242,7 +1258,8 @@ class PlanSettingsDialog(QDialog):
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #059669, stop:1 #10b981); 
                 color: white; font-weight: 800; padding: 8px 20px; font-size: 12.5px; border: none; border-radius: 6px;
             }
-            QPushButton:hover { background: #047857; }
+            QPushButton:hover { background: #047857; 
+                color: #FFFFFF;}
         """)
         btn_create.clicked.connect(self._create_plan)
         

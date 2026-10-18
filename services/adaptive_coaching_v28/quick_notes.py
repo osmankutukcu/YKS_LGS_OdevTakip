@@ -99,11 +99,12 @@ def recent_notes(con, student_id, *, today=None, days=14, limit=12):
         raise ValueError('Öğrenci bulunamadı.')
     today = date.fromisoformat(str(today)[:10]) if today else date.today()
     start = (today-timedelta(days=max(0,min(int(days),365)))).isoformat()
+    end = max(today, date.today()).isoformat()
     rows = con.execute('''SELECT student_id,homework_id,lesson,topic,
        reason_code,updated_at FROM adaptive_quick_note_v28
        WHERE student_id=? AND substr(updated_at,1,10)>=? AND substr(updated_at,1,10)<=?
        ORDER BY updated_at DESC,id DESC LIMIT ?''',
-       (sid,start,today.isoformat(),max(1,min(int(limit),30)))).fetchall()
+       (sid,start,end,max(1,min(int(limit),30)))).fetchall()
     return [{'student_id':int(r['student_id']),
              'homework_id':r['homework_id'],
              'lesson':r['lesson'],'topic':r['topic'],

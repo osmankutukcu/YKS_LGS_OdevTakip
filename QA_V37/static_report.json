@@ -1,0 +1,7432 @@
+{
+  "summary": {
+    "styles": 1615,
+    "hardcoded_colors": 6741,
+    "low_contrast": 0,
+    "unpaired_bg": 315,
+    "unpaired_fg": 481,
+    "python_files_scanned": 353,
+    "files_with_qss": 92
+  },
+  "highest_risk": [
+    {
+      "file": "ui/homework_form.py",
+      "score": 90,
+      "styles": 120,
+      "hardcoded_colors": 761,
+      "low_contrast": 0,
+      "unpaired_bg": 33,
+      "unpaired_fg": 25
+    },
+    {
+      "file": "ui/randevu_takvimi.py",
+      "score": 87,
+      "styles": 118,
+      "hardcoded_colors": 338,
+      "low_contrast": 0,
+      "unpaired_bg": 32,
+      "unpaired_fg": 26
+    },
+    {
+      "file": "ui/coaching_manager.py",
+      "score": 85,
+      "styles": 136,
+      "hardcoded_colors": 627,
+      "low_contrast": 0,
+      "unpaired_bg": 29,
+      "unpaired_fg": 21
+    },
+    {
+      "file": "ui/exam_simulation.py",
+      "score": 46,
+      "styles": 52,
+      "hardcoded_colors": 116,
+      "low_contrast": 0,
+      "unpaired_bg": 18,
+      "unpaired_fg": 11
+    },
+    {
+      "file": "ui/topic_map_dialog.py",
+      "score": 38,
+      "styles": 80,
+      "hardcoded_colors": 240,
+      "low_contrast": 0,
+      "unpaired_bg": 11,
+      "unpaired_fg": 30
+    },
+    {
+      "file": "ui/trial_exam_manager.py",
+      "score": 36,
+      "styles": 52,
+      "hardcoded_colors": 143,
+      "low_contrast": 0,
+      "unpaired_bg": 13,
+      "unpaired_fg": 17
+    },
+    {
+      "file": "ui/smart_wizard_dialog.py",
+      "score": 32,
+      "styles": 43,
+      "hardcoded_colors": 95,
+      "low_contrast": 0,
+      "unpaired_bg": 12,
+      "unpaired_fg": 10
+    },
+    {
+      "file": "ui/survey_manager.py",
+      "score": 30,
+      "styles": 40,
+      "hardcoded_colors": 107,
+      "low_contrast": 0,
+      "unpaired_bg": 11,
+      "unpaired_fg": 9
+    },
+    {
+      "file": "ui/mobile_schedule.py",
+      "score": 25,
+      "styles": 68,
+      "hardcoded_colors": 175,
+      "low_contrast": 0,
+      "unpaired_bg": 6,
+      "unpaired_fg": 15
+    },
+    {
+      "file": "ui/web_access_dialog.py",
+      "score": 22,
+      "styles": 30,
+      "hardcoded_colors": 78,
+      "low_contrast": 0,
+      "unpaired_bg": 8,
+      "unpaired_fg": 10
+    },
+    {
+      "file": "ui/odev_kontrol.py",
+      "score": 22,
+      "styles": 23,
+      "hardcoded_colors": 249,
+      "low_contrast": 0,
+      "unpaired_bg": 9,
+      "unpaired_fg": 4
+    },
+    {
+      "file": "ui/plan_settings_dialog.py",
+      "score": 21,
+      "styles": 37,
+      "hardcoded_colors": 130,
+      "low_contrast": 0,
+      "unpaired_bg": 7,
+      "unpaired_fg": 14
+    },
+    {
+      "file": "ui/whatsapp_dialog.py",
+      "score": 19,
+      "styles": 29,
+      "hardcoded_colors": 76,
+      "low_contrast": 0,
+      "unpaired_bg": 7,
+      "unpaired_fg": 4
+    },
+    {
+      "file": "ui/modern_settings.py",
+      "score": 19,
+      "styles": 19,
+      "hardcoded_colors": 75,
+      "low_contrast": 0,
+      "unpaired_bg": 8,
+      "unpaired_fg": 10
+    },
+    {
+      "file": "ui/book_dialog.py",
+      "score": 16,
+      "styles": 41,
+      "hardcoded_colors": 125,
+      "low_contrast": 0,
+      "unpaired_bg": 4,
+      "unpaired_fg": 13
+    },
+    {
+      "file": "ui/info_board_widget.py",
+      "score": 14,
+      "styles": 54,
+      "hardcoded_colors": 83,
+      "low_contrast": 0,
+      "unpaired_bg": 2,
+      "unpaired_fg": 22
+    },
+    {
+      "file": "ui/whatsapp_quick.py",
+      "score": 13,
+      "styles": 15,
+      "hardcoded_colors": 65,
+      "low_contrast": 0,
+      "unpaired_bg": 5,
+      "unpaired_fg": 9
+    },
+    {
+      "file": "ui/remedial_dialog.py",
+      "score": 12,
+      "styles": 24,
+      "hardcoded_colors": 49,
+      "low_contrast": 0,
+      "unpaired_bg": 4,
+      "unpaired_fg": 6
+    },
+    {
+      "file": "ui/coach_dialog.py",
+      "score": 12,
+      "styles": 12,
+      "hardcoded_colors": 24,
+      "low_contrast": 0,
+      "unpaired_bg": 5,
+      "unpaired_fg": 1
+    },
+    {
+      "file": "ui/advanced_analytics.py",
+      "score": 12,
+      "styles": 23,
+      "hardcoded_colors": 49,
+      "low_contrast": 0,
+      "unpaired_bg": 4,
+      "unpaired_fg": 3
+    },
+    {
+      "file": "ui/whatsapp_logs.py",
+      "score": 11,
+      "styles": 9,
+      "hardcoded_colors": 64,
+      "low_contrast": 0,
+      "unpaired_bg": 5,
+      "unpaired_fg": 5
+    },
+    {
+      "file": "ui/theme_selector_dialog.py",
+      "score": 11,
+      "styles": 18,
+      "hardcoded_colors": 25,
+      "low_contrast": 0,
+      "unpaired_bg": 4,
+      "unpaired_fg": 5
+    },
+    {
+      "file": "ui/pomodoro_dialog.py",
+      "score": 11,
+      "styles": 28,
+      "hardcoded_colors": 41,
+      "low_contrast": 0,
+      "unpaired_bg": 3,
+      "unpaired_fg": 17
+    },
+    {
+      "file": "ui/performans_paneli.py",
+      "score": 11,
+      "styles": 19,
+      "hardcoded_colors": 126,
+      "low_contrast": 0,
+      "unpaired_bg": 4,
+      "unpaired_fg": 5
+    },
+    {
+      "file": "ui/missing_topics_dialog.py",
+      "score": 11,
+      "styles": 19,
+      "hardcoded_colors": 39,
+      "low_contrast": 0,
+      "unpaired_bg": 4,
+      "unpaired_fg": 5
+    },
+    {
+      "file": "ui/license_dialog.py",
+      "score": 11,
+      "styles": 18,
+      "hardcoded_colors": 57,
+      "low_contrast": 0,
+      "unpaired_bg": 4,
+      "unpaired_fg": 3
+    },
+    {
+      "file": "ui/gamification_widget.py",
+      "score": 11,
+      "styles": 28,
+      "hardcoded_colors": 49,
+      "low_contrast": 0,
+      "unpaired_bg": 3,
+      "unpaired_fg": 9
+    },
+    {
+      "file": "main_window.py",
+      "score": 11,
+      "styles": 25,
+      "hardcoded_colors": 84,
+      "low_contrast": 0,
+      "unpaired_bg": 3,
+      "unpaired_fg": 12
+    },
+    {
+      "file": "ui/weekly_planner_overview_v35.py",
+      "score": 9,
+      "styles": 25,
+      "hardcoded_colors": 56,
+      "low_contrast": 0,
+      "unpaired_bg": 2,
+      "unpaired_fg": 9
+    },
+    {
+      "file": "ui/target_analysis_dialog.py",
+      "score": 9,
+      "styles": 17,
+      "hardcoded_colors": 70,
+      "low_contrast": 0,
+      "unpaired_bg": 3,
+      "unpaired_fg": 9
+    },
+    {
+      "file": "ui/dashboard_widget.py",
+      "score": 9,
+      "styles": 19,
+      "hardcoded_colors": 30,
+      "low_contrast": 0,
+      "unpaired_bg": 3,
+      "unpaired_fg": 1
+    },
+    {
+      "file": "ui/student_detail.py",
+      "score": 8,
+      "styles": 10,
+      "hardcoded_colors": 51,
+      "low_contrast": 0,
+      "unpaired_bg": 3,
+      "unpaired_fg": 4
+    },
+    {
+      "file": "ui/report_guide_dialog.py",
+      "score": 8,
+      "styles": 11,
+      "hardcoded_colors": 23,
+      "low_contrast": 0,
+      "unpaired_bg": 3,
+      "unpaired_fg": 4
+    },
+    {
+      "file": "ui/adaptive_coaching_dialog_v25.py",
+      "score": 8,
+      "styles": 20,
+      "hardcoded_colors": 149,
+      "low_contrast": 0,
+      "unpaired_bg": 2,
+      "unpaired_fg": 7
+    },
+    {
+      "file": "_admin_tools_private/admin_keygen.py",
+      "score": 8,
+      "styles": 11,
+      "hardcoded_colors": 32,
+      "low_contrast": 0,
+      "unpaired_bg": 3,
+      "unpaired_fg": 6
+    },
+    {
+      "file": "ui/teacher_copilot_strip_v5.py",
+      "score": 7,
+      "styles": 9,
+      "hardcoded_colors": 13,
+      "low_contrast": 0,
+      "unpaired_bg": 3,
+      "unpaired_fg": 5
+    },
+    {
+      "file": "ui/scoped_homework_v233.py",
+      "score": 7,
+      "styles": 8,
+      "hardcoded_colors": 38,
+      "low_contrast": 0,
+      "unpaired_bg": 3,
+      "unpaired_fg": 0
+    },
+    {
+      "file": "ui/coach_knowledge_manager_v126.py",
+      "score": 7,
+      "styles": 17,
+      "hardcoded_colors": 47,
+      "low_contrast": 0,
+      "unpaired_bg": 2,
+      "unpaired_fg": 7
+    },
+    {
+      "file": "ui/update_dialog.py",
+      "score": 6,
+      "styles": 14,
+      "hardcoded_colors": 41,
+      "low_contrast": 0,
+      "unpaired_bg": 2,
+      "unpaired_fg": 11
+    },
+    {
+      "file": "ui/student_selection_dialog.py",
+      "score": 6,
+      "styles": 2,
+      "hardcoded_colors": 35,
+      "low_contrast": 0,
+      "unpaired_bg": 3,
+      "unpaired_fg": 1
+    },
+    {
+      "file": "ui/adaptive_homework_sidebar_v27.py",
+      "score": 6,
+      "styles": 3,
+      "hardcoded_colors": 14,
+      "low_contrast": 0,
+      "unpaired_bg": 3,
+      "unpaired_fg": 2
+    },
+    {
+      "file": "ui/student_workspace_panel_v21.py",
+      "score": 5,
+      "styles": 9,
+      "hardcoded_colors": 128,
+      "low_contrast": 0,
+      "unpaired_bg": 2,
+      "unpaired_fg": 4
+    },
+    {
+      "file": "ui/weekly_plan.py",
+      "score": 4,
+      "styles": 23,
+      "hardcoded_colors": 90,
+      "low_contrast": 0,
+      "unpaired_bg": 0,
+      "unpaired_fg": 11
+    },
+    {
+      "file": "ui/topic_editor.py",
+      "score": 4,
+      "styles": 11,
+      "hardcoded_colors": 38,
+      "low_contrast": 0,
+      "unpaired_bg": 1,
+      "unpaired_fg": 2
+    },
+    {
+      "file": "ui/today_priority_strip_v4.py",
+      "score": 4,
+      "styles": 4,
+      "hardcoded_colors": 9,
+      "low_contrast": 0,
+      "unpaired_bg": 2,
+      "unpaired_fg": 2
+    },
+    {
+      "file": "ui/spotlight.py",
+      "score": 4,
+      "styles": 4,
+      "hardcoded_colors": 10,
+      "low_contrast": 0,
+      "unpaired_bg": 2,
+      "unpaired_fg": 1
+    },
+    {
+      "file": "ui/mail_send.py",
+      "score": 4,
+      "styles": 14,
+      "hardcoded_colors": 80,
+      "low_contrast": 0,
+      "unpaired_bg": 1,
+      "unpaired_fg": 4
+    },
+    {
+      "file": "ui/whatsapp_sender_dialog.py",
+      "score": 3,
+      "styles": 5,
+      "hardcoded_colors": 5,
+      "low_contrast": 0,
+      "unpaired_bg": 1,
+      "unpaired_fg": 2
+    },
+    {
+      "file": "ui/user_manager.py",
+      "score": 3,
+      "styles": 8,
+      "hardcoded_colors": 41,
+      "low_contrast": 0,
+      "unpaired_bg": 1,
+      "unpaired_fg": 6
+    },
+    {
+      "file": "ui/smart_report_dialog.py",
+      "score": 3,
+      "styles": 6,
+      "hardcoded_colors": 7,
+      "low_contrast": 0,
+      "unpaired_bg": 1,
+      "unpaired_fg": 1
+    }
+  ],
+  "files": {
+    "version.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "quick_meet.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "main_window.py": {
+      "styles": 25,
+      "hardcoded_colors": 84,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 982,
+          "selector": "QFrame#DiagCard",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1172,
+          "selector": "(widget local)",
+          "bg": "#fef2f2"
+        },
+        {
+          "line": 1784,
+          "selector": "(widget local)",
+          "bg": "white"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 292,
+          "selector": "(widget local)",
+          "fg": "#e2e8f0"
+        },
+        {
+          "line": 310,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 335,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 361,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 405,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 433,
+          "selector": "(widget local)",
+          "fg": "#065f46"
+        },
+        {
+          "line": 450,
+          "selector": "(widget local)",
+          "fg": "#065f46"
+        },
+        {
+          "line": 1177,
+          "selector": "(widget local)",
+          "fg": "#991b1b"
+        },
+        {
+          "line": 1183,
+          "selector": "(widget local)",
+          "fg": "#7f1d1d"
+        },
+        {
+          "line": 1192,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 1789,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1791,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        }
+      ],
+      "qss_root": []
+    },
+    "populate_knowledge.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "app.py": {
+      "styles": 0,
+      "hardcoded_colors": 14,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "build_app.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "db.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "launcher.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "scratch/test_smart_wizard_and_tools.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/async_workers.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/calendar_fix.py": {
+      "styles": 1,
+      "hardcoded_colors": 11,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/recommendation_v9.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/pdf_out.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/notify.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/backfill_log_ogrenci.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/error_manager.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/auto_reminder.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/konu_helper.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/test_motive_settings.py": {
+      "styles": 0,
+      "hardcoded_colors": 1,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/checkbox_dispatch.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/updater.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/pdf_report.py": {
+      "styles": 0,
+      "hardcoded_colors": 54,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/settings.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/ai_recommend.py": {
+      "styles": 0,
+      "hardcoded_colors": 22,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/fix_whatsapp_log.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/konu_rename.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/update_core.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/analytics_engine.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/backup_manager.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/homework_integrity_v133.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/wizard_integrity_v8.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/license_manager.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/table_tune.py": {
+      "styles": 3,
+      "hardcoded_colors": 4,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/plan.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/auth_security_v13.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/ogrenci_rapor.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/pdf_plan.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/whatsapp.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/homework_status.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/xlsx_io.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/tablo_tiklama.py": {
+      "styles": 0,
+      "hardcoded_colors": 2,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/audit_manager.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "utils/web_portal.py": {
+      "styles": 0,
+      "hardcoded_colors": 19,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "web_api/homework_store.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "web_api/auth.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "web_api/sync_transactions.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "web_api/main.py": {
+      "styles": 0,
+      "hardcoded_colors": 5,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "web_api/snapshot_pages_v8.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "web_api/sync_engine.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "web_api/live_changes_v10.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "web_api/delta_pages_v9.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "web_api/survey_invites_v9.py": {
+      "styles": 0,
+      "hardcoded_colors": 5,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/validate_release.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/v22_windows_screen_diagnostics.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/windows_security_diagnostic_v252.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/offline_sync_preflight_v3.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/v35_windows_smoke.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/audit_integration_v235.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/publish_release.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/reconcile_homework_v136.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/v31_perf_benchmark.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/windows_readiness_v254.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/audit_homework_v135.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/audit_odev_links_v13.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/windows_security_center_v253.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/apply_adaptive_v26_bridges.py": {
+      "styles": 0,
+      "hardcoded_colors": 5,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/v35_reviewed_source_contract.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/v12_release_readiness.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/whatsapp_secure_copy_v251.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/v35_release_gate.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/v11_acceptance.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/v12_rc_integrity.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/pwa_v12_pilot.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/v35_pilot_assistant.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/apply_adaptive_v25_bridges.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/v33_windows_ab_pilot.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "tools/v32_windows_profile.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "_admin_tools_private/admin_keygen.py": {
+      "styles": 11,
+      "hardcoded_colors": 32,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 206,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 237,
+          "selector": "QFrame#inputCard, QFrame#outputCard",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 237,
+          "selector": "QPushButton#btnSmall:hover",
+          "bg": "#e2e8f0"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 127,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 136,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 142,
+          "selector": "(widget local)",
+          "fg": "#0369a1"
+        },
+        {
+          "line": 153,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 179,
+          "selector": "(widget local)",
+          "fg": "#0284c7"
+        },
+        {
+          "line": 199,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        }
+      ],
+      "qss_root": []
+    },
+    "services/calendar_plan_integrity.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/weekly_adaptive_bridge_v35.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/teacher_copilot_v5.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/weekly_planner_presentation_v35.py": {
+      "styles": 0,
+      "hardcoded_colors": 16,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/parent_report.py": {
+      "styles": 0,
+      "hardcoded_colors": 10,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/homework_integrity_v135.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/report_settings.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/smart_tips.py": {
+      "styles": 0,
+      "hardcoded_colors": 12,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/srl_grow_guide_v6.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/nlp_advisor.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/exam_score_calculator.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_evidence_v5.py": {
+      "styles": 0,
+      "hardcoded_colors": 2,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/plan_profile_store.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/daily_coach_v10.py": {
+      "styles": 0,
+      "hardcoded_colors": 12,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/survey_evidence_v7.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/routine_homework_helper.py": {
+      "styles": 0,
+      "hardcoded_colors": 5,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_exam_quality_v6.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/weekly_one_click_v35.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_shared_topic_v1.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/student_change_scope_v242.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/responsive_v22.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/survey_invite_writer_v9.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/exam_data.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/weekly_topic_priority_v35.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_outcomes_v11.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/weekly_input_invariants_v35.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/live_student_summary_v3.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/daily_followup_v12.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/plan_replanner.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/trial_exam_import_v17.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coaching_overview_v245.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/trend_analyzer.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/weekly_equal_distribution_v35.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/smart_scheduler.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/session_advisor.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/calendar_plan_inputs.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_curriculum_v7.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/performance_evidence_v14.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/course_topic_scope_v243.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/pilot_boot_guard_v35.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/smart_calendar.py": {
+      "styles": 0,
+      "hardcoded_colors": 57,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/today_priority_v4.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/daily_brief_v11.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/student_workspace_v21.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/planning_constraints.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/live_change_probe_v241.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/dashboard_metrics_v35.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coaching_safety_v244.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/teacher_feedback_v5.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/web_service.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/survey_integrity_v8.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/homework_reconciliation_v136.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/performance_coaching_v15.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_official_sources.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/survey_review_v9.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/remedial_dialog.py": {
+      "styles": 24,
+      "hardcoded_colors": 49,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 58,
+          "selector": "QFrame",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 101,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 129,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 497,
+          "selector": "(widget local)",
+          "bg": "white"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 46,
+          "selector": "(widget local)",
+          "fg": "#dc2626"
+        },
+        {
+          "line": 48,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 156,
+          "selector": "(widget local)",
+          "fg": "#dc2626"
+        },
+        {
+          "line": 479,
+          "selector": "(widget local)",
+          "fg": "#dcfce7"
+        },
+        {
+          "line": 502,
+          "selector": "(widget local)",
+          "fg": "#166534"
+        },
+        {
+          "line": 504,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/progress.py": {
+      "styles": 1,
+      "hardcoded_colors": 7,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/license_dialog.py": {
+      "styles": 18,
+      "hardcoded_colors": 57,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 255,
+          "selector": "QFrame#midFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 90,
+          "selector": "QFrame#alertFrame",
+          "bg": "#fef2f2"
+        },
+        {
+          "line": 102,
+          "selector": "QFrame#alertFrame",
+          "bg": "#eff6ff"
+        },
+        {
+          "line": 115,
+          "selector": "QFrame#alertFrame",
+          "bg": "#f0fdf4"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 150,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 184,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 189,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/theme_runtime_audit_v37.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/responsive_toolbar_v22.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/student_selection_dialog.py": {
+      "styles": 2,
+      "hardcoded_colors": 35,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 33,
+          "selector": "QListWidget::item:hover",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 33,
+          "selector": "QPushButton[text=\"OK\"]:hover, QPushButton[text=\"Tamam\"]:hover",
+          "bg": "#1d4ed8"
+        },
+        {
+          "line": 33,
+          "selector": "QPushButton[text=\"Cancel\"]:hover, QPushButton[text=\"İptal\"]:hover",
+          "bg": "#f1f5f9"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 211,
+          "selector": "(widget local)",
+          "fg": "#2563eb"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/report_settings_dialog.py": {
+      "styles": 1,
+      "hardcoded_colors": 23,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/homework_context_integrations_v2.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/student_form.py": {
+      "styles": 7,
+      "hardcoded_colors": 39,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 207,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 208,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1127,
+          "selector": "(widget local)",
+          "fg": "#e11d48"
+        },
+        {
+          "line": 1130,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/scoped_control_v234.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/login_window.py": {
+      "styles": 7,
+      "hardcoded_colors": 23,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 134,
+          "selector": "QLineEdit:focus",
+          "bg": "#ffffff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 220,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 224,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 274,
+          "selector": "(widget local)",
+          "fg": "#cbd5e1"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/curriculum_guidance_v238.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/app_settings.py": {
+      "styles": 6,
+      "hardcoded_colors": 98,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/report_settings.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/coach_dialog.py": {
+      "styles": 12,
+      "hardcoded_colors": 24,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 28,
+          "selector": "(widget local)",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 99,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 109,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 131,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 197,
+          "selector": "(widget local)",
+          "bg": "#f0fdf4"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 22,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/theme_selector_dialog.py": {
+      "styles": 18,
+      "hardcoded_colors": 25,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 186,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 81,
+          "selector": "QFrame",
+          "bg": "#eff6ff"
+        },
+        {
+          "line": 89,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 89,
+          "selector": "QFrame:hover",
+          "bg": "#f8fafc"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 36,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 71,
+          "selector": "(widget local)",
+          "fg": "#2563eb"
+        },
+        {
+          "line": 141,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 143,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 191,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/report_preview_dialog.py": {
+      "styles": 8,
+      "hardcoded_colors": 16,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 29,
+          "selector": "QFrame",
+          "bg": "white"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 39,
+          "selector": "(widget local)",
+          "fg": "#1e40af"
+        },
+        {
+          "line": 42,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/srl_grow_guide_v6.py": {
+      "styles": 1,
+      "hardcoded_colors": 6,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 23,
+          "selector": "QWidget#SrlGrowGuideV6",
+          "bg": "#f8fafc"
+        }
+      ],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/responsive_shell_v22.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/question_evidence_import_v19.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/adaptive_coaching_dialog_v25.py": {
+      "styles": 20,
+      "hardcoded_colors": 149,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 59,
+          "selector": "QTabWidget::pane",
+          "bg": "white"
+        },
+        {
+          "line": 309,
+          "selector": "(widget local)",
+          "bg": "#eff6ff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 85,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 102,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 142,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 168,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 330,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 399,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 515,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/pomodoro_dialog.py": {
+      "styles": 28,
+      "hardcoded_colors": 41,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 113,
+          "selector": "(widget local)",
+          "bg": "#1e293b"
+        },
+        {
+          "line": 137,
+          "selector": "(widget local)",
+          "bg": "#111827"
+        },
+        {
+          "line": 190,
+          "selector": "(widget local)",
+          "bg": "#1e293b"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 96,
+          "selector": "(widget local)",
+          "fg": "#38bdf8"
+        },
+        {
+          "line": 119,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 144,
+          "selector": "(widget local)",
+          "fg": "#38bdf8"
+        },
+        {
+          "line": 150,
+          "selector": "(widget local)",
+          "fg": "#ffffff"
+        },
+        {
+          "line": 195,
+          "selector": "(widget local)",
+          "fg": "#f59e0b"
+        },
+        {
+          "line": 200,
+          "selector": "(widget local)",
+          "fg": "#10b981"
+        },
+        {
+          "line": 209,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 250,
+          "selector": "(widget local)",
+          "fg": "#38bdf8"
+        },
+        {
+          "line": 251,
+          "selector": "(widget local)",
+          "fg": "#ffffff"
+        },
+        {
+          "line": 231,
+          "selector": "(widget local)",
+          "fg": "#f59e0b"
+        },
+        {
+          "line": 238,
+          "selector": "(widget local)",
+          "fg": "#34d399"
+        },
+        {
+          "line": 240,
+          "selector": "(widget local)",
+          "fg": "#38bdf8"
+        },
+        {
+          "line": 304,
+          "selector": "(widget local)",
+          "fg": "#34d399"
+        },
+        {
+          "line": 310,
+          "selector": "(widget local)",
+          "fg": "#38bdf8"
+        },
+        {
+          "line": 311,
+          "selector": "(widget local)",
+          "fg": "#38bdf8"
+        },
+        {
+          "line": 297,
+          "selector": "(widget local)",
+          "fg": "#a78bfa"
+        },
+        {
+          "line": 301,
+          "selector": "(widget local)",
+          "fg": "#34d399"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/curriculum_identity_dialog_v231.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/common_pdf.py": {
+      "styles": 0,
+      "hardcoded_colors": 6,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/responsive_homework_v22.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/bulk_preview.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/rapor_trend.py": {
+      "styles": 1,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/adaptive_homework_sidebar_v27.py": {
+      "styles": 3,
+      "hardcoded_colors": 14,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 29,
+          "selector": "QWidget#adaptiveSidebarV27",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 29,
+          "selector": "QFrame#coachCardV27",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 29,
+          "selector": "QTabWidget::pane",
+          "bg": "#f8fafc"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 85,
+          "selector": "(widget local)",
+          "fg": "#142b4b"
+        },
+        {
+          "line": 94,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/whatsapp_quick.py": {
+      "styles": 15,
+      "hardcoded_colors": 65,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 108,
+          "selector": "QFrame#StatCard",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 108,
+          "selector": "QFrame#BoxCard",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 108,
+          "selector": "QListWidget::item:hover",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 422,
+          "selector": "(widget local)",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 450,
+          "selector": "(widget local)",
+          "bg": "#eff6ff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 267,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 300,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 356,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 370,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 415,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 427,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 456,
+          "selector": "(widget local)",
+          "fg": "#1e40af"
+        },
+        {
+          "line": 481,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 510,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/homework_workspace_bridge_v21.py": {
+      "styles": 1,
+      "hardcoded_colors": 6,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/routine_homework_bar.py": {
+      "styles": 2,
+      "hardcoded_colors": 12,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 33,
+          "selector": "QToolButton::menu-button:hover",
+          "bg": "#3730a3"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 97,
+          "selector": "(widget local)",
+          "fg": "#4338ca"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/tablewidget_extras.py": {
+      "styles": 2,
+      "hardcoded_colors": 9,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/homework_context_logic_v1.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/smart_assistant_dialog.py": {
+      "styles": 17,
+      "hardcoded_colors": 40,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 114,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 460,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 468,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 778,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1081,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 126,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 956,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 846,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 854,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 963,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 967,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 983,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/rapor_isiharitasi.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/advanced_analytics.py": {
+      "styles": 23,
+      "hardcoded_colors": 49,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 282,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 300,
+          "selector": "(widget local)",
+          "bg": "#eff6ff"
+        },
+        {
+          "line": 328,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 819,
+          "selector": "(widget local)",
+          "bg": "white"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 305,
+          "selector": "(widget local)",
+          "fg": "#1e40af"
+        },
+        {
+          "line": 309,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 812,
+          "selector": "(widget local)",
+          "fg": "#1e40af"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/homework_form.py": {
+      "styles": 120,
+      "hardcoded_colors": 761,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 121,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 245,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 2243,
+          "selector": "QListWidget::item:hover",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 2267,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 2272,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 2464,
+          "selector": "QSpinBox::up-button",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 2464,
+          "selector": "QSpinBox::up-button:hover",
+          "bg": "#e2e8f0"
+        },
+        {
+          "line": 2464,
+          "selector": "QSpinBox::down-button",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 2464,
+          "selector": "QSpinBox::down-button:hover",
+          "bg": "#e2e8f0"
+        },
+        {
+          "line": 2731,
+          "selector": "QPushButton#btnPrimary:hover",
+          "bg": "#1d4ed8"
+        },
+        {
+          "line": 2731,
+          "selector": "QPushButton#btnAction:hover",
+          "bg": "#047857"
+        },
+        {
+          "line": 2731,
+          "selector": "QPushButton#btnSuccess:hover",
+          "bg": "#128c7e"
+        },
+        {
+          "line": 2731,
+          "selector": "QPushButton#btnInfo:hover",
+          "bg": "#7c3aed"
+        },
+        {
+          "line": 2731,
+          "selector": "QPushButton#btnDanger:hover",
+          "bg": "#fecaca"
+        },
+        {
+          "line": 3304,
+          "selector": "/* --- TABS --- */ QTabWidget::pane",
+          "bg": "white"
+        },
+        {
+          "line": 3492,
+          "selector": "QFrame#StudentSnapshotCard",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 3639,
+          "selector": "QFrame#TabNavBar",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 3715,
+          "selector": "QTabBar QToolButton",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 3715,
+          "selector": "QTabBar QToolButton:hover",
+          "bg": "#eff6ff"
+        },
+        {
+          "line": 3783,
+          "selector": "QSpinBox::up-button",
+          "bg": "#eff6ff"
+        },
+        {
+          "line": 3783,
+          "selector": "QSpinBox::up-button:hover",
+          "bg": "#dbeafe"
+        },
+        {
+          "line": 3783,
+          "selector": "QSpinBox::down-button",
+          "bg": "#eff6ff"
+        },
+        {
+          "line": 3783,
+          "selector": "QSpinBox::down-button:hover",
+          "bg": "#dbeafe"
+        },
+        {
+          "line": 3899,
+          "selector": "QTableWidget::item:hover",
+          "bg": "#f0f7ff"
+        },
+        {
+          "line": 3961,
+          "selector": "QSpinBox::up-button",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 3961,
+          "selector": "QSpinBox::up-button:hover",
+          "bg": "#e2e8f0"
+        },
+        {
+          "line": 3961,
+          "selector": "QSpinBox::down-button",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 3961,
+          "selector": "QSpinBox::down-button:hover",
+          "bg": "#e2e8f0"
+        },
+        {
+          "line": 4568,
+          "selector": "QTabWidget::pane",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 4832,
+          "selector": "QTabWidget::pane",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 10388,
+          "selector": "QTabWidget::pane",
+          "bg": "white"
+        },
+        {
+          "line": 5333,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 4659,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 134,
+          "selector": "(widget local)",
+          "fg": "#2c3e50"
+        },
+        {
+          "line": 137,
+          "selector": "(widget local)",
+          "fg": "#95a5a6"
+        },
+        {
+          "line": 2197,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 3513,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 3516,
+          "selector": "(widget local)",
+          "fg": "#d97706"
+        },
+        {
+          "line": 3519,
+          "selector": "(widget local)",
+          "fg": "#16a34a"
+        },
+        {
+          "line": 3536,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 3651,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 3765,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 3771,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 3951,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 4021,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 5315,
+          "selector": "(widget local)",
+          "fg": "#bfdbfe"
+        },
+        {
+          "line": 6614,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 10231,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 10233,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 10261,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 10264,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 10275,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 10307,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 10515,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 5338,
+          "selector": "(widget local)",
+          "fg": "#1e40af"
+        },
+        {
+          "line": 5340,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 193,
+          "selector": "(widget local)",
+          "fg": "#2c3e50"
+        },
+        {
+          "line": 9166,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        }
+      ],
+      "qss_root": [
+        2464,
+        2731,
+        3304
+      ]
+    },
+    "ui/curriculum_page.py": {
+      "styles": 5,
+      "hardcoded_colors": 9,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 69,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 228,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/coach_knowledge_manager_v126.py": {
+      "styles": 17,
+      "hardcoded_colors": 47,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 42,
+          "selector": "QTabWidget::pane",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 42,
+          "selector": "QLineEdit:focus, QComboBox:focus, QTextEdit:focus",
+          "bg": "#ffffff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 114,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 118,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 153,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 174,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 255,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 272,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 224,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/whatsapp_sender_dialog.py": {
+      "styles": 5,
+      "hardcoded_colors": 5,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 153,
+          "selector": "(widget local)",
+          "bg": "#fff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 96,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 213,
+          "selector": "(widget local)",
+          "fg": "#6b7280"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/wa_automation.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/topic_editor.py": {
+      "styles": 11,
+      "hardcoded_colors": 38,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 278,
+          "selector": "QTextEdit:focus",
+          "bg": "white"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 157,
+          "selector": "(widget local)",
+          "fg": "#2563eb"
+        },
+        {
+          "line": 273,
+          "selector": "(widget local)",
+          "fg": "#4b5563"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/student_detail.py": {
+      "styles": 10,
+      "hardcoded_colors": 51,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 1036,
+          "selector": "QWidget#MainFrame",
+          "bg": "#fdfeff"
+        },
+        {
+          "line": 263,
+          "selector": "QWidget",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1085,
+          "selector": "(widget local)",
+          "bg": "#e0e7ff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 1055,
+          "selector": "(widget local)",
+          "fg": "#4338ca"
+        },
+        {
+          "line": 251,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1093,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 1095,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": [
+        139,
+        263
+      ]
+    },
+    "ui/print_helper.py": {
+      "styles": 2,
+      "hardcoded_colors": 49,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/plan_settings_dialog.py": {
+      "styles": 37,
+      "hardcoded_colors": 130,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 321,
+          "selector": "QTabWidget::pane",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 321,
+          "selector": "QSpinBox::up-button, QTimeEdit::up-button",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 321,
+          "selector": "QSpinBox::up-button:hover, QTimeEdit::up-button:hover",
+          "bg": "#e2e8f0"
+        },
+        {
+          "line": 321,
+          "selector": "QSpinBox::down-button, QTimeEdit::down-button",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 321,
+          "selector": "QSpinBox::down-button:hover, QTimeEdit::down-button:hover",
+          "bg": "#e2e8f0"
+        },
+        {
+          "line": 493,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 1227,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 469,
+          "selector": "(widget local)",
+          "fg": "#ffffff"
+        },
+        {
+          "line": 476,
+          "selector": "(widget local)",
+          "fg": "#e0e7ff"
+        },
+        {
+          "line": 670,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 864,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 895,
+          "selector": "(widget local)",
+          "fg": "#1d4ed8"
+        },
+        {
+          "line": 903,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 1039,
+          "selector": "(widget local)",
+          "fg": "#166534"
+        },
+        {
+          "line": 1074,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 1108,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 1161,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 1179,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 1196,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 1210,
+          "selector": "(widget local)",
+          "fg": "#047857"
+        },
+        {
+          "line": 1232,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/homework_integrity_dialog_v135.py": {
+      "styles": 6,
+      "hardcoded_colors": 71,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 151,
+          "selector": "QPushButton:hover",
+          "bg": "#1d4ed8"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 123,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 136,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/spotlight.py": {
+      "styles": 4,
+      "hardcoded_colors": 10,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 18,
+          "selector": "QFrame",
+          "bg": "#1e1e2e"
+        },
+        {
+          "line": 40,
+          "selector": "QLineEdit:focus",
+          "bg": "#45475a"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 80,
+          "selector": "(widget local)",
+          "fg": "#6c7086"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/book_dialog.py": {
+      "styles": 41,
+      "hardcoded_colors": 125,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 415,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 477,
+          "selector": "(widget local)",
+          "bg": "#fff"
+        },
+        {
+          "line": 580,
+          "selector": "QFrame",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 705,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 402,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 404,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 421,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 445,
+          "selector": "(widget local)",
+          "fg": "#b91c1c"
+        },
+        {
+          "line": 447,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 451,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 459,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 461,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 598,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 600,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 642,
+          "selector": "(widget local)",
+          "fg": "#2563eb"
+        },
+        {
+          "line": 428,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 432,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        }
+      ],
+      "qss_root": [
+        166,
+        278
+      ]
+    },
+    "ui/homework_guide_dialog.py": {
+      "styles": 7,
+      "hardcoded_colors": 122,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 56,
+          "selector": "QTabWidget::pane",
+          "bg": "#ffffff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 33,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 51,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 107,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/schedule_settings.py": {
+      "styles": 5,
+      "hardcoded_colors": 16,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 49,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/update_dialog.py": {
+      "styles": 14,
+      "hardcoded_colors": 41,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 195,
+          "selector": "QFrame#VersionCard",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 195,
+          "selector": "QFrame#ProgressCard",
+          "bg": "#ffffff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 60,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 62,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 86,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 88,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 94,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 100,
+          "selector": "(widget local)",
+          "fg": "#059669"
+        },
+        {
+          "line": 114,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 117,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 131,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 151,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 160,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/dashboard_widget.py": {
+      "styles": 19,
+      "hardcoded_colors": 30,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 263,
+          "selector": "QFrame",
+          "bg": "white"
+        },
+        {
+          "line": 393,
+          "selector": "QFrame",
+          "bg": "white"
+        },
+        {
+          "line": 354,
+          "selector": "QFrame",
+          "bg": "#eaf1fb"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 407,
+          "selector": "(widget local)",
+          "fg": "#6b7280"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/toast.py": {
+      "styles": 1,
+      "hardcoded_colors": 8,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/mail_send_whatsapp.py": {
+      "styles": 7,
+      "hardcoded_colors": 50,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 665,
+          "selector": "(widget local)",
+          "fg": "#1e40af"
+        },
+        {
+          "line": 1067,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1182,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1198,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/smart_table.py": {
+      "styles": 3,
+      "hardcoded_colors": 3,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/mobile_schedule.py": {
+      "styles": 68,
+      "hardcoded_colors": 175,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 403,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 409,
+          "selector": "(widget local)",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 604,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 1071,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 1179,
+          "selector": "(widget local)",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 1399,
+          "selector": "QFrame",
+          "bg": "#f8fafc"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 123,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 139,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 365,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 386,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 439,
+          "selector": "(widget local)",
+          "fg": "#2563eb"
+        },
+        {
+          "line": 481,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 535,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 566,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 1076,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 1111,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 1117,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 1123,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 1143,
+          "selector": "(widget local)",
+          "fg": "#16a34a"
+        },
+        {
+          "line": 1430,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 1416,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/target_coaching_brief_v243.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/topic_evidence_dialog_v18.py": {
+      "styles": 14,
+      "hardcoded_colors": 96,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 198,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/survey_manager.py": {
+      "styles": 40,
+      "hardcoded_colors": 107,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 590,
+          "selector": "QFrame#topCard",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 616,
+          "selector": "QComboBox::drop-down:hover",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 797,
+          "selector": "QFrame#surveyHdrFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 855,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 865,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 950,
+          "selector": "QFrame#surveyRightPanel",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 974,
+          "selector": "QListWidget::item",
+          "bg": "white"
+        },
+        {
+          "line": 974,
+          "selector": "QListWidget::item:hover",
+          "bg": "#f0fdf4"
+        },
+        {
+          "line": 1004,
+          "selector": "QFrame",
+          "bg": "#f0fdf4"
+        },
+        {
+          "line": 1063,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 1153,
+          "selector": "QFrame#qCard",
+          "bg": "#ffffff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 823,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 829,
+          "selector": "(widget local)",
+          "fg": "#1e40af"
+        },
+        {
+          "line": 844,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 918,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 966,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 970,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1010,
+          "selector": "(widget local)",
+          "fg": "#166534"
+        },
+        {
+          "line": 1014,
+          "selector": "(widget local)",
+          "fg": "#15803d"
+        },
+        {
+          "line": 1177,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/official_program_catalog_v242.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/odev_kontrol.py": {
+      "styles": 23,
+      "hardcoded_colors": 249,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 756,
+          "selector": "QListWidget::item:hover",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 923,
+          "selector": "QFrame#btnBarContainer",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1048,
+          "selector": "QFrame#kpiCard",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1110,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1110,
+          "selector": "QComboBox:focus, QLineEdit:focus",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 2813,
+          "selector": "QListWidget::item:selected",
+          "bg": "#e7f0ff"
+        },
+        {
+          "line": 3515,
+          "selector": "QTableView::item:hover",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 3515,
+          "selector": "QTableWidget::indicator, QTableView::indicator",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 3515,
+          "selector": "QTableWidget::indicator:checked, QTableView::indicator:checked",
+          "bg": "#16a34a"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 407,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 437,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 441,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 1158,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": [
+        756
+      ]
+    },
+    "ui/missing_topics_dialog.py": {
+      "styles": 19,
+      "hardcoded_colors": 39,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 59,
+          "selector": "QFrame",
+          "bg": "#fffbeb"
+        },
+        {
+          "line": 88,
+          "selector": "QFrame",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 96,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 140,
+          "selector": "(widget local)",
+          "bg": "white"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 47,
+          "selector": "(widget local)",
+          "fg": "#b45309"
+        },
+        {
+          "line": 49,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 66,
+          "selector": "(widget local)",
+          "fg": "#92400e"
+        },
+        {
+          "line": 68,
+          "selector": "(widget local)",
+          "fg": "#b45309"
+        },
+        {
+          "line": 167,
+          "selector": "(widget local)",
+          "fg": "#b45309"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/question_evidence_ocr_worker_v202.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/adaptive_coaching_center_v26.py": {
+      "styles": 7,
+      "hardcoded_colors": 109,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 161,
+          "selector": "(widget local)",
+          "bg": "#eff6ff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 120,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 125,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 188,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/deneme_sonuclari.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/trial_exam_import_v17.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/responsive.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/smart_coach_secretary_toast.py": {
+      "styles": 11,
+      "hardcoded_colors": 32,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 279,
+          "selector": "(widget local)",
+          "fg": "#bae6fd"
+        },
+        {
+          "line": 318,
+          "selector": "(widget local)",
+          "fg": "#f8fafc"
+        },
+        {
+          "line": 339,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/homework_context_hub_v1.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/whatsapp_dialog.py": {
+      "styles": 29,
+      "hardcoded_colors": 76,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 161,
+          "selector": "QFrame#RecCard",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 195,
+          "selector": "QListWidget::item:hover",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 281,
+          "selector": "QFrame#MsgCard",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 297,
+          "selector": "QFrame",
+          "bg": "#f0fdf4"
+        },
+        {
+          "line": 378,
+          "selector": "QFrame",
+          "bg": "#efeae2"
+        },
+        {
+          "line": 392,
+          "selector": "QTextEdit:focus",
+          "bg": "#d1fae5"
+        },
+        {
+          "line": 483,
+          "selector": "QFrame",
+          "bg": "#f1f5f9"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 177,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 329,
+          "selector": "(widget local)",
+          "fg": "#374151"
+        },
+        {
+          "line": 338,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 426,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/motivation_toast.py": {
+      "styles": 1,
+      "hardcoded_colors": 15,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": [
+        117
+      ]
+    },
+    "ui/mail_send.py": {
+      "styles": 14,
+      "hardcoded_colors": 80,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 994,
+          "selector": "(widget local)",
+          "bg": "#e2e8f0"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 530,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 531,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 549,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 575,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/checkbox_rol_baslik.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/homework_adaptive_bridge_v27.py": {
+      "styles": 1,
+      "hardcoded_colors": 6,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/theme.py": {
+      "styles": 1,
+      "hardcoded_colors": 158,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/student_workspace_panel_v21.py": {
+      "styles": 9,
+      "hardcoded_colors": 128,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 42,
+          "selector": "QWidget#studentWorkspaceV21",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 56,
+          "selector": "QFrame",
+          "bg": "#1e293b"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 62,
+          "selector": "(widget local)",
+          "fg": "#93c5fd"
+        },
+        {
+          "line": 80,
+          "selector": "(widget local)",
+          "fg": "#ffffff"
+        },
+        {
+          "line": 84,
+          "selector": "(widget local)",
+          "fg": "#cbd5e1"
+        },
+        {
+          "line": 88,
+          "selector": "(widget local)",
+          "fg": "#86efac"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/topic_map_dialog.py": {
+      "styles": 80,
+      "hardcoded_colors": 240,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 79,
+          "selector": "QTabWidget::pane",
+          "bg": "white"
+        },
+        {
+          "line": 79,
+          "selector": "QComboBox::drop-down",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 1232,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 1299,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1328,
+          "selector": "QComboBox::drop-down",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 1466,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1529,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1570,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1610,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1618,
+          "selector": "QFrame#studentProfileCard",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 200,
+          "selector": "(widget local)",
+          "bg": "#eff6ff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 171,
+          "selector": "(widget local)",
+          "fg": "#93c5fd"
+        },
+        {
+          "line": 187,
+          "selector": "(widget local)",
+          "fg": "#e0e7ff"
+        },
+        {
+          "line": 189,
+          "selector": "(widget local)",
+          "fg": "#fef08a"
+        },
+        {
+          "line": 249,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 264,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 276,
+          "selector": "(widget local)",
+          "fg": "#2563eb"
+        },
+        {
+          "line": 288,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 307,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 361,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 662,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 818,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 826,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 1314,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 1316,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1325,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1366,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1491,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 1535,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 1579,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 1634,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 1636,
+          "selector": "(widget local)",
+          "fg": "#2563eb"
+        },
+        {
+          "line": 1660,
+          "selector": "(widget local)",
+          "fg": "#bfdbfe"
+        },
+        {
+          "line": 1663,
+          "selector": "(widget local)",
+          "fg": "#ffffff"
+        },
+        {
+          "line": 1666,
+          "selector": "(widget local)",
+          "fg": "#e0e7ff"
+        },
+        {
+          "line": 1674,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 1713,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 1780,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 204,
+          "selector": "(widget local)",
+          "fg": "#1e40af"
+        },
+        {
+          "line": 777,
+          "selector": "(widget local)",
+          "fg": "#2563eb"
+        },
+        {
+          "line": 780,
+          "selector": "(widget local)",
+          "fg": "#16a34a"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/reports.py": {
+      "styles": 8,
+      "hardcoded_colors": 70,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 1829,
+          "selector": "(widget local)",
+          "bg": "#f59e0b"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 137,
+          "selector": "(widget local)",
+          "fg": "#555"
+        },
+        {
+          "line": 148,
+          "selector": "(widget local)",
+          "fg": "#2563eb"
+        }
+      ],
+      "qss_root": [
+        250
+      ]
+    },
+    "ui/target_goal_audit_v245.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/live_change_bridge_v241.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/gamification_widget.py": {
+      "styles": 28,
+      "hardcoded_colors": 49,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 61,
+          "selector": "(widget local)",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 346,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 396,
+          "selector": "(widget local)",
+          "bg": "#f1f5f9"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 40,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 51,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 85,
+          "selector": "(widget local)",
+          "fg": "#9f1239"
+        },
+        {
+          "line": 384,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 388,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 406,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 211,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 214,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 217,
+          "selector": "(widget local)",
+          "fg": "#059669"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/target_analysis_dialog.py": {
+      "styles": 17,
+      "hardcoded_colors": 70,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 72,
+          "selector": "QFrame#Card",
+          "bg": "white"
+        },
+        {
+          "line": 425,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 487,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 315,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 318,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 385,
+          "selector": "(widget local)",
+          "fg": "#92400e"
+        },
+        {
+          "line": 392,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 397,
+          "selector": "(widget local)",
+          "fg": "#92400e"
+        },
+        {
+          "line": 432,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 445,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 499,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 522,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/rapor_deneme.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/adaptive_draft_review_v30.py": {
+      "styles": 2,
+      "hardcoded_colors": 20,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 48,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/whatsapp_preview.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/theme_tokens_v37.py": {
+      "styles": 0,
+      "hardcoded_colors": 23,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/smart_wizard_dialog.py": {
+      "styles": 43,
+      "hardcoded_colors": 95,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 117,
+          "selector": "QTabWidget::pane",
+          "bg": "white"
+        },
+        {
+          "line": 362,
+          "selector": "QFrame",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 420,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 449,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 481,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 550,
+          "selector": "(widget local)",
+          "bg": "#fafafa"
+        },
+        {
+          "line": 555,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 580,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 584,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 590,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 595,
+          "selector": "(widget local)",
+          "bg": "#f0fdf4"
+        },
+        {
+          "line": 605,
+          "selector": "(widget local)",
+          "bg": "#eff6ff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 74,
+          "selector": "(widget local)",
+          "fg": "#4338ca"
+        },
+        {
+          "line": 76,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 336,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 343,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 368,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 489,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 515,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 546,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 573,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 781,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/performans_paneli.py": {
+      "styles": 19,
+      "hardcoded_colors": 126,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 114,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 146,
+          "selector": "QLineEdit:focus",
+          "bg": "white"
+        },
+        {
+          "line": 193,
+          "selector": "QTabWidget::pane",
+          "bg": "white"
+        },
+        {
+          "line": 1209,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 121,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 139,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 182,
+          "selector": "(widget local)",
+          "fg": "#9aa0a6"
+        },
+        {
+          "line": 1305,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 1309,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/report_dashboard.py": {
+      "styles": 6,
+      "hardcoded_colors": 51,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 234,
+          "selector": "QWidget",
+          "bg": "#ffffff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 249,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": [
+        98,
+        234
+      ]
+    },
+    "ui/backup_dialog.py": {
+      "styles": 9,
+      "hardcoded_colors": 14,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 44,
+          "selector": "(widget local)",
+          "bg": "white"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 31,
+          "selector": "(widget local)",
+          "fg": "#2d3748"
+        },
+        {
+          "line": 33,
+          "selector": "(widget local)",
+          "fg": "#718096"
+        },
+        {
+          "line": 70,
+          "selector": "(widget local)",
+          "fg": "#2d3748"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/today_priority_strip_v4.py": {
+      "styles": 4,
+      "hardcoded_colors": 9,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 46,
+          "selector": "QFrame#todayPriorityStripV4",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 46,
+          "selector": "QFrame#todayPriorityStripV4 QPushButton:hover",
+          "bg": "#c7d2fe"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 65,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 71,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/cbx_rol_baslik_usta.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/trial_exam_settings.py": {
+      "styles": 2,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/user_manager.py": {
+      "styles": 8,
+      "hardcoded_colors": 41,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 128,
+          "selector": "QTabWidget::pane",
+          "bg": "#fff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 172,
+          "selector": "(widget local)",
+          "fg": "#2c3e50"
+        },
+        {
+          "line": 179,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 259,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 320,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 383,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 459,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        }
+      ],
+      "qss_root": [
+        128
+      ]
+    },
+    "ui/student360_panel_v16.py": {
+      "styles": 1,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/rapor_kok_neden.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/web_access_dialog.py": {
+      "styles": 30,
+      "hardcoded_colors": 78,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 216,
+          "selector": "QTabWidget::pane",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 216,
+          "selector": "QFrame#QRCard",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 395,
+          "selector": "(widget local)",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 497,
+          "selector": "(widget local)",
+          "bg": "#eff6ff"
+        },
+        {
+          "line": 561,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 665,
+          "selector": "(widget local)",
+          "bg": "#dcfce7"
+        },
+        {
+          "line": 695,
+          "selector": "(widget local)",
+          "bg": "#fee2e2"
+        },
+        {
+          "line": 717,
+          "selector": "(widget local)",
+          "bg": "#f1f5f9"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 337,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 433,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 437,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 439,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 441,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 448,
+          "selector": "(widget local)",
+          "fg": "#166534"
+        },
+        {
+          "line": 455,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 512,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 522,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 539,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/smart_report_dialog.py": {
+      "styles": 6,
+      "hardcoded_colors": 7,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 14,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 29,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/whatsapp_logs.py": {
+      "styles": 9,
+      "hardcoded_colors": 64,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 73,
+          "selector": "QFrame#KpiCard",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 73,
+          "selector": "QFrame#FilterCard",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 73,
+          "selector": "QFrame#DetailCard",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 73,
+          "selector": "QListWidget::item:hover",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 414,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 227,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 331,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 393,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 434,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 444,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        }
+      ],
+      "qss_root": [
+        73
+      ]
+    },
+    "ui/weekly_planner_adaptive_bridge_v35.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/coaching_manager.py": {
+      "styles": 136,
+      "hardcoded_colors": 627,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 251,
+          "selector": "QFrame.ContentCard",
+          "bg": "white"
+        },
+        {
+          "line": 426,
+          "selector": "(widget local)",
+          "bg": "#eff6ff"
+        },
+        {
+          "line": 798,
+          "selector": "QLineEdit:focus",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 816,
+          "selector": "QListWidget::item:hover",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 855,
+          "selector": "QTabWidget::pane",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 934,
+          "selector": "QFrame#coachingOverviewV245",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 1091,
+          "selector": "QFrame#cntCont",
+          "bg": "#eff6ff"
+        },
+        {
+          "line": 1139,
+          "selector": "QFrame#weekBar",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1362,
+          "selector": "QFrame",
+          "bg": "#f0fdf4"
+        },
+        {
+          "line": 1469,
+          "selector": "QPushButton:disabled",
+          "bg": "#94a3b8"
+        },
+        {
+          "line": 1490,
+          "selector": "QPushButton:disabled",
+          "bg": "#94a3b8"
+        },
+        {
+          "line": 1524,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 1552,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 1559,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 1756,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 1787,
+          "selector": "(widget local)",
+          "bg": "#f0fdf4"
+        },
+        {
+          "line": 1812,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 1851,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 2017,
+          "selector": "QTableWidget::item:hover",
+          "bg": "#dbeafe"
+        },
+        {
+          "line": 2302,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 2318,
+          "selector": "QComboBox::drop-down:hover",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 2356,
+          "selector": "QComboBox::drop-down:hover",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 2452,
+          "selector": "QComboBox::drop-down:hover",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 5086,
+          "selector": "(widget local)",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 5342,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 1322,
+          "selector": "QFrame#__VALUE__",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1714,
+          "selector": "QFrame",
+          "bg": "white"
+        },
+        {
+          "line": 2201,
+          "selector": "QFrame#__VALUE__",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 4577,
+          "selector": "QComboBox::drop-down:hover",
+          "bg": "#f1f5f9"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 358,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 431,
+          "selector": "(widget local)",
+          "fg": "#1e40af"
+        },
+        {
+          "line": 433,
+          "selector": "(widget local)",
+          "fg": "#3b82f6"
+        },
+        {
+          "line": 786,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 953,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 1078,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 1080,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1181,
+          "selector": "(widget local)",
+          "fg": "#cbd5e1"
+        },
+        {
+          "line": 1443,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1530,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 1791,
+          "selector": "(widget local)",
+          "fg": "#166534"
+        },
+        {
+          "line": 1794,
+          "selector": "(widget local)",
+          "fg": "#15803d"
+        },
+        {
+          "line": 1819,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 1846,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 2233,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 2246,
+          "selector": "(widget local)",
+          "fg": "#065f46"
+        },
+        {
+          "line": 2261,
+          "selector": "(widget local)",
+          "fg": "#92400e"
+        },
+        {
+          "line": 2276,
+          "selector": "(widget local)",
+          "fg": "#991b1b"
+        },
+        {
+          "line": 1732,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1734,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 4530,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/target_study_draft_v244.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/trial_exam_manager.py": {
+      "styles": 52,
+      "hardcoded_colors": 143,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 72,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 219,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 238,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 259,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 486,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 567,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 600,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 636,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 700,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 710,
+          "selector": "(widget local)",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 772,
+          "selector": "(widget local)",
+          "bg": "#f1f5f9"
+        },
+        {
+          "line": 953,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 977,
+          "selector": "(widget local)",
+          "bg": "white"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 94,
+          "selector": "(widget local)",
+          "fg": "#bfdbfe"
+        },
+        {
+          "line": 229,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 233,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 501,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 503,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 512,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 606,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 685,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 705,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 752,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 762,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 824,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 829,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 862,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 243,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1311,
+          "selector": "(widget local)",
+          "fg": "#15803d"
+        },
+        {
+          "line": 1314,
+          "selector": "(widget local)",
+          "fg": "#dc2626"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/scoped_homework_v233.py": {
+      "styles": 8,
+      "hardcoded_colors": 38,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 72,
+          "selector": "QFrame",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 127,
+          "selector": "QPushButton:hover",
+          "bg": "#1d4ed8"
+        },
+        {
+          "line": 154,
+          "selector": "QPushButton:hover",
+          "bg": "#e2e8f0"
+        }
+      ],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/weekly_plan.py": {
+      "styles": 23,
+      "hardcoded_colors": 90,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 542,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 552,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 564,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 575,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 586,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 594,
+          "selector": "(widget local)",
+          "fg": "#2563eb"
+        },
+        {
+          "line": 595,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 609,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 640,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 801,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 818,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/report_guide_dialog.py": {
+      "styles": 11,
+      "hardcoded_colors": 23,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 20,
+          "selector": "QFrame#Card",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 20,
+          "selector": "QFrame#Card:hover",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 53,
+          "selector": "(widget local)",
+          "bg": "#eff6ff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 43,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 45,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 60,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 179,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/adaptive_followup_v11.py": {
+      "styles": 4,
+      "hardcoded_colors": 42,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 69,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 86,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/coach_dialogue_v121.py": {
+      "styles": 5,
+      "hardcoded_colors": 40,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 280,
+          "selector": "(widget local)",
+          "fg": "#7dd3fc"
+        },
+        {
+          "line": 292,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 318,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/exam_simulation.py": {
+      "styles": 52,
+      "hardcoded_colors": 116,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 239,
+          "selector": "QFrame:hover",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 346,
+          "selector": "QFrame#setupBodyFrame",
+          "bg": "white"
+        },
+        {
+          "line": 346,
+          "selector": "QFrame#setupBodyFrame QCheckBox::indicator",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 346,
+          "selector": "QFrame#setupBodyFrame QCheckBox::indicator:hover",
+          "bg": "#eff6ff"
+        },
+        {
+          "line": 346,
+          "selector": "QFrame#setupBodyFrame QCheckBox::indicator:checked",
+          "bg": "#2563eb"
+        },
+        {
+          "line": 390,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 398,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 405,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 412,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 477,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 506,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 529,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 553,
+          "selector": "(widget local)",
+          "bg": "#fffbeb"
+        },
+        {
+          "line": 569,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 578,
+          "selector": "QTabWidget::pane",
+          "bg": "white"
+        },
+        {
+          "line": 833,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 871,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 662,
+          "selector": "(widget local)",
+          "bg": "#f1f5f9"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 338,
+          "selector": "(widget local)",
+          "fg": "#bfdbfe"
+        },
+        {
+          "line": 482,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 512,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 548,
+          "selector": "(widget local)",
+          "fg": "#b45309"
+        },
+        {
+          "line": 556,
+          "selector": "(widget local)",
+          "fg": "#78350f"
+        },
+        {
+          "line": 562,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 574,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 826,
+          "selector": "(widget local)",
+          "fg": "#d1fae5"
+        },
+        {
+          "line": 534,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 535,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 838,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": [
+        284
+      ]
+    },
+    "ui/curriculum_matrix_preview_v232.py": {
+      "styles": 6,
+      "hardcoded_colors": 7,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 43,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 48,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/randevu_takvimi.py": {
+      "styles": 118,
+      "hardcoded_colors": 338,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 219,
+          "selector": "QFrame#FilterCard",
+          "bg": "white"
+        },
+        {
+          "line": 321,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 340,
+          "selector": "QFrame#DetailPanel",
+          "bg": "white"
+        },
+        {
+          "line": 381,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 503,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 595,
+          "selector": "QComboBox:focus",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 725,
+          "selector": "QTableWidget::item:focus",
+          "bg": "#e0f2fe"
+        },
+        {
+          "line": 725,
+          "selector": "QTableCornerButton::section",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 1020,
+          "selector": "QTableCornerButton::section",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 1174,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 1184,
+          "selector": "QFrame",
+          "bg": "#3b82f6"
+        },
+        {
+          "line": 1392,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 1532,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1621,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 2752,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 2780,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 2943,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 2951,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 5300,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 5322,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 5332,
+          "selector": "(widget local)",
+          "bg": "white"
+        },
+        {
+          "line": 5477,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 5492,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 5565,
+          "selector": "QLineEdit:focus",
+          "bg": "#fff"
+        },
+        {
+          "line": 5618,
+          "selector": "QTextEdit:focus",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 5635,
+          "selector": "QWidget",
+          "bg": "#dcf8c6"
+        },
+        {
+          "line": 5657,
+          "selector": "(widget local)",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 168,
+          "selector": "QFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 168,
+          "selector": "QFrame:hover",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 539,
+          "selector": "QPushButton:hover",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1213,
+          "selector": "QPushButton",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 1646,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 284,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 352,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 368,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 389,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 402,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 408,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 515,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 519,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 1196,
+          "selector": "(widget local)",
+          "fg": "#dbeafe"
+        },
+        {
+          "line": 1269,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 1319,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 1349,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 2767,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 2769,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 2981,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 2983,
+          "selector": "(widget local)",
+          "fg": "#2563eb"
+        },
+        {
+          "line": 5305,
+          "selector": "(widget local)",
+          "fg": "#1e3a8a"
+        },
+        {
+          "line": 5309,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 5497,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 5500,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 5628,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 5644,
+          "selector": "(widget local)",
+          "fg": "#111b21"
+        },
+        {
+          "line": 2795,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 2809,
+          "selector": "(widget local)",
+          "fg": "#e2e8f0"
+        },
+        {
+          "line": 2967,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 3082,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": [
+        595,
+        5635
+      ]
+    },
+    "ui/audit_viewer.py": {
+      "styles": 3,
+      "hardcoded_colors": 13,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 27,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/info_board_widget.py": {
+      "styles": 54,
+      "hardcoded_colors": 83,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 401,
+          "selector": "QFrame#ControlCard",
+          "bg": "#111827"
+        },
+        {
+          "line": 401,
+          "selector": "QFrame#ResultCard",
+          "bg": "#131c2e"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 120,
+          "selector": "(widget local)",
+          "fg": "#f8fafc"
+        },
+        {
+          "line": 530,
+          "selector": "(widget local)",
+          "fg": "#ffffff"
+        },
+        {
+          "line": 533,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 584,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 599,
+          "selector": "(widget local)",
+          "fg": "#f1f5f9"
+        },
+        {
+          "line": 615,
+          "selector": "(widget local)",
+          "fg": "#f1f5f9"
+        },
+        {
+          "line": 617,
+          "selector": "(widget local)",
+          "fg": "#38bdf8"
+        },
+        {
+          "line": 628,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 654,
+          "selector": "(widget local)",
+          "fg": "#cbd5e1"
+        },
+        {
+          "line": 656,
+          "selector": "(widget local)",
+          "fg": "#fbbf24"
+        },
+        {
+          "line": 670,
+          "selector": "(widget local)",
+          "fg": "#cbd5e1"
+        },
+        {
+          "line": 672,
+          "selector": "(widget local)",
+          "fg": "#a78bfa"
+        },
+        {
+          "line": 693,
+          "selector": "(widget local)",
+          "fg": "#22c55e"
+        },
+        {
+          "line": 1086,
+          "selector": "(widget local)",
+          "fg": "#e2e8f0"
+        },
+        {
+          "line": 564,
+          "selector": "(widget local)",
+          "fg": "#cbd5e1"
+        },
+        {
+          "line": 721,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 723,
+          "selector": "(widget local)",
+          "fg": "#ffffff"
+        },
+        {
+          "line": 821,
+          "selector": "(widget local)",
+          "fg": "#ef4444"
+        },
+        {
+          "line": 963,
+          "selector": "(widget local)",
+          "fg": "#f8fafc"
+        },
+        {
+          "line": 831,
+          "selector": "(widget local)",
+          "fg": "#10b981"
+        },
+        {
+          "line": 844,
+          "selector": "(widget local)",
+          "fg": "#f59e0b"
+        },
+        {
+          "line": 856,
+          "selector": "(widget local)",
+          "fg": "#f43f5e"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/teacher_copilot_strip_v5.py": {
+      "styles": 9,
+      "hardcoded_colors": 13,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 55,
+          "selector": "QFrame#teacherCopilotStripV5",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 55,
+          "selector": "QFrame#teacherCopilotStripV5 QPushButton:hover",
+          "bg": "#dbeafe"
+        },
+        {
+          "line": 184,
+          "selector": "QFrame",
+          "bg": "white"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 70,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 82,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 192,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 195,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 200,
+          "selector": "(widget local)",
+          "fg": "#1e40af"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/modern_settings.py": {
+      "styles": 19,
+      "hardcoded_colors": 75,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 73,
+          "selector": "(widget local)",
+          "bg": "#e2e8f0"
+        },
+        {
+          "line": 132,
+          "selector": "(widget local)",
+          "bg": "#f8fafc"
+        },
+        {
+          "line": 189,
+          "selector": "QFrame#SidebarFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 189,
+          "selector": "QFrame#HeaderBar",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 189,
+          "selector": "QFrame#FooterBar",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 189,
+          "selector": "QFrame.CardFrame",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 189,
+          "selector": "QTabWidget::pane",
+          "bg": "#ffffff"
+        },
+        {
+          "line": 680,
+          "selector": "(widget local)",
+          "bg": "white"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 61,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 63,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 101,
+          "selector": "(widget local)",
+          "fg": "#94a3b8"
+        },
+        {
+          "line": 120,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 122,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 146,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 624,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 685,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 887,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 939,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": [
+        189
+      ]
+    },
+    "ui/adaptive_next_step_v29.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/quick_coaching_bridge_v28.py": {
+      "styles": 1,
+      "hardcoded_colors": 29,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/checkbox_rol_gecis.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/weekly_planner_overview_v35.py": {
+      "styles": 25,
+      "hardcoded_colors": 56,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 106,
+          "selector": "QPushButton:hover",
+          "bg": "#fef2f2"
+        },
+        {
+          "line": 205,
+          "selector": "QFrame",
+          "bg": "#eff6ff"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 28,
+          "selector": "(widget local)",
+          "fg": "#334155"
+        },
+        {
+          "line": 48,
+          "selector": "(widget local)",
+          "fg": "#0f172a"
+        },
+        {
+          "line": 52,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 124,
+          "selector": "(widget local)",
+          "fg": "#047857"
+        },
+        {
+          "line": 136,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 146,
+          "selector": "(widget local)",
+          "fg": "#475569"
+        },
+        {
+          "line": 180,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 186,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 208,
+          "selector": "(widget local)",
+          "fg": "#1e40af"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/analytics_dialog.py": {
+      "styles": 4,
+      "hardcoded_colors": 16,
+      "low_contrast": [],
+      "unpaired_bg": [
+        {
+          "line": 33,
+          "selector": "QTabWidget::pane",
+          "bg": "white"
+        }
+      ],
+      "unpaired_fg": [
+        {
+          "line": 48,
+          "selector": "(widget local)",
+          "fg": "#1e293b"
+        },
+        {
+          "line": 80,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        },
+        {
+          "line": 91,
+          "selector": "(widget local)",
+          "fg": "#64748b"
+        }
+      ],
+      "qss_root": []
+    },
+    "themes/header_hover_highlighter.py": {
+      "styles": 0,
+      "hardcoded_colors": 4,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/widgets/tabbar_wrap.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "ui/widgets/dashboard.py": {
+      "styles": 4,
+      "hardcoded_colors": 14,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 48,
+          "selector": "(widget local)",
+          "fg": "#ffffff"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/widgets/quick_stats.py": {
+      "styles": 1,
+      "hardcoded_colors": 1,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [
+        {
+          "line": 12,
+          "selector": "(widget local)",
+          "fg": "#3a3a3a"
+        }
+      ],
+      "qss_root": []
+    },
+    "ui/widgets/quick_actions.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v234/control.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v234/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/topic_evidence_v18/models.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/topic_evidence_v18/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/topic_evidence_v18/reader.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/topic_evidence_v18/advisor.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v34/flags.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v34/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v34/journey.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/windows_perf_v33/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/windows_perf_v33/refresh.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/target_analysis_v24/program_catalog_v242.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/target_analysis_v24/study_draft_v244.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/target_analysis_v24/catalog_browser_v246.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/target_analysis_v24/official_sources.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/target_analysis_v24/history_location_v245.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/target_analysis_v24/integrity_audit_v245.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/target_analysis_v24/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/target_analysis_v24/coaching_bridge_v243.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/target_analysis_v24/logic.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/target_analysis_v24/student_history.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/target_analysis_v24/source_freshness_v241.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/target_analysis_v24/student_target.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v233/service.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v233/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/question_evidence_v19/ocr_adapter_v202.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/question_evidence_v19/importer.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/question_evidence_v19/layout_detector_v201.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/question_evidence_v19/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/question_evidence_v19/karne_adapter_v20.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v27/flags.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v27/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v27/presenter.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v23/impact.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v23/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v23/changes.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v25/flags.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v25/engine.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v25/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/whatsapp_queue/secure_queue_v250.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/whatsapp_queue/isolation_v253.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/whatsapp_queue/queue_v246.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/whatsapp_queue/manual_handoff_v249.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/whatsapp_queue/safe_copy_v251.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/whatsapp_queue/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/whatsapp_queue/dpapi_v250.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/whatsapp_queue/readiness_v252.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/whatsapp_queue/transport_v249.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/whatsapp_queue/secure_vault_v250.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v29/flags.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v29/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v29/next_steps.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/student360_v16/models.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/student360_v16/profile.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/student360_v16/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/student360_v16/reader.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/student360_v16/advisor.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v231/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v231/reader.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v231/identity.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v231/legacy.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v30/flags.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v30/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v30/drafts.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v236/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v236/overview.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v237/guidance.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v237/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v26/flags.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v26/decision.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v26/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v26/context.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v28/flags.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v28/quick_notes.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/adaptive_coaching_v28/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/windows_perf_v32/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/windows_perf_v32/database.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/windows_perf_v32/trace.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v232/bridge.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v232/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v238/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/curriculum_v238/notice.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/stabilization_v235/audit.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/stabilization_v235/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_assistant_v1/conversation_followup.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_assistant_v1/knowledge_manager_v126.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_assistant_v1/dialogue.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_assistant_v1/knowledge_bank_v125.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_assistant_v1/__init__.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_assistant_v1/official_sources_v127.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_assistant_v1/insights.py": {
+      "styles": 0,
+      "hardcoded_colors": 15,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_assistant_v1/proactive_policy.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    },
+    "services/coach_assistant_v1/question_library.py": {
+      "styles": 0,
+      "hardcoded_colors": 0,
+      "low_contrast": [],
+      "unpaired_bg": [],
+      "unpaired_fg": [],
+      "qss_root": []
+    }
+  }
+}

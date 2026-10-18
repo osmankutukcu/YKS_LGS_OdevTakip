@@ -1,0 +1,33 @@
+{
+  "version": "v10.0-pilot",
+  "requires": "V9 source (not live server deployment)",
+  "files": {
+    "web_api/main.py": "8ce11f4cbc6dc047266221245b3e528d82285a577d70aa44db7454d5c071a51c",
+    "web_api/live_changes_v10.py": "029a9a3bf5df9dc6723332bf69c97e1a92f8d36392063e748c013ece0e78442f",
+    "web_api/templates/index.html": "5b0c440b5689f931fa0d5ca9164263b48f994943dea543bdb1a2adfe0a41d121",
+    "web_api/static/js/offline_live_v10.js": "e52c73355119b7056483af930b4c2f8af905e43974c559cc2f9ec9e4eb9cd9b3"
+  },
+  "accepted_sources": {
+    "web_api/main.py": [
+      "f6fe7bf1fefc13a30b5311ee06e354b23c0f5733bc51814de79984c6df4853ae"
+    ],
+    "web_api/live_changes_v10.py": [
+      null
+    ],
+    "web_api/templates/index.html": [
+      "c6cea95c7dfbc84a39057480cc61527801e0e67617b318ab1ce668e53a259992"
+    ],
+    "web_api/static/js/offline_live_v10.js": [
+      null
+    ]
+  },
+  "protected": {
+    "ui/homework_form.py": "53e6b12db96cf81fd622947e7d343b4130a1a8e42a0e30d5c5ec58e64e456314",
+    "ui/student360_panel_v16.py": "6cbf8afcf6016af595ad57dddb66c4679030dea97ca9d651dd049b1f78a49c33",
+    "main_window.py": "c2f8d2d085ee45cf1d8bf9fea199c8d9cf2985e8ebb328efcf02b976803e7b27",
+    "services/survey_integrity_v8.py": "c0720ee00439865327054cae3117947e6459d91c8c8251045dd5dc55aa4d48f2",
+    "services/survey_evidence_v7.py": "90e5cc688f4d05af2530f58805dcb3b8774c75c35dd7716e889bfa942fbf96a9",
+    "ui/coaching_manager.py": "39d93947eaba72aa1a502931bf6544c75e7a5c880150cbee666487ac5c1346cd",
+    "ui/survey_manager.py": "683e4e880311675c2f4fa23751b037c7df44681e77fbe6116b661751319a5e72"
+  }
+}

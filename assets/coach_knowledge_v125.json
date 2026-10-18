@@ -1,0 +1,580 @@
+{
+  "schema_version": "1.0",
+  "library_id": "coach_knowledge_v125",
+  "library_version": "2026.10.16-pilot",
+  "language": "tr",
+  "content_policy": {
+    "read_only": true,
+    "student_data_included": false,
+    "use_without_student_evidence": "general_guidance_only",
+    "never_auto_assign_homework": true,
+    "never_diagnose_psychological_conditions": true,
+    "public_web_verified": false,
+    "curriculum_source": "assets/curriculum.json (existing app asset; not duplicated)"
+  },
+  "sources": [
+    {
+      "id": "uploaded_coaching_guide",
+      "title": "Küresel Adaptif Sınav ve Öğrenci Koçluğu Sistemi: Metodoloji, Analiz ve Uygulama Kılavuzu",
+      "source_type": "user_uploaded_docx",
+      "license_status": "user_supplied_reference_only",
+      "external_validation": "not_independently_verified",
+      "notes": "Source locations indicate document sections; text here is a cautious adapted summary, not verbatim definitive scientific rules."
+    }
+  ],
+  "entries": [
+    {
+      "id": "srl_reflection",
+      "category": "coaching",
+      "title": "Haftalık öz-yansıma",
+      "keywords": [
+        "oz yansima",
+        "hafta",
+        "yansima",
+        "degerlendirme",
+        "gorusme",
+        "srl"
+      ],
+      "guidance": "Geçen hafta planlananlarla gerçekleşenleri karşılaştırın. Öğrencinin hangi çalışma yöntemini yararlı bulduğunu ve kanıtın ne olduğunu sorun.",
+      "teacher_question": "Geçen haftaki hedeflerden hangilerini gerçekleştirdin? Hangi kanıt bunu gösteriyor?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 3.1",
+      "caution": "",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "srl_forethought",
+      "category": "coaching",
+      "title": "Kontrol edilebilir haftalık hedefler",
+      "keywords": [
+        "hedef",
+        "kutup yildizi",
+        "oz yeterlilik",
+        "oz duzenleme",
+        "plan",
+        "srl"
+      ],
+      "guidance": "Net artışı gibi sonuç hedefini, öğrencinin kontrol edebildiği kazanım ve süreç hedeflerine çevirin. Hedefin gerçekçiliğini öğrenciyle değerlendirin.",
+      "teacher_question": "Bu hafta senin kontrolünde olan en küçük somut kazanım hedefin nedir?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 3.2",
+      "caution": "Özyeterlilik puanı tek başına bilişsel yükü veya psikolojik durumu göstermez.",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "grow_cycle",
+      "category": "coaching",
+      "title": "Dört aşamalı GROW görüşmesi",
+      "keywords": [
+        "grow gorusmesi",
+        "grow modeli",
+        "grow",
+        "gorusme akisi",
+        "dort asama"
+      ],
+      "guidance": "Görüşmeyi mevcut durumun kanıtları (Reality), öğrencinin seçtiği hedef (Goal), alternatif stratejiler (Options) ve onaylanan ilk adım (Will) olarak ilerletin. Süreler zorunlu değildir.",
+      "teacher_question": "Bugünkü görüşmede önce hangi somut veriyi değerlendireceğiz?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 2",
+      "caution": "",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "grow_options",
+      "category": "coaching",
+      "title": "Çalışma seçeneklerini öğrenciyle belirleme",
+      "keywords": [
+        "secenek",
+        "strateji",
+        "grow",
+        "gorusme",
+        "calisma yontemi",
+        "tercih"
+      ],
+      "guidance": "Öğrenciye tek yöntem dayatmadan alternatifler önerin; konu, önceki ölçüm ve öğrencinin koşullarına göre bir strateji seçmesini destekleyin.",
+      "teacher_question": "Video, kendi cümlelerinle açıklama ve soru çözümü arasında neyi denemek istersin?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 3.3",
+      "caution": "",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "implementation_intention",
+      "category": "coaching",
+      "title": "Eğer–o zaman telafi planı",
+      "keywords": [
+        "eger o zaman",
+        "telafi",
+        "plan bozul",
+        "erteleme",
+        "engel",
+        "kriz",
+        "yilmazlik"
+      ],
+      "guidance": "Plan aksadığında tüm haftayı bırakmak yerine küçük bir alternatif çalışma davranışı belirleyin; süreyi ve görevi öğrenciyle kararlaştırın.",
+      "teacher_question": "Planın aksarsa yapabileceğin en küçük alternatif adım ne olacak?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 3.4",
+      "caution": "",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "grow_commitment",
+      "category": "coaching",
+      "title": "Görüşmeyi somut adımla bitirme",
+      "keywords": [
+        "ilk adim",
+        "taahhut",
+        "irade",
+        "grow",
+        "gorusme",
+        "baslangic"
+      ],
+      "guidance": "Görüşmenin sonunda uygulamanın ilk adımını, zamanını ve bir sonraki kontrol tarihini netleştirin; öğretmenin onayından önce ödev kaydı oluşturmayın.",
+      "teacher_question": "İlk somut adımı ne zaman atacaksın ve bunu nasıl kontrol edeceğiz?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 3.4",
+      "caution": "",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "knowledge_gap",
+      "category": "error_analysis",
+      "title": "Bilgi ve kavram hatasını sorgulama",
+      "keywords": [
+        "bilgi eksigi",
+        "kavram",
+        "formul",
+        "yanilgi",
+        "hata nedeni",
+        "temel konu"
+      ],
+      "guidance": "Öğrencinin temel kavramı anlatıp anlatamadığını kısa bir soruyla doğrulayın. Gerekirse önkoşul konuyu kontrol edin; yanlış cevaptan kesin neden çıkarmayın.",
+      "teacher_question": "Bu çözümde hangi kavramı kullandın, kendi cümlelerinle açıklayabilir misin?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 4.1 — K1",
+      "caution": "Kök neden önerisi öğretmen doğrulaması gerektirir.",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "strategy_error",
+      "category": "error_analysis",
+      "title": "Yorum ve aktarım hatasını sorgulama",
+      "keywords": [
+        "yorum",
+        "grafik",
+        "strateji hatasi",
+        "yeni nesil",
+        "oncullu",
+        "soru tipi"
+      ],
+      "guidance": "Kavramı farklı sunumlu soruya aktarırken hangi adımda zorlanıldığını öğrencinin açıklamasını isteyin. Gerekirse aynı kazanımdan alternatif soru türüyle ölçün.",
+      "teacher_question": "Grafik veya öncüllü soruda hangi bilgiye nasıl ulaşman gerekiyordu?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 4.1 — K2",
+      "caution": "Doğrudan konu çalışmayı bırakma kararı otomatik verilmez.",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "attention_error",
+      "category": "error_analysis",
+      "title": "Dikkat ve okuma hatasını doğrulama",
+      "keywords": [
+        "dikkat",
+        "okuma",
+        "soru koku",
+        "islem hatasi",
+        "odak",
+        "yanlis"
+      ],
+      "guidance": "Sorunun kökünü ve çözüm adımlarını yeniden inceleyin. Dikkat hatası etiketini öğrencinin verdiği tek bir yanlış cevaptan üretmeyin.",
+      "teacher_question": "Soruyu yeniden okuduğunda ilk seferde hangi ayrıntıyı kaçırmış olabilirsin?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 4.1 — K3",
+      "caution": "Bilişsel yorgunluk veya dikkat bozukluğu tanısı koymayın.",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "time_management_error",
+      "category": "error_analysis",
+      "title": "Süre ve sınav stratejisini inceleme",
+      "keywords": [
+        "sure",
+        "turlama",
+        "yetisememe",
+        "zaman yonetimi",
+        "deneme",
+        "sinav"
+      ],
+      "guidance": "Zamanın yetmemesi ile bilgi eksikliğini ayırmak için süreli/süresiz karşılaştırılabilir ölçümler kullanın. Alternatif soru sıralaması ve turlama stratejisini öğrenciyle deneyin.",
+      "teacher_question": "Soruya zaman sınırı olmasaydı nereden başlayacaktın?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 4.1 — K4",
+      "caution": "",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "measurement_uncertainty",
+      "category": "assessment",
+      "title": "Konu hâkimiyetini kanıtsız kesinleştirmeme",
+      "keywords": [
+        "hakimiyet",
+        "mastery",
+        "basari puani",
+        "kesin ogrendi",
+        "ogrenme",
+        "kanit"
+      ],
+      "guidance": "Tamamlanan ödev veya tek ölçüm üzerinden tam hâkimiyet sonucu çıkarmayın. Soru güçlüğünü, ölçüm tarihini ve farklı gündeki bağımsız kanıtları birlikte değerlendirin.",
+      "teacher_question": "Bu konuyu öğrendiğimizi hangi bağımsız yoklamalar doğruluyor?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 4.2",
+      "caution": "Dokümandaki 60/20/20 ağırlıkları ve 0–49/50–74/75–100 eşikleri doğrulanmış genel standart değildir.",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "spaced_review",
+      "category": "learning_science",
+      "title": "Aralıklı tekrar planlama",
+      "keywords": [
+        "aralikli tekrar",
+        "unutma",
+        "tekrar",
+        "kalicilik",
+        "ebbinghaus",
+        "kazanım"
+      ],
+      "guidance": "Kısa aralıklı tekrarları bir başlangıç önerisi olarak değerlendirin; süre ve soru sayısını öğrencinin yeni ölçümlerine göre uyarlayın.",
+      "teacher_question": "Bu kazanım için bir sonraki bağımsız kontrol ne zaman daha uygun?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 4.2",
+      "caution": "3/7/21/45 gün ve 15 soru herkese zorunlu takvim olarak uygulanmamalıdır.",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "plan_performance",
+      "category": "homework",
+      "title": "Ödev gerçekleşmesi ile öğrenme sonuçlarını birlikte değerlendirme",
+      "keywords": [
+        "odev",
+        "tamamlama",
+        "plan",
+        "net",
+        "performans",
+        "cok calis",
+        "gelismiyor"
+      ],
+      "guidance": "Ödev tamamlama oranı ve ölçüm başarısı iki farklı göstergedir. Uyumsuzluk olduğunda önce ölçüm güvenilirliğini ve çalışma biçimini araştırın.",
+      "teacher_question": "Çalışma düzenli görünüyor; bağımsız ölçümlerde aynı yönde gelişim var mı?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 4.3",
+      "caution": "“Sahte çalışan”, “tükenmiş” gibi etiketler kullanmayın; sabit yüzdeler tanı değildir.",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "homework_load",
+      "category": "homework",
+      "title": "Ödev yükünü dengeleme",
+      "keywords": [
+        "odev yuku",
+        "biriken odev",
+        "geciken odev",
+        "yetisemiyor",
+        "plan hacmi"
+      ],
+      "guidance": "Mevcut açık ödevleri ve öğrencinin kullanılabilir çalışma süresini kontrol etmeden yeni görev önermeyin. Önce gecikme nedenlerini öğrenciyle görüşün.",
+      "teacher_question": "Ödevlerin birikmesine yol açan takvim veya erişim engeli var mı?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 4.3",
+      "caution": "Bu, dokümandaki dört durum tablosunun temkinli yorumudur.",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "editorial_safe_interpretation",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "weekly_srl_form",
+      "category": "planning",
+      "title": "Haftalık öz-izleme çizelgesi",
+      "keywords": [
+        "haftalik",
+        "oz izleme",
+        "calisma blogu",
+        "odak",
+        "haftalik form",
+        "planlayici"
+      ],
+      "guidance": "Mevcut Haftalık Planlayıcıda kazanım hedefi, planlanan/gerçekleşen çalışma ve öz-yansıma alanlarını ilişkilendirin. Yeni ikinci bir plan kayıt sistemi kurmayın.",
+      "teacher_question": "Hangi hedefi, hangi gün hangi kanıtla kontrol edebiliriz?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 5 — Şablon 2",
+      "caution": "",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "exam_error_sheet",
+      "category": "assessment",
+      "title": "Deneme yanlışlarını dört nedene göre görüşme",
+      "keywords": [
+        "deneme analizi",
+        "yanlis analizi",
+        "bos",
+        "kok neden",
+        "sinav",
+        "röntgen"
+      ],
+      "guidance": "Doğru-yanlış-boş sayıları yanında olası hata nedenlerini öğretmen doğrulamasıyla not edebilirsiniz; aynı soruya birden fazla neden eşlik edebilir.",
+      "teacher_question": "Bu yanlışı bilgi, yorum, dikkat veya süre açısından birlikte inceleyelim mi?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 5 — Şablon 3",
+      "caution": "",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "initial_conversation",
+      "category": "coaching",
+      "title": "Başlangıç görüşmesinde hazırbulunuşluk",
+      "keywords": [
+        "ilk gorusme",
+        "hazirbulunusluk",
+        "ogrenci profili",
+        "hedef sinav",
+        "baslangic"
+      ],
+      "guidance": "Hedef, derslerde güçlü/zorlanılan alanlar ve çalışma alışkanlıkları hakkında öğrenci anlatımı alın. Öz-bildirimi akademik tanı saymayın.",
+      "teacher_question": "Sence en rahat ilerlediğin iki ders ve en çok yardıma ihtiyaç duyduğun iki konu hangisi?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 5 — Şablon 1",
+      "caution": "",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "learning_strategy_choice",
+      "category": "learning_science",
+      "title": "Etkin hatırlama ve kendi cümleleriyle açıklama",
+      "keywords": [
+        "feynman",
+        "aktif hatirlama",
+        "ozet",
+        "kendi cumleleri",
+        "calisma yontemi",
+        "ezber"
+      ],
+      "guidance": "Öğrenciye konuyu kendi cümleleriyle açıklatma veya soruları yeniden çözme gibi aktif yöntemleri denetimli seçenek olarak sunun; aynı yöntem her öğrenci için mutlak değildir.",
+      "teacher_question": "Bu konuyu hiç bakmadan iki cümleyle anlatabilir misin?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 3.3",
+      "caution": "",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "prerequisite_topics",
+      "category": "curriculum",
+      "title": "Önkoşul konu kontrolü",
+      "keywords": [
+        "onkosul",
+        "dag",
+        "bir sonraki konu",
+        "hazirlik",
+        "temel eksik",
+        "kazanim agaci"
+      ],
+      "guidance": "İleri kazanımda tekrar eden hata varsa doğrulanmış müfredat ilişkilerinden önceki gerekli kazanımları inceleyin. Önkoşul eksikliği tek bir yanlışla kesinleşmez.",
+      "teacher_question": "Bu kazanım için hangi temel bilgi gerçekten gerekli ve ölçüldü?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 1.2 ve 4.1",
+      "caution": "",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "student_agency",
+      "category": "pedagogy",
+      "title": "Öğrencinin karar sürecine katılması",
+      "keywords": [
+        "ic motivasyon",
+        "sorumluluk",
+        "ogrenci karari",
+        "ustbilis",
+        "kocluk",
+        "farkindalik"
+      ],
+      "guidance": "Öğrencinin kendi stratejisini seçmesini, kanıtı değerlendirmesini ve uygulama planına katılmasını teşvik edin. Öğretmen rehberliği korunur.",
+      "teacher_question": "Bu hedefe ulaşmak için denemek istediğin iki yöntem nedir?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 1.1 ve 2",
+      "caution": "",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "test_distress",
+      "category": "student_support",
+      "title": "Sınav sırasında zorlanma hakkında destekleyici görüşme",
+      "keywords": [
+        "sinav kaygisi",
+        "panik",
+        "kaygi",
+        "nefes",
+        "gerginlik",
+        "sinav stres"
+      ],
+      "guidance": "Öğrencinin sınav deneyimini yargılamadan dinleyin; okulun yetkili rehberlik birimi ve uygun destek süreçlerine başvurmayı değerlendirin. Öz-bildirimi klinik tanı olarak yorumlamayın.",
+      "teacher_question": "Sınavın hangi anında daha çok zorlanıyorsun ve sana ne yardımcı oluyor?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 1.1",
+      "caution": "Bu metin ruh sağlığı değerlendirmesi veya tedavi protokolü değildir.",
+      "sensitive": true,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "task_initiation",
+      "category": "student_support",
+      "title": "Çalışmayı başlatmada yaşanan güçlük",
+      "keywords": [
+        "ertelemek",
+        "erteleme",
+        "masaya otur",
+        "gorev baslat",
+        "calismaya baslayam",
+        "baslayamiyor",
+        "baslayamama"
+      ],
+      "guidance": "Öğrenciyle başlatmayı zorlaştıran koşulları belirleyin ve küçük, ulaşılabilir bir ilk adım üzerinde anlaşın. Sebebi tek bir psikolojik kategoriye indirgemeyin.",
+      "teacher_question": "Çalışmaya başlamak için en küçük uygulanabilir adımın ne olabilir?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 1.1 ve 3.4",
+      "caution": "",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    },
+    {
+      "id": "doc_limitations",
+      "category": "methodology",
+      "title": "Kılavuz kurallarını yorumlarken güvenilirlik",
+      "keywords": [
+        "bilimsel",
+        "kaynak",
+        "formul",
+        "puanlama",
+        "esik",
+        "model",
+        "dokuman"
+      ],
+      "guidance": "Kılavuzdaki bazı oranlar, puan eşikleri ve kesin tanı ifadeleri örnek niteliğindedir; doğrulama olmadan öğrenciye uygulanacak otomatik karar kuralı olmamalıdır.",
+      "teacher_question": "Bu öneri için hangi veri ve hangi bilimsel gerekçe mevcut?",
+      "source_ids": [
+        "uploaded_coaching_guide"
+      ],
+      "source_section": "Bölüm 4.2–4.3",
+      "caution": "Yüklenen dosyadaki iddialar bağımsız olarak doğrulanmadı.",
+      "sensitive": false,
+      "status": "approved_pilot",
+      "evidence_type": "general_guidance",
+      "automatic_action_allowed": false
+    }
+  ]
+}

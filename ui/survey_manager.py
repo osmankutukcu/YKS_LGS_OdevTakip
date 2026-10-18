@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-YKS/LGS Profesyonel Öğrenci Tanıma, Bilimsel Envanterler ve Koçluk Analiz Sistemi
+YKS/LGS Öğrenci Öz-Değerlendirme ve Koçluk Görüşmesi Sistemi
 Rehberlik, Psikolojik Danışmanlık (PDR) ve Eğitim Koçluğu standartlarına uygun
-9 adet bilimsel envanter, alt boyut analizi ve pedagojik koçluk reçetesi motoru.
+9 adet öz-değerlendirme formu ve öğretmen görüşmesine destek amaçlı özetler.
 """
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ import sys
 import os
 import json
 import sqlite3
+from html import escape
+from services.survey_integrity_v8 import inspect_answers, complete_self_reports, safe_general_rows
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
@@ -85,8 +87,8 @@ class SurveyCatalog:
             "vark_learning": SurveyDefinition(
                 code="vark_learning",
                 category="Bilişsel & Öğrenme",
-                title="1. VARK Öğrenme Stilleri Envanteri",
-                description="Öğrencinin bilgiyi alma, işleme ve zihinde tutma kanalını (Görsel, İşitsel, Okuma/Yazma, Kinestetik) tespit eden bilimsel envanter.",
+                title="1. Öğrenme Tercihleri Formu",
+                description="Öğrencinin tercih ettiği çalışma yöntemlerini sorar; sabit öğrenme türü veya başarı kapasitesi belirlemez.",
                 dimensions={
                     "visual": "Görsel (Visual)",
                     "auditory": "İşitsel (Auditory)",
@@ -410,6 +412,8 @@ class StudentProfileAnalyzerV2:
             answers = _extract_answers(completed_surveys.get(code))
             if not answers: continue
             
+            if not inspect_answers(defn.questions, answers).complete:
+                continue
             sc = SurveyCatalog.score_likert_answers(defn, answers)
             scored[code] = {
                 "title": defn.title,
@@ -553,7 +557,7 @@ class StudentProfileAnalyzerV2:
 
 class SurveyManager(QWidget):
     """
-    Profesyonel Öğrenci Anket ve Bilimsel Profil Analiz Sistemi
+    Öğrenci Öz-Değerlendirme ve Görüşme Desteği
     """
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -580,15 +584,15 @@ class SurveyManager(QWidget):
         main.setSpacing(10)
 
         # -------------------------------------------------------------
-        # 1. Üst Yönetici Araç Çubuğu (Kompakt, Zengin, Canlı KPI'lı)
+        # 1. Üst Yönetici Araç Çubuğu (Kompakt, Minimalist, Tek Bakışta Yönetim)
         # -------------------------------------------------------------
         top_card = QFrame()
         top_card.setStyleSheet("""
             QFrame#topCard {
                 background-color: #ffffff;
                 border: 1px solid #e2e8f0;
-                border-radius: 10px;
-                padding: 10px 14px;
+                border-radius: 8px;
+                padding: 6px 10px;
             }
         """)
         top_card.setObjectName("topCard")
@@ -596,130 +600,36 @@ class SurveyManager(QWidget):
         top_card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         top_vlay = QVBoxLayout(top_card)
-        top_vlay.setContentsMargins(4, 4, 4, 4)
-        top_vlay.setSpacing(8)
+        top_vlay.setContentsMargins(2, 2, 2, 2)
+        top_vlay.setSpacing(4)
 
-        # 1. Satır: Başlık & Aksiyon Butonları
+        # 1. Satır: Form Seçici (Sol) & Kompakt Aksiyon Butonları (Sağ)
         row1 = QHBoxLayout()
-        row1.setSpacing(12)
+        row1.setSpacing(8)
 
-        v_head = QVBoxLayout()
-        v_head.setSpacing(2)
-        lbl_title = QLabel("🧠 <span style='color:#1e3a8a; font-weight:800; font-size:16px;'>Bilimsel Öğrenci Tanıma & Koçluk Envanterleri</span>")
-        lbl_subtitle = QLabel("PDR ve Eğitim Koçluğu standartlarında 9 büyük envanter, alt boyut analizi ve pedagojik reçete motoru")
-        lbl_subtitle.setStyleSheet("color: #64748b; font-size: 11px;")
-        v_head.addWidget(lbl_title)
-        v_head.addWidget(lbl_subtitle)
-        row1.addLayout(v_head)
+        lbl_title = QLabel("🧠 <b style='color:#1e3a8a; font-size:12px;'>Öz-Değerlendirme:</b>")
+        row1.addWidget(lbl_title)
 
-        row1.addStretch()
-
-        # Buton 1: 360 Raporu
-        btn_analyze = QPushButton("📊 360° Öğrenci Analiz Raporu")
-        btn_analyze.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_analyze.setFixedHeight(34)
-        btn_analyze.setToolTip("Öğrencinin tüm tamamlanmış anketlerini bütüncül olarak analiz eden ve koçluk reçetesi sunan 360° rapor")
-        btn_analyze.setStyleSheet("""
-            QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4f46e5, stop:1 #6366f1);
-                color: white;
-                font-weight: bold;
-                font-size: 11px;
-                border-radius: 6px;
-                padding: 0 14px;
-                border: none;
-            }
-            QPushButton:hover { background: #4338ca; }
-        """)
-        btn_analyze.clicked.connect(self._show_general_analysis)
-        row1.addWidget(btn_analyze)
-
-        # Buton 2: Yazdır
-        btn_print = QPushButton("🖨️ Yazdır / PDF")
-        btn_print.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_print.setFixedHeight(34)
-        btn_print.setToolTip("Gelişim raporunu yazdırın veya PDF olarak dışa aktarın")
-        btn_print.setStyleSheet("""
-            QPushButton {
-                background-color: #f8fafc;
-                color: #334155;
-                font-weight: bold;
-                font-size: 11px;
-                border-radius: 6px;
-                padding: 0 12px;
-                border: 1px solid #cbd5e1;
-            }
-            QPushButton:hover { background-color: #f1f5f9; }
-        """)
-        btn_print.clicked.connect(self._print_results)
-        row1.addWidget(btn_print)
-
-        # Buton 3: WhatsApp Özeti
-        btn_copy_wa = QPushButton("📱 WhatsApp Özeti")
-        btn_copy_wa.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_copy_wa.setFixedHeight(34)
-        btn_copy_wa.setToolTip("Veli ve öğrenciye gönderilmeye hazır şık formatlı analiz özetini panoya kopyalar")
-        btn_copy_wa.setStyleSheet("""
-            QPushButton {
-                background-color: #25D366;
-                color: white;
-                font-weight: bold;
-                font-size: 11px;
-                border-radius: 6px;
-                padding: 0 12px;
-                border: none;
-            }
-            QPushButton:hover { background-color: #1ebd5b; }
-        """)
-        btn_copy_wa.clicked.connect(self._copy_current_whatsapp)
-        row1.addWidget(btn_copy_wa)
-
-        # Buton 4: Öğrenciye Testi Gönder
-        btn_send_student = QPushButton("📲 Öğrenciye Gönder")
-        btn_send_student.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_send_student.setFixedHeight(34)
-        btn_send_student.setToolTip("Seçili anketin sorularını öğrencinin uzaktan telefondan yanıtlaması için WhatsApp metni olarak hazırlar")
-        btn_send_student.setStyleSheet("""
-            QPushButton {
-                background-color: #eff6ff;
-                color: #1d4ed8;
-                font-weight: bold;
-                font-size: 11px;
-                border-radius: 6px;
-                padding: 0 12px;
-                border: 1px solid #bfdbfe;
-            }
-            QPushButton:hover { background-color: #dbeafe; }
-        """)
-        btn_send_student.clicked.connect(self._send_survey_via_whatsapp)
-        row1.addWidget(btn_send_student)
-
-        top_vlay.addLayout(row1)
-
-        # 2. Satır: Envanter Seçici ve Canlı KPI İstatistikleri
-        row2 = QHBoxLayout()
-        row2.setSpacing(10)
-
-        row2.addWidget(QLabel("<b>Envanter / Ölçek:</b>"))
         self.cmb_survey = QComboBox()
-        self.cmb_survey.setMinimumWidth(320)
+        self.cmb_survey.setMinimumWidth(260)
+        self.cmb_survey.setFixedHeight(28)
         self.cmb_survey.setStyleSheet("""
             QComboBox {
                 background: white;
                 border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 5px 12px;
-                font-size: 12px;
+                border-radius: 5px;
+                padding: 2px 8px;
+                font-size: 11px;
                 font-weight: 600;
                 color: #1e293b;
             }
             QComboBox::drop-down {
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
-                width: 24px;
+                width: 20px;
                 border-left: 1px solid #e2e8f0;
-                border-top-right-radius: 6px;
-                border-bottom-right-radius: 6px;
+                border-top-right-radius: 5px;
+                border-bottom-right-radius: 5px;
                 background: transparent;
             }
             QComboBox::drop-down:hover { background: #f1f5f9; }
@@ -727,32 +637,142 @@ class SurveyManager(QWidget):
                 image: none;
                 border-left: 4px solid transparent;
                 border-right: 4px solid transparent;
-                border-top: 5px solid #64748b;
+                border-top: 4px solid #64748b;
             }
         """)
         self.cmb_survey.addItem("-- Envanter / Anket Seçiniz --", "")
         for code, defn in self.catalog.items():
             self.cmb_survey.addItem(f"[{defn.category}] {defn.title}", code)
         self.cmb_survey.currentTextChanged.connect(self._load_survey_form_wrapper)
-        row2.addWidget(self.cmb_survey)
+        row1.addWidget(self.cmb_survey)
 
-        row2.addSpacing(15)
+        row1.addStretch()
 
-        # Canlı Rozetler (KPI Badges)
-        self.lbl_badge_total = QLabel("📋 9 Bilimsel Ölçek")
-        self.lbl_badge_total.setStyleSheet("background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 11px;")
+        # Buton 1: 360 Raporu
+        btn_analyze = QPushButton("📊 360° Rapor")
+        btn_analyze.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_analyze.setFixedHeight(28)
+        btn_analyze.setToolTip("Tam yanıtlı, hassas olmayan çalışma anketlerinden görüşmeye yardımcı özet")
+        btn_analyze.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4f46e5, stop:1 #6366f1);
+                color: white;
+                font-weight: bold;
+                font-size: 11px;
+                border-radius: 5px;
+                padding: 0 10px;
+                border: none;
+            }
+            QPushButton:hover { background: #4338ca; 
+                color: #FFFFFF;}
+        """)
+        btn_analyze.clicked.connect(self._show_general_analysis)
+        row1.addWidget(btn_analyze)
+
+        # Buton 2: Yazdır
+        btn_print = QPushButton("🖨️ Yazdır")
+        btn_print.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_print.setFixedHeight(28)
+        btn_print.setToolTip("Gelişim raporunu yazdırın veya PDF olarak dışa aktarın")
+        btn_print.setStyleSheet("""
+            QPushButton {
+                background-color: #f8fafc;
+                color: #334155;
+                font-weight: bold;
+                font-size: 11px;
+                border-radius: 5px;
+                padding: 0 10px;
+                border: 1px solid #cbd5e1;
+            }
+            QPushButton:hover { background-color: #f1f5f9; 
+                color: #15191E;}
+        """)
+        btn_print.clicked.connect(self._print_results)
+        row1.addWidget(btn_print)
+
+        # Buton 3: WhatsApp Özeti
+        btn_copy_wa = QPushButton("📱 WhatsApp")
+        btn_copy_wa.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_copy_wa.setFixedHeight(28)
+        btn_copy_wa.setToolTip("Veli ve öğrenciye gönderilmeye hazır şık formatlı analiz özetini panoya kopyalar")
+        btn_copy_wa.setStyleSheet("""
+            QPushButton {
+                background-color: #25D366;
+                color: white;
+                font-weight: bold;
+                font-size: 11px;
+                border-radius: 5px;
+                padding: 0 10px;
+                border: none;
+            }
+            QPushButton:hover { background-color: #1ebd5b; 
+                color: #15191E;}
+        """)
+        btn_copy_wa.clicked.connect(self._copy_current_whatsapp)
+        row1.addWidget(btn_copy_wa)
+
+        # Buton 4: Öğrenciye Testi Gönder
+        btn_send_student = QPushButton("📲 Gönder")
+        btn_send_student.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_send_student.setFixedHeight(28)
+        btn_send_student.setToolTip("Seçili anketin sorularını öğrencinin uzaktan telefondan yanıtlaması için WhatsApp metni olarak hazırlar")
+        btn_send_student.setStyleSheet("""
+            QPushButton {
+                background-color: #eff6ff;
+                color: #1d4ed8;
+                font-weight: bold;
+                font-size: 11px;
+                border-radius: 5px;
+                padding: 0 10px;
+                border: 1px solid #bfdbfe;
+            }
+            QPushButton:hover { background-color: #dbeafe; 
+                color: #15191E;}
+        """)
+        btn_send_student.clicked.connect(self._send_survey_via_whatsapp)
+        row1.addWidget(btn_send_student)
+
+        # V9: separate opt-in link action; existing WhatsApp text remains untouched.
+        btn_online_survey = QPushButton("🔗 Çevrim İçi")
+        btn_online_survey.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_online_survey.setFixedHeight(28)
+        btn_online_survey.setToolTip("Tek kullanımlık bağlantıyı panoya kopyalar. HTTPS sunucusu gerektirir.")
+        btn_online_survey.setStyleSheet("""
+            QPushButton {
+                background-color: #f1f5f9;
+                color: #334155;
+                font-weight: bold;
+                font-size: 11px;
+                border-radius: 5px;
+                padding: 0 10px;
+                border: 1px solid #cbd5e1;
+            }
+            QPushButton:hover { background-color: #e2e8f0; 
+                color: #15191E;}
+        """)
+        btn_online_survey.clicked.connect(self._online_survey_menu_v9)
+        row1.addWidget(btn_online_survey)
+
+        top_vlay.addLayout(row1)
+
+        # 2. Satır: Kompakt Rozetler (KPI Badges)
+        row2 = QHBoxLayout()
+        row2.setSpacing(6)
+
+        self.lbl_badge_total = QLabel("📋 9 Form")
+        self.lbl_badge_total.setStyleSheet("background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 10px;")
         row2.addWidget(self.lbl_badge_total)
 
         self.lbl_badge_completed = QLabel("✅ 0 / 9 Tamamlandı")
-        self.lbl_badge_completed.setStyleSheet("background: #f0fdf4; color: #166534; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 11px; border: 1px solid #bbf7d0;")
+        self.lbl_badge_completed.setStyleSheet("background: #f0fdf4; color: #166534; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 10px; border: 1px solid #bbf7d0;")
         row2.addWidget(self.lbl_badge_completed)
 
-        self.lbl_badge_health = QLabel("🎯 Akademik Sağlık: --")
-        self.lbl_badge_health.setStyleSheet("background: #eff6ff; color: #1e40af; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 11px; border: 1px solid #bfdbfe;")
+        self.lbl_badge_health = QLabel("📋 Yanıt Durumu: --")
+        self.lbl_badge_health.setStyleSheet("background: #eff6ff; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 10px; border: 1px solid #bfdbfe;")
         row2.addWidget(self.lbl_badge_health)
 
-        self.lbl_badge_risk = QLabel("🛡️ Risk İndeksi: --")
-        self.lbl_badge_risk.setStyleSheet("background: #fef2f2; color: #991b1b; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 11px; border: 1px solid #fecaca;")
+        self.lbl_badge_risk = QLabel("🔒 Hassas veriler ayrı")
+        self.lbl_badge_risk.setStyleSheet("background: #fef2f2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 10px; border: 1px solid #fecaca;")
         row2.addWidget(self.lbl_badge_risk)
 
         row2.addStretch()
@@ -772,42 +792,58 @@ class SurveyManager(QWidget):
         left_vlay.setContentsMargins(0, 0, 0, 0)
         left_vlay.setSpacing(6)
 
-        # 1. Başlık ve İlerleme Kartı (Sticky Top)
+        # 1. Başlık ve İlerleme Kartı (Kompakt Tek/İki Satır Frame)
         self.survey_hdr_frame = QFrame()
-        self.survey_hdr_frame.setStyleSheet("QFrame { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }")
+        self.survey_hdr_frame.setStyleSheet("""
+            QFrame#surveyHdrFrame {
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 4px 8px;
+            }
+            QFrame#surveyHdrFrame QLabel {
+                border: none;
+                background: transparent;
+            }
+        """)
+        self.survey_hdr_frame.setObjectName("surveyHdrFrame")
         self.survey_hdr_frame.setVisible(False)
         sh_lay = QVBoxLayout(self.survey_hdr_frame)
-        sh_lay.setContentsMargins(2, 2, 2, 2)
-        sh_lay.setSpacing(4)
+        sh_lay.setContentsMargins(4, 3, 4, 3)
+        sh_lay.setSpacing(2)
+
+        sh_top = QHBoxLayout()
+        sh_top.setSpacing(6)
 
         self.lbl_survey_cat = QLabel("KATEGORİ")
-        self.lbl_survey_cat.setStyleSheet("font-size: 10px; font-weight: bold; color: #166534; letter-spacing: 1px;")
-        sh_lay.addWidget(self.lbl_survey_cat)
+        self.lbl_survey_cat.setStyleSheet("font-size: 9px; font-weight: bold; color: #166534; background: #dcfce7; padding: 1px 6px; border-radius: 3px;")
+        sh_top.addWidget(self.lbl_survey_cat)
 
         self.lbl_survey_tit = QLabel("Envanter Başlığı")
-        self.lbl_survey_tit.setStyleSheet("font-size: 16px; font-weight: bold; color: #0f172a;")
-        sh_lay.addWidget(self.lbl_survey_tit)
+        self.lbl_survey_tit.setStyleSheet("font-size: 12px; font-weight: bold; color: #0f172a;")
+        sh_top.addWidget(self.lbl_survey_tit)
 
-        self.lbl_survey_dsc = QLabel("Açıklama...")
-        self.lbl_survey_dsc.setStyleSheet("font-size: 12px; color: #475569;")
-        self.lbl_survey_dsc.setWordWrap(True)
-        sh_lay.addWidget(self.lbl_survey_dsc)
+        sh_top.addStretch()
 
-        # İlerleme Göstergesi
-        prog_row = QHBoxLayout()
-        prog_row.setSpacing(8)
-        self.lbl_survey_prog = QLabel("🎯 Cevaplanan: 0 / 0 (%0)")
-        self.lbl_survey_prog.setStyleSheet("font-size: 11px; font-weight: bold; color: #1e40af;")
-        prog_row.addWidget(self.lbl_survey_prog)
+        self.lbl_survey_prog = QLabel("🎯 0 / 0 (%0)")
+        self.lbl_survey_prog.setStyleSheet("font-size: 10px; font-weight: bold; color: #1e40af;")
+        sh_top.addWidget(self.lbl_survey_prog)
 
         self.survey_pbar = QProgressBar()
         self.survey_pbar.setRange(0, 100)
         self.survey_pbar.setValue(0)
-        self.survey_pbar.setFixedHeight(8)
+        self.survey_pbar.setFixedWidth(100)
+        self.survey_pbar.setFixedHeight(6)
         self.survey_pbar.setTextVisible(False)
-        self.survey_pbar.setStyleSheet("QProgressBar { background: #f1f5f9; border-radius: 4px; } QProgressBar::chunk { background: #22c55e; border-radius: 4px; }")
-        prog_row.addWidget(self.survey_pbar)
-        sh_lay.addLayout(prog_row)
+        self.survey_pbar.setStyleSheet("QProgressBar { background: #f1f5f9; border-radius: 3px; border: none; } QProgressBar::chunk { background: #22c55e; border-radius: 3px; }")
+        sh_top.addWidget(self.survey_pbar)
+
+        sh_lay.addLayout(sh_top)
+
+        self.lbl_survey_dsc = QLabel("Açıklama...")
+        self.lbl_survey_dsc.setStyleSheet("font-size: 10px; color: #64748b;")
+        self.lbl_survey_dsc.setWordWrap(True)
+        sh_lay.addWidget(self.lbl_survey_dsc)
 
         left_vlay.addWidget(self.survey_hdr_frame)
 
@@ -816,10 +852,11 @@ class SurveyManager(QWidget):
         self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet("QScrollArea { border: 1px solid #e2e8f0; border-radius: 8px; background: white; }")
         self.content_widget = QWidget()
+        self.content_widget.setStyleSheet("background: #ffffff;")
         self.content_lay = QVBoxLayout(self.content_widget)
         self.content_lay.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.content_lay.setContentsMargins(14, 14, 14, 14)
-        self.content_lay.setSpacing(10)
+        self.content_lay.setContentsMargins(8, 8, 8, 8)
+        self.content_lay.setSpacing(6)
         self.scroll.setWidget(self.content_widget)
         left_vlay.addWidget(self.scroll, 1)
 
@@ -829,18 +866,18 @@ class SurveyManager(QWidget):
             QFrame {
                 background-color: #ffffff;
                 border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                padding: 6px 12px;
+                border-radius: 6px;
+                padding: 4px 8px;
             }
         """)
         self.bottom_dock.setVisible(False)
         bot_lay = QHBoxLayout(self.bottom_dock)
-        bot_lay.setContentsMargins(6, 4, 6, 4)
-        bot_lay.setSpacing(10)
+        bot_lay.setContentsMargins(4, 2, 4, 2)
+        bot_lay.setSpacing(8)
 
         self.btn_reset_survey = QPushButton("🔄 Temizle")
         self.btn_reset_survey.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_reset_survey.setFixedHeight(36)
+        self.btn_reset_survey.setFixedHeight(30)
         self.btn_reset_survey.setToolTip("Bu anket için işaretlenen tüm şıkları temizle")
         self.btn_reset_survey.setStyleSheet("""
             QPushButton {
@@ -848,8 +885,8 @@ class SurveyManager(QWidget):
                 color: #64748b;
                 font-weight: 600;
                 font-size: 11px;
-                border-radius: 6px;
-                padding: 0 14px;
+                border-radius: 5px;
+                padding: 0 10px;
                 border: 1px solid #cbd5e1;
             }
             QPushButton:hover { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
@@ -857,23 +894,24 @@ class SurveyManager(QWidget):
         self.btn_reset_survey.clicked.connect(self._clear_current_form)
         bot_lay.addWidget(self.btn_reset_survey)
 
-        self.btn_quick = QPushButton("⚡ Hızlı 4 Puan Doldur")
+        self.btn_quick = QPushButton("Hazır Cevap Kapalı")
         self.btn_quick.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_quick.setFixedHeight(36)
-        self.btn_quick.setToolTip("Koç olarak hızlı değerlendirme için tüm sorulara varsayılan 4 (İyi) atar, istediğinizi değiştirebilirsiniz")
+        self.btn_quick.setFixedHeight(30)
+        self.btn_quick.setToolTip("Gerçek öğrenci cevaplarını taklit etmemek için otomatik doldurma kapalıdır.")
         self.btn_quick.setStyleSheet("""
             QPushButton {
                 background: #eff6ff;
                 color: #1d4ed8;
                 font-weight: 600;
                 font-size: 11px;
-                border-radius: 6px;
-                padding: 0 14px;
+                border-radius: 5px;
+                padding: 0 10px;
                 border: 1px solid #bfdbfe;
             }
-            QPushButton:hover { background: #dbeafe; }
+            QPushButton:hover { background: #dbeafe; 
+                color: #15191E;}
         """)
-        self.btn_quick.clicked.connect(self._quick_fill_average)
+        self.btn_quick.setEnabled(False)
         bot_lay.addWidget(self.btn_quick)
 
         self.lbl_dock_status = QLabel("Lütfen soruları yanıtlayınız...")
@@ -882,20 +920,21 @@ class SurveyManager(QWidget):
 
         bot_lay.addStretch()
 
-        self.btn_finish = QPushButton("✅ Cevapları Kaydet ve Bilimsel Analizi Gör")
+        self.btn_finish = QPushButton("✅ Yanıtları Kaydet / Özeti Gör")
         self.btn_finish.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_finish.setFixedHeight(38)
+        self.btn_finish.setFixedHeight(32)
         self.btn_finish.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #16a34a, stop:1 #15803d);
                 color: white;
                 font-weight: bold;
-                font-size: 12px;
-                border-radius: 6px;
-                padding: 0 20px;
+                font-size: 11px;
+                border-radius: 5px;
+                padding: 0 16px;
                 border: none;
             }
-            QPushButton:hover { background: #15803d; }
+            QPushButton:hover { background: #15803d; 
+                color: #FFFFFF;}
         """)
         self.btn_finish.clicked.connect(self._complete_survey)
         bot_lay.addWidget(self.btn_finish)
@@ -905,19 +944,30 @@ class SurveyManager(QWidget):
 
         # --- SAĞ PANEL: Geçmiş Listesi ve Hızlı Koçluk Reçetesi Kartı ---
         right_panel = QFrame()
-        right_panel.setMinimumWidth(320)
-        right_panel.setMaximumWidth(400)
-        right_panel.setStyleSheet("QFrame { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; }")
+        right_panel.setObjectName("surveyRightPanel")
+        right_panel.setMinimumWidth(240)
+        right_panel.setMaximumWidth(320)
+        right_panel.setStyleSheet("""
+            QFrame#surveyRightPanel {
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+            }
+            QFrame#surveyRightPanel QLabel {
+                border: none;
+                background: transparent;
+            }
+        """)
         r_lay = QVBoxLayout(right_panel)
-        r_lay.setContentsMargins(12, 12, 12, 12)
-        r_lay.setSpacing(8)
+        r_lay.setContentsMargins(8, 8, 8, 8)
+        r_lay.setSpacing(6)
 
         lbl_hist_title = QLabel("📋 <b>Tamamlanan Envanterler</b>")
-        lbl_hist_title.setStyleSheet("font-size: 13px; color: #0f172a; border: none;")
+        lbl_hist_title.setStyleSheet("font-size: 12px; color: #0f172a; border: none;")
         r_lay.addWidget(lbl_hist_title)
 
         lbl_hist_desc = QLabel("Geçmiş cevapları görmek veya analizi açmak için tıklayın.")
-        lbl_hist_desc.setStyleSheet("font-size: 11px; color: #64748b; border: none; margin-bottom: 4px;")
+        lbl_hist_desc.setStyleSheet("font-size: 10px; color: #64748b; border: none; margin-bottom: 2px;")
         r_lay.addWidget(lbl_hist_desc)
 
         self.history_list = QListWidget()
@@ -926,14 +976,15 @@ class SurveyManager(QWidget):
                 border: 1px solid #e2e8f0;
                 border-radius: 6px;
                 background: #f8fafc;
-                padding: 4px;
-            }
+                padding: 3px;
+            
+                color: #15191E;}
             QListWidget::item {
                 background: white;
                 border: 1px solid #e2e8f0;
-                border-radius: 6px;
-                padding: 8px;
-                margin-bottom: 6px;
+                border-radius: 5px;
+                padding: 6px;
+                margin-bottom: 4px;
             }
             QListWidget::item:hover {
                 background: #f0fdf4;
@@ -950,17 +1001,17 @@ class SurveyManager(QWidget):
 
         # Sağ Panel Alt: Koçluk Reçetesi Kartı
         self.pdr_tip_box = QFrame()
-        self.pdr_tip_box.setStyleSheet("QFrame { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; }")
+        self.pdr_tip_box.setStyleSheet("QFrame { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 6px; }")
         pt_lay = QVBoxLayout(self.pdr_tip_box)
-        pt_lay.setContentsMargins(6, 6, 6, 6)
-        pt_lay.setSpacing(4)
+        pt_lay.setContentsMargins(4, 4, 4, 4)
+        pt_lay.setSpacing(3)
 
-        lbl_pt_tit = QLabel("💡 <b>PDR & Koçluk Strateji Notu:</b>")
-        lbl_pt_tit.setStyleSheet("font-size: 11px; color: #166534; border: none;")
+        lbl_pt_tit = QLabel("💡 <b>Görüşme İpucu:</b>")
+        lbl_pt_tit.setStyleSheet("font-size: 10px; color: #166534; border: none;")
         pt_lay.addWidget(lbl_pt_tit)
 
         self.lbl_pdr_tip = QLabel("Bir envanter seçildiğinde o alana özel pedagojik yaklaşım ipuçları burada görünür.")
-        self.lbl_pdr_tip.setStyleSheet("font-size: 11px; color: #15803d; border: none;")
+        self.lbl_pdr_tip.setStyleSheet("font-size: 10px; color: #15803d; border: none;")
         self.lbl_pdr_tip.setWordWrap(True)
         pt_lay.addWidget(self.lbl_pdr_tip)
         r_lay.addWidget(self.pdr_tip_box)
@@ -968,7 +1019,7 @@ class SurveyManager(QWidget):
         # Sağ Panel Alt Buton: Sil
         btn_del_hist = QPushButton("🗑️ Seçili Anketi Sil")
         btn_del_hist.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_del_hist.setFixedHeight(30)
+        btn_del_hist.setFixedHeight(28)
         btn_del_hist.setStyleSheet("""
             QPushButton {
                 background: #ffffff;
@@ -976,16 +1027,17 @@ class SurveyManager(QWidget):
                 font-size: 11px;
                 font-weight: 600;
                 border: 1px solid #fecaca;
-                border-radius: 6px;
+                border-radius: 5px;
             }
-            QPushButton:hover { background: #fee2e2; }
+            QPushButton:hover { background: #fee2e2; 
+                color: #15191E;}
         """)
         btn_del_hist.clicked.connect(self._delete_selected_history)
         r_lay.addWidget(btn_del_hist)
 
         splitter.addWidget(right_panel)
-        splitter.setStretchFactor(0, 72)
-        splitter.setStretchFactor(1, 28)
+        splitter.setStretchFactor(0, 76)
+        splitter.setStretchFactor(1, 24)
 
         main.addWidget(splitter, 1)
         self._show_empty_intro()
@@ -993,14 +1045,19 @@ class SurveyManager(QWidget):
     def _show_empty_intro(self):
         while self.content_lay.count():
             child = self.content_lay.takeAt(0)
-            if child.widget(): child.widget().deleteLater()
+            if child:
+                w = child.widget()
+                if w:
+                    w.hide()
+                    w.setParent(None)
+                    w.deleteLater()
 
         if hasattr(self, 'survey_hdr_frame'):
             self.survey_hdr_frame.setVisible(False)
         if hasattr(self, 'bottom_dock'):
             self.bottom_dock.setVisible(False)
         if hasattr(self, 'lbl_pdr_tip'):
-            self.lbl_pdr_tip.setText("Yukarıdan bir envanter seçerek öğrencinin bilişsel, duygusal ve davranışsal özelliklerini analiz edebilirsiniz.")
+            self.lbl_pdr_tip.setText("Bir form seçerek öğrenciyle çalışma deneyimleri hakkında konuşabilirsiniz; yanıtlar kesin tanı değildir.")
 
         frame = QFrame()
         frame.setStyleSheet("background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 36px;")
@@ -1013,17 +1070,17 @@ class SurveyManager(QWidget):
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         l.addWidget(icon)
 
-        t = QLabel("<b>Bilimsel Öğrenci Tanıma ve Koçluk Envanterleri</b>")
+        t = QLabel("<b>Öğrenci Öz-Değerlendirme ve Koçluk Görüşmeleri</b>")
         t.setStyleSheet("font-size: 16px; color: #0f172a; border: none; background: transparent;")
         t.setAlignment(Qt.AlignmentFlag.AlignCenter)
         l.addWidget(t)
         info_txt = (
             "Yukarıdaki menüden bir envanter seçerek öğrencinin;<br>"
-            "• VARK Öğrenme Stilini (Görsel, İşitsel, Kinestetik, Okuma/Yazma)<br>"
-            "• Akademik Erteleme Nedenlerini ve Zaman Hırsızlarını<br>"
-            "• Sınav Kaygısı ve Bedensel Stres Faktörlerini<br>"
-            "• Masa Başı Odaklanma ve Gelişim Zihniyetini (Growth Mindset)<br>"
-            "bilimsel olarak test edebilir, tek tıkla koçluk reçetesi çıkarabilirsiniz."
+            "• Tercih ettiği çalışma yöntemlerini<br>"
+            "• Çalışmaya başlamayı zorlaştıran durumları<br>"
+            "• Sınavla ilgili kendi deneyimlerini (yetkili görüşmede)<br>"
+            "• Odak, zaman ve çalışma alışkanlıklarını<br>"
+            "konuşmak üzere kaydedebilirsiniz; sonuçlar tanı veya kesin reçete değildir."
         )
         info = QLabel(info_txt)
         info.setStyleSheet("font-size: 13px; color: #475569; line-height: 1.6; border: none; background: transparent;")
@@ -1040,7 +1097,12 @@ class SurveyManager(QWidget):
         
         while self.content_lay.count():
             child = self.content_lay.takeAt(0)
-            if child.widget(): child.widget().deleteLater()
+            if child:
+                w = child.widget()
+                if w:
+                    w.hide()
+                    w.setParent(None)
+                    w.deleteLater()
             
         if not code or code not in self.catalog:
             self._show_empty_intro()
@@ -1048,7 +1110,8 @@ class SurveyManager(QWidget):
 
         self.current_survey_code = code
         defn = self.catalog[code]
-        self.answers = saved_answers.copy() if saved_answers else {}
+        self.answers = saved_answers.copy() if isinstance(saved_answers, dict) else {}
+        self._history_preview_mode = saved_answers is not None
 
         # 1. Sticky Header Frame Bilgilerini Doldur
         if hasattr(self, 'survey_hdr_frame'):
@@ -1060,58 +1123,63 @@ class SurveyManager(QWidget):
 
         # 2. PDR İpucu Notunu Güncelle
         pdr_notes = {
-            "vark_learning": "VARK analizi öğrencinin bilgiyi en rahat işlediği duyusal kanalı gösterir. Baskın stile göre ders çalışma materyali seçiniz.",
-            "procrastination": "Erteleme genellikle tembellikten değil, mükemmeliyetçilik veya başarısızlık korkusundan kaynaklanır. Kök nedeni tespit ediniz.",
-            "exam_anxiety": "Sınav kaygısı yüksekse nefes egzersizleri ve sınav anı zihinsel blokajları yönetme teknikleri uygulayınız.",
+            "vark_learning": "Çalışma tercihlerinden yola çıkarak farklı yöntemleri birlikte deneyin; sabit öğrenme stili varsaymayın.",
+            "procrastination": "Öğrenciye hangi durumlarda başlamanın zorlaştığını ve neyin yardımcı olduğunu sorun; nedene karar vermeyin.",
+            "exam_anxiety": "Sınav deneyimiyle ilgili yanıtlar hassastır; öğrenciyi etiketlemeden yetkili uzmanla görüşme gereksinimini değerlendirin.",
             "study_habits": "Masa başı disiplini ve deneme analizi alışkanlığı eksikse haftalık somut blok planlama yapınız.",
             "self_efficacy": "Öz-yeterlik düşüklüğünde küçük başarılabilir adımlarla başarı hazzını yeniden inşa ediniz.",
             "time_management": "Pomodoro veya 50+10 blok yöntemini öğrencinin odaklanma süresine göre kalibre ediniz.",
             "growth_mindset": "Hataları 'yetersizlik' değil, beynin öğrenme fırsatı olarak görmesini sağlayan koçluk dili kullanınız.",
-            "digital_distraction": "Çalışma masasında telefon bulundurmama kuralı ve ekran süresi sınırlandırması getirin.",
-            "sleep_energy": "Uyku kalitesi zihinsel zindeliğin %50'sidir. Sınav döneminde uyku hijyeni asla feda edilmemelidir."
+            "digital_distraction": "Öğrenciyle dikkat dağıtıcılar konusunda uygulanabilir seçenekleri görüşün.",
+            "sleep_energy": "Uyku ve enerjiyle ilgili öz-bildirimler hassastır; gerekirse uygun uzman desteği önerin."
         }
         if hasattr(self, 'lbl_pdr_tip'):
-            self.lbl_pdr_tip.setText(pdr_notes.get(code, "Bu envanter öğrencinin akademik başarısını doğrudan etkileyen kritik bir boyutu analiz eder."))
+            self.lbl_pdr_tip.setText(pdr_notes.get(code, "Bu form görüşmede ele alınabilecek çalışma deneyimleriyle ilgilidir."))
 
         # 3. Sabit Alt Eylem Barını Aç ve Güncelle
         if hasattr(self, 'bottom_dock'):
             self.bottom_dock.setVisible(True)
-            if saved_answers:
-                self.btn_finish.setText("📊 Bilimsel Analiz Raporunu Tekrar Gör")
+            if saved_answers is not None:
+                self.btn_finish.setText("📊 Geçmiş Kaydı İncele (Kaydetme Yok)")
             else:
-                self.btn_finish.setText("✅ Cevapları Kaydet ve Bilimsel Analizi Gör")
+                self.btn_finish.setText("✅ Yanıtları Kaydet / Özeti Gör")
 
         # 4. Soruları Oluştur
         self.button_groups = {}
 
         for idx, q in enumerate(defn.questions):
             q_card = QFrame()
+            q_card.setObjectName("qCard")
             q_card.setStyleSheet("""
-                QFrame {
+                QFrame#qCard {
                     background: #ffffff;
                     border: 1px solid #e2e8f0;
-                    border-radius: 8px;
-                    padding: 10px 12px;
+                    border-radius: 6px;
                 }
-                QFrame:hover {
+                QFrame#qCard:hover {
                     border-color: #93c5fd;
+                }
+                QFrame#qCard QLabel {
+                    border: none;
+                    background: transparent;
                 }
             """)
             q_lay = QVBoxLayout(q_card)
-            q_lay.setSpacing(8)
+            q_lay.setContentsMargins(10, 6, 10, 6)
+            q_lay.setSpacing(4)
 
             dim_label = ""
             if q.dimension and q.dimension in defn.dimensions:
                 dim_name = defn.dimensions[q.dimension]
-                dim_label = f" <span style='color: #6366f1; font-size: 11px; font-weight: 600;'>[{dim_name}]</span>"
+                dim_label = f" <span style='color: #6366f1; font-size: 10px; font-weight: 600;'>[{dim_name}]</span>"
 
             lbl_q = QLabel(f"<b>{idx+1}.</b> {q.text}{dim_label}")
-            lbl_q.setStyleSheet("font-size: 13px; color: #1e293b; line-height: 1.4;")
+            lbl_q.setStyleSheet("font-size: 12px; color: #1e293b; line-height: 1.3;")
             lbl_q.setWordWrap(True)
             q_lay.addWidget(lbl_q)
 
             row = QHBoxLayout()
-            row.setSpacing(8)
+            row.setSpacing(6)
             bg = QButtonGroup(q_card)
             bg.buttonClicked.connect(lambda btn, k=q.key: self._on_answer_changed(k, btn))
             self.button_groups[q.key] = bg
@@ -1132,10 +1200,10 @@ class SurveyManager(QWidget):
                 rb.setCursor(Qt.CursorShape.PointingHandCursor)
                 rb.setStyleSheet("""
                     QRadioButton {
-                        font-size: 11px;
+                        font-size: 10px;
                         color: #475569;
-                        spacing: 5px;
-                        padding: 2px 6px;
+                        spacing: 4px;
+                        padding: 1px 4px;
                     }
                     QRadioButton:hover {
                         color: #1e293b;
@@ -1145,7 +1213,7 @@ class SurveyManager(QWidget):
                     QRadioButton::indicator:checked {
                         background-color: #2563eb;
                         border: 2px solid white;
-                        border-radius: 6px;
+                        border-radius: 5px;
                     }
                 """)
                 bg.addButton(rb)
@@ -1160,194 +1228,89 @@ class SurveyManager(QWidget):
         self._update_progress_display()
 
     def _quick_fill_average(self):
-        if not self.current_survey_code: return
-        defn = self.catalog[self.current_survey_code]
-        for q in defn.questions:
-            bg = self.button_groups.get(q.key)
-            if bg:
-                for btn in bg.buttons():
-                    if btn.property("val") == 4:
-                        btn.setChecked(True)
-                        self.answers[q.key] = 4
-                        break
+        """Disabled: artificial responses must never be stored as student answers."""
+        QMessageBox.information(self, "Gerçek yanıt koruması",
+            "Otomatik 4 puan doldurma kapalıdır. Öğrenci yanıtları tek tek işaretlenmelidir.")
 
     def _on_answer_changed(self, key, btn):
         val = btn.property("val")
         self.answers[key] = val
+        # The original history remains immutable; changing a response explicitly
+        # creates a NEW version only if the teacher presses Save.
+        if getattr(self, '_history_preview_mode', False):
+            self._history_preview_mode = False
+            self.btn_finish.setText('✅ Değiştirilen Yanıtları Yeni Kayıt Olarak Kaydet')
         self._update_progress_display()
 
     def _complete_survey(self):
-        if not self.current_survey_code: return
+        if not self.current_survey_code:
+            return
         if not self.current_student_id:
             QMessageBox.warning(self, "Hata", "Lütfen önce sol listeden bir öğrenci seçiniz.")
             return
-
-        defn = self.catalog[self.current_survey_code]
-        if len(self.answers) < len(defn.questions):
-            unanswered = len(defn.questions) - len(self.answers)
+        definition = self.catalog[self.current_survey_code]
+        audit = inspect_answers(definition.questions, self.answers)
+        if audit.invalid_keys:
+            QMessageBox.warning(self, "Geçersiz Yanıt", "Bazı yanıtlar 1–5 aralığında değil; kayıt yapılmadı.")
+            return
+        if getattr(self, '_history_preview_mode', False):
+            self._show_survey_result_modal(self.current_survey_code, audit.valid_answers)
+            return
+        if audit.partial:
             res = QMessageBox.question(
-                self, "Eksik Sorular",
-                f"Henüz cevaplanmamış {unanswered} soru var. Yine de kaydedip mevcut cevaplarla analiz edilsin mi?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                self, "Eksik Yanıt — Taslak Kaydı",
+                f"Yanıtlanan: {audit.answered}/{audit.expected}. Eksik cevaplar tamamlanmış anket gibi analiz edilmeyecek. Taslak kaydedilsin mi?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if res != QMessageBox.StandardButton.Yes:
                 return
-
-        con = db.get_conn()
+        connection = db.get_conn()
         try:
-            answers_json = json.dumps(self.answers)
-            cur = con.execute("""
-                INSERT INTO ogrenci_anket (ogrenci_id, anket_kodu, cevaplar)
-                VALUES (?, ?, ?)
-            """, (self.current_student_id, self.current_survey_code, answers_json))
-            con.commit()
-
-            self.completed_surveys_data[self.current_survey_code] = {
-                "answers": self.answers.copy(),
-                "date": str(datetime.now())
-            }
-        except Exception as e:
-            QMessageBox.critical(self, "Hata", f"Kaydedilemedi: {e}")
+            connection.execute(
+                "INSERT INTO ogrenci_anket (ogrenci_id, anket_kodu, cevaplar) VALUES (?, ?, ?)",
+                (self.current_student_id, self.current_survey_code,
+                 json.dumps(audit.valid_answers, ensure_ascii=False)),
+            )
+            connection.commit()
+        except Exception as exc:
+            QMessageBox.critical(self, "Kayıt Hatası", f"Anket kaydı yapılamadı: {exc}")
             return
-            if self.completed_surveys_data and hasattr(self, 'lbl_badge_health'):
-                try:
-                    prof = StudentProfileAnalyzerV2.analyze(self.completed_surveys_data, student_name=self.current_student_name)
-                    ah = prof.get('academic_health', 0)
-                    ri = prof.get('risk_index', 0)
-                    h_color = "#16a34a" if ah >= 70 else ("#d97706" if ah >= 45 else "#dc2626")
-                    r_color = "#16a34a" if ri <= 35 else ("#d97706" if ri <= 65 else "#dc2626")
-                    self.lbl_badge_health.setText(f"🎯 Sağlık: <b style='color:{h_color}'>%{ah}</b>")
-                    self.lbl_badge_risk.setText(f"🛡️ Risk: <b style='color:{r_color}'>%{ri}</b>")
-                except Exception:
-                    pass
-            elif hasattr(self, 'lbl_badge_health'):
-                self.lbl_badge_health.setText("🎯 Sağlık: <b>--</b>")
-                self.lbl_badge_risk.setText("🛡️ Risk: <b>--</b>")
         finally:
-            con.close()
-
+            connection.close()
         self._load_history()
-        self._show_survey_result_modal(self.current_survey_code, self.answers)
+        if audit.complete:
+            self._show_survey_result_modal(self.current_survey_code, audit.valid_answers)
+        else:
+            QMessageBox.information(self, "Taslak Kaydedildi",
+                "Eksik yanıtlar saklandı; genel profil veya puanlı rapora dahil edilmedi.")
 
     def _show_survey_result_modal(self, code: str, answers: Dict[str, Any]):
-        defn = self.catalog.get(code)
-        if not defn: return
-
-        sc = SurveyCatalog.score_likert_answers(defn, answers)
-        pct = sc["pct"]
-        is_risk = defn.risk_inverted
-
-        if is_risk:
-            if pct <= 35:
-                status_text = f"🟢 {defn.low_label}"
-                status_color = "#15803d"
-            elif pct <= 65:
-                status_text = f"🟡 {defn.mid_label}"
-                status_color = "#b45309"
-            else:
-                status_text = f"🔴 {defn.high_label}"
-                status_color = "#b91c1c"
-        else:
-            if pct >= 70:
-                status_text = f"🟢 {defn.high_label}"
-                status_color = "#15803d"
-            elif pct >= 45:
-                status_text = f"🟡 {defn.mid_label}"
-                status_color = "#b45309"
-            else:
-                status_text = f"🔴 {defn.low_label}"
-                status_color = "#b91c1c"
-
+        definition = self.catalog.get(code)
+        if definition is None:
+            return
+        audit = inspect_answers(definition.questions, answers)
+        if not audit.complete:
+            QMessageBox.information(self, "Eksik Yanıt",
+                f"Bu kayıt {audit.answered}/{audit.expected} yanıt içeriyor. Tamamlanmadan özet üretilemez.")
+            return
         dlg = QDialog(self)
-        dlg.setWindowTitle(f"Analiz Raporu: {defn.title}")
-        dlg.resize(650, 520)
-        l = QVBoxLayout(dlg)
-        l.setSpacing(12)
-
-        top_box = QFrame()
-        top_box.setStyleSheet(f"background: #f8fafc; border: 1px solid #e2e8f0; border-left: 6px solid {status_color}; border-radius: 8px; padding: 14px;")
-        tb_lay = QVBoxLayout(top_box)
-        
-        lbl_h = QLabel(f"<b>{defn.title} - Değerlendirme Sonucu</b>")
-        lbl_h.setStyleSheet("font-size: 15px; color: #0f172a;")
-        tb_lay.addWidget(lbl_h)
-
-        score_lbl = QLabel(f"Skor: <b>{sc['score']} / {sc['max']}</b> (%{pct}) — <span style='color:{status_color}; font-weight:bold;'>{status_text}</span>")
-        score_lbl.setStyleSheet("font-size: 14px; margin-top: 4px;")
-        tb_lay.addWidget(score_lbl)
-
-        pbar = QProgressBar()
-        pbar.setRange(0, 100)
-        pbar.setValue(pct)
-        pbar.setFixedHeight(14)
-        pbar.setTextVisible(False)
-        pbar.setStyleSheet(f"""
-            QProgressBar {{
-                background: #e2e8f0;
-                border-radius: 7px;
-            }}
-            QProgressBar::chunk {{
-                background: {status_color};
-                border-radius: 7px;
-            }}
-        """)
-        tb_lay.addWidget(pbar)
-        l.addWidget(top_box)
-
-        dims = sc.get("dimensions", {})
-        if dims:
-            dim_box = QFrame()
-            dim_box.setStyleSheet("background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;")
-            dim_lay = QVBoxLayout(dim_box)
-            dim_lay.addWidget(QLabel("<b>📊 Alt Boyut Analizi:</b>"))
-
-            grid = QGridLayout()
-            row_idx = 0
-            for k, ddata in dims.items():
-                grid.addWidget(QLabel(f"• <b>{ddata['name']}</b>:"), row_idx, 0)
-                grid.addWidget(QLabel(f"%{ddata['pct']} ({ddata['score']}/{ddata['max']} Puan)"), row_idx, 1)
-                
-                dpbar = QProgressBar()
-                dpbar.setRange(0, 100)
-                dpbar.setValue(ddata['pct'])
-                dpbar.setFixedHeight(10)
-                dpbar.setTextVisible(False)
-                dpbar.setStyleSheet("QProgressBar { background: #f1f5f9; border-radius: 5px; } QProgressBar::chunk { background: #6366f1; border-radius: 5px; }")
-                grid.addWidget(dpbar, row_idx, 2)
-                row_idx += 1
-
-            dim_lay.addLayout(grid)
-            l.addWidget(dim_box)
-
-        full_profile = StudentProfileAnalyzerV2.analyze({code: {"answers": answers}})
-        strat = full_profile.get("coach_strategy", [])
-        tasks = full_profile.get("student_action_tasks", [])
-
-        info_txt = QTextEdit()
-        info_txt.setReadOnly(True)
-        html_report = "<div style='font-size: 13px; color: #1e293b;'>"
-        if strat:
-            html_report += "<h4 style='color:#1e40af; margin-bottom: 6px;'>🎯 Bu Öğrenci İçin Koçluk Stratejisi:</h4>"
-            for s in strat:
-                html_report += f"<p style='margin: 4px 0;'>{s}</p>"
-        if tasks:
-            html_report += "<h4 style='color:#15803d; margin-top: 12px; margin-bottom: 6px;'>📋 Öğrenciye Verilecek Somut Eylem Görevleri:</h4>"
-            for t in tasks:
-                html_report += f"<p style='margin: 4px 0;'>• {t}</p>"
-        html_report += "</div>"
-        info_txt.setHtml(html_report)
-        l.addWidget(info_txt)
-
-        b_lay = QHBoxLayout()
-        b_lay.addStretch()
-        btn_close = QPushButton("Tamam / Kapat")
-        btn_close.setFixedWidth(120)
-        btn_close.setFixedHeight(34)
-        btn_close.setStyleSheet("background: #0f172a; color: white; font-weight: bold; border-radius: 6px;")
-        btn_close.clicked.connect(dlg.accept)
-        b_lay.addWidget(btn_close)
-        l.addLayout(b_lay)
-
+        dlg.setWindowTitle("Öğrenci Öz-Değerlendirme Özeti")
+        dlg.resize(600, 400)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel(f"<b>{escape(definition.title)}</b>"))
+        layout.addWidget(QLabel(f"Tam yanıt: {audit.answered}/{audit.expected}"))
+        avg = sum(audit.valid_answers.values()) / len(audit.valid_answers)
+        layout.addWidget(QLabel(f"İfadelere katılım ortalaması: {avg:.2f} / 5"))
+        txt = QTextEdit()
+        txt.setReadOnly(True)
+        txt.setHtml("<p>Bu form öğrencinin kendi beyanını yansıtır; psikolojik tanı, "
+                    "öğrenme türü veya bilimsel olarak kalibre edilmiş başarı skoru değildir.</p>"
+                    "<p>Sonuçları öğrenciyle görüşme sırasında, ölçüm ve ödev "
+                    "kanıtlarıyla birlikte değerlendirin. Öğrenciye otomatik ödev atanmaz.</p>")
+        layout.addWidget(txt)
+        close = QPushButton("Kapat")
+        close.clicked.connect(dlg.accept)
+        layout.addWidget(close)
         dlg.exec()
 
     def _update_progress_display(self):
@@ -1383,8 +1346,151 @@ class SurveyManager(QWidget):
         if not self.completed_surveys_data:
             QMessageBox.warning(self, "Uyarı", "Henüz tamamlanmış bir anket bulunmuyor. Önce bir anket tamamlayınız.")
             return
-        profile = StudentProfileAnalyzerV2.analyze(self.completed_surveys_data, student_name=self.current_student_name)
-        self._copy_whatsapp_summary(profile)
+        self._copy_whatsapp_summary({})
+
+    def _online_survey_menu_v9(self):
+        """Two actions, one button; avoid growing the crowded teacher toolbar."""
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        create_action = menu.addAction("Yeni güvenli bağlantıyı kopyala")
+        review_action = menu.addAction("Gelen yanıtları incele")
+        revoke_action = menu.addAction("Gönderilmiş bağlantıyı iptal et")
+        choice = menu.exec(self.cursor().pos())
+        if choice == create_action:
+            self._create_online_survey_v9()
+        elif choice == review_action:
+            self._review_online_surveys_v9()
+        elif choice == revoke_action:
+            self._revoke_online_survey_v9()
+
+    def _revoke_online_survey_v9(self):
+        if not self.current_student_id:
+            QMessageBox.warning(self,"Anket","Önce öğrenciyi seçiniz.")
+            return
+        from PyQt6.QtWidgets import QInputDialog
+        from services.survey_invite_writer_v9 import active_links,revoke_link
+        try:
+            sid=int(self.current_student_id)
+            links=active_links(sid)
+        except (ValueError,OSError,sqlite3.Error) as exc:
+            QMessageBox.warning(self,"Anket",str(exc))
+            return
+        if not links:
+            QMessageBox.information(self,"Anket","Bu öğrenciye ait aktif bağlantı yok.")
+            return
+        opts=[f"#{r['id']} · {r['survey_code']} · {r['expires_at'][:16]}" for r in links]
+        selected,ok=QInputDialog.getItem(self,"Bağlantı İptali",
+                 "İptal edilecek bağlantıyı seçiniz:",opts,0,False)
+        if not ok:return
+        item=links[opts.index(selected)]
+        if QMessageBox.question(self,"Bağlantıyı İptal Et",
+            "Seçili öğrencinin bu anket bağlantısı kalıcı olarak iptal edilsin mi?") != QMessageBox.StandardButton.Yes:
+            return
+        try:revoke_link(sid,int(item['id']))
+        except (ValueError,OSError,sqlite3.Error) as exc:
+            QMessageBox.warning(self,"Anket",str(exc))
+            return
+        QMessageBox.information(self,"İptal Edildi","Bağlantı artık kullanılamaz.")
+
+    def _review_online_surveys_v9(self):
+        """Existing student context, no new scoring or psychometric labels."""
+        if not self.current_student_id:
+            QMessageBox.warning(self, "Anket", "Önce öğrenciyi seçiniz.")
+            return
+        from services.survey_review_v9 import pending_for_student, decide
+        sid = int(self.current_student_id)
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Gelen Çevrim İçi Anketler")
+        dialog.resize(660, 520)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Öğrenci: " + (self.current_student_name or str(sid)) +
+                                " — Yanıtlar öğretmen onayından önce kaydedilmez."))
+        items = QListWidget()
+        details = QTextEdit()
+        details.setReadOnly(True)
+        layout.addWidget(items)
+        layout.addWidget(details)
+        buttons = QHBoxLayout()
+        approve_btn = QPushButton("İncele ve Kabul Et")
+        reject_btn = QPushButton("Reddet")
+        reload_btn = QPushButton("Yenile")
+        buttons.addWidget(approve_btn)
+        buttons.addWidget(reject_btn)
+        buttons.addWidget(reload_btn)
+        layout.addLayout(buttons)
+        current = []
+
+        def reload():
+            items.clear()
+            details.clear()
+            current.clear()
+            try:
+                current.extend(pending_for_student(sid))
+            except (ValueError, OSError, sqlite3.Error) as exc:
+                QMessageBox.warning(dialog, "Anket", str(exc))
+                return
+            for row in current:
+                item = QListWidgetItem(f"{row['survey_title']} · {row['received_at'][:16]}")
+                item.setData(Qt.ItemDataRole.UserRole, row['submission_id'])
+                items.addItem(item)
+            if not current:
+                details.setPlainText("Bekleyen anket bulunmuyor.")
+
+        def selected():
+            item=items.currentItem()
+            if item is None:return None
+            return next((r for r in current if r['submission_id']==item.data(Qt.ItemDataRole.UserRole)),None)
+
+        def show_detail():
+            row=selected()
+            if not row:return
+            lines=[row['survey_title'], 'Yanıt tarihi: '+row['received_at'],
+                   'Bu cevaplar öğrencinin kendi bildirdiği görüşlerdir; tanı değildir.', '']
+            for i,q in enumerate(row['questions'], 1):
+                lines.append(f"{i}. {q['text']}\n   Yanıt: {row['answers'].get(q['key'], '—')} / 5")
+            details.setPlainText('\n\n'.join(lines))
+
+        def act(decision):
+            row=selected()
+            if not row:
+                QMessageBox.information(dialog,"Anket","Önce gelen bir anketi seçiniz.")
+                return
+            label='öğrenci anket geçmişine aktarılsın' if decision=='approved' else 'reddedilsin'
+            if QMessageBox.question(dialog,"Onay",f"Seçilen yanıt {label}?") != QMessageBox.StandardButton.Yes:
+                return
+            try:
+                decide(int(row['submission_id']),decision)
+            except (ValueError,OSError,sqlite3.Error) as exc:
+                QMessageBox.warning(dialog,"İşlem gerçekleşmedi",str(exc))
+                return
+            reload()
+            if decision=='approved':
+                self._load_history()
+
+        items.currentItemChanged.connect(lambda *_:show_detail())
+        reload_btn.clicked.connect(reload)
+        approve_btn.clicked.connect(lambda:act('approved'))
+        reject_btn.clicked.connect(lambda:act('rejected'))
+        reload()
+        dialog.exec()
+
+    def _create_online_survey_v9(self):
+        """No automatic WhatsApp sending or student answer writes."""
+        if not self.current_student_id or not self.current_survey_code:
+            QMessageBox.warning(self, "Anket", "Önce öğrenciyi ve anketi seçiniz.")
+            return
+        try:
+            from services.survey_invite_writer_v9 import create_link
+            result = create_link(int(self.current_student_id), self.current_survey_code)
+        except (ValueError, RuntimeError, OSError, ImportError) as exc:
+            QMessageBox.warning(self, "Çevrim İçi Anket", str(exc))
+            return
+        from PyQt6.QtWidgets import QApplication
+        QApplication.clipboard().setText(result['url'])
+        QMessageBox.information(self, "Bağlantı Hazır",
+            "3 gün geçerli tek kullanımlık bağlantı panoya kopyalandı. "
+            "WhatsApp veya başka bir güvenli kanaldan yalnızca ilgili öğrenciye gönderiniz. "
+            "Yanıtlar öğretmen onayı olmadan öğrenci profiline eklenmez.")
 
     def _send_survey_via_whatsapp(self):
         if not self.current_survey_code or self.current_survey_code not in self.catalog:
@@ -1452,68 +1558,55 @@ class SurveyManager(QWidget):
 
     def _load_history(self):
         self.history_list.clear()
-        if not self.current_student_id: return
-
-        con = db.get_conn()
+        self.completed_surveys_data = {}
+        if not self.current_student_id:
+            return
+        connection = db.get_conn()
         try:
-            rows = con.execute("""
-                SELECT id, anket_kodu, cevaplar, tarih FROM ogrenci_anket 
-                WHERE ogrenci_id=? ORDER BY tarih DESC
+            rows = connection.execute("""
+                SELECT id, anket_kodu, cevaplar, tarih FROM ogrenci_anket
+                WHERE ogrenci_id=? ORDER BY tarih DESC, id DESC
             """, (self.current_student_id,)).fetchall()
-
-            self.completed_surveys_data = {}
-
-            # Update live header badges
-            completed_count = len(rows)
+            latest_seen = set()
+            for row in rows:
+                code = row['anket_kodu']
+                definition = self.catalog.get(code)
+                try:
+                    answers = json.loads(row['cevaplar'])
+                except (ValueError, TypeError):
+                    answers = None
+                audit = inspect_answers(definition.questions, answers) if definition else None
+                if not definition:
+                    state = 'Tanımsız form'
+                elif audit.complete:
+                    state = f'Tamamlandı ({audit.answered}/{audit.expected})'
+                elif audit.invalid_keys:
+                    state = 'Geçersiz/okunamayan yanıt — inceleme gerekli'
+                else:
+                    state = f'Taslak ({audit.answered}/{audit.expected})'
+                title = definition.title if definition else code
+                item = QListWidgetItem(f"{title} · {state}\n📅 {str(row['tarih'])[:16]}")
+                item.setData(Qt.ItemDataRole.UserRole, {
+                    'code': code, 'answers': answers if isinstance(answers, dict) else {},
+                    'date': row['tarih'], 'db_id': row['id']})
+                self.history_list.addItem(item)
+                # Only the newest record may represent a survey's CURRENT state.
+                # Never substitute older full responses if the latest is a draft.
+                if code not in latest_seen:
+                    latest_seen.add(code)
+                    if definition and audit.complete:
+                        self.completed_surveys_data[code] = {
+                            'answers': audit.valid_answers, 'date': row['tarih']}
             if hasattr(self, 'lbl_badge_completed'):
-                # Unique completed
-                unique_codes = {r["anket_kodu"] for r in rows}
-                self.lbl_badge_completed.setText(f"✅ {len(unique_codes)} / 9 Tamamlandı")
-
-            for r in rows:
-                code = r["anket_kodu"]
-                try:
-                    ans = json.loads(r["cevaplar"])
-                    if code not in self.completed_surveys_data:
-                        self.completed_surveys_data[code] = {"answers": ans, "date": r["tarih"]}
-
-                    defn = self.catalog.get(code)
-                    title = defn.title if defn else code
-                    
-                    score_info = ""
-                    if defn:
-                        sc = SurveyCatalog.score_likert_answers(defn, ans)
-                        pct = sc["pct"]
-                        if defn.risk_inverted:
-                            badge = "🟢" if pct <= 35 else ("🟡" if pct <= 65 else "🔴")
-                        else:
-                            badge = "🟢" if pct >= 70 else ("🟡" if pct >= 45 else "🔴")
-                        score_info = f" {badge} (%{pct})"
-
-                    date_str = str(r["tarih"])[:16]
-                    item_text = f"{title}{score_info}\n📅 {date_str}"
-                    item = QListWidgetItem(item_text)
-                    item_data = {"code": code, "answers": ans, "date": r["tarih"], "db_id": r["id"]}
-                    item.setData(Qt.ItemDataRole.UserRole, item_data)
-                    self.history_list.addItem(item)
-                except Exception:
-                    pass
-            if self.completed_surveys_data and hasattr(self, 'lbl_badge_health'):
-                try:
-                    prof = StudentProfileAnalyzerV2.analyze(self.completed_surveys_data, student_name=self.current_student_name)
-                    ah = prof.get('academic_health', 0)
-                    ri = prof.get('risk_index', 0)
-                    h_color = "#16a34a" if ah >= 70 else ("#d97706" if ah >= 45 else "#dc2626")
-                    r_color = "#16a34a" if ri <= 35 else ("#d97706" if ri <= 65 else "#dc2626")
-                    self.lbl_badge_health.setText(f"🎯 Sağlık: <b style='color:{h_color}'>%{ah}</b>")
-                    self.lbl_badge_risk.setText(f"🛡️ Risk: <b style='color:{r_color}'>%{ri}</b>")
-                except Exception:
-                    pass
-            elif hasattr(self, 'lbl_badge_health'):
-                self.lbl_badge_health.setText("🎯 Sağlık: <b>--</b>")
-                self.lbl_badge_risk.setText("🛡️ Risk: <b>--</b>")
+                self.lbl_badge_completed.setText(
+                    f"✅ {len(self.completed_surveys_data)} / {len(self.catalog)} Tamamlandı")
+            if hasattr(self, 'lbl_badge_health'):
+                self.lbl_badge_health.setText(
+                    f"📋 Tam yanıt: {len(self.completed_surveys_data)}/{len(self.catalog)}")
+            if hasattr(self, 'lbl_badge_risk'):
+                self.lbl_badge_risk.setText('🔒 Hassas yanıtlar özel değerlendirilir')
         finally:
-            con.close()
+            connection.close()
 
     def _on_history_clicked(self, item):
         data = item.data(Qt.ItemDataRole.UserRole)
@@ -1577,6 +1670,7 @@ class SurveyManager(QWidget):
         self.current_survey_code = None
         self.completed_surveys_data = {}
         self.answers = {}
+        self._history_preview_mode = False
         self.history_list.clear()
         self.cmb_survey.blockSignals(True)
         self.cmb_survey.setCurrentIndex(0)
@@ -1584,170 +1678,65 @@ class SurveyManager(QWidget):
         self._show_empty_intro()
 
     def _show_general_analysis(self):
-        if not self.completed_surveys_data:
-            QMessageBox.warning(self, "Veri Yok", "Bu öğrenci için henüz tamamlanmış anket bulunmuyor.\nLütfen yukarıdan en az 1 anket seçip doldurunuz.")
+        rows = safe_general_rows(self.catalog, self.completed_surveys_data)
+        if not rows:
+            QMessageBox.information(self, 'Özet Yok',
+                'Genel özet için tamamlanmış ve paylaşımı uygun çalışma anketi bulunamadı.')
             return
-
-        profile = StudentProfileAnalyzerV2.analyze(
-            self.completed_surveys_data,
-            student_name=self.current_student_name
-        )
-
         dlg = QDialog(self)
-        dlg.setWindowTitle("360° Öğrenci Bilimsel Profil ve Koçluk Analiz Raporu")
-        dlg.resize(750, 620)
-        l = QVBoxLayout(dlg)
-        l.setSpacing(12)
-
-        hdr = QFrame()
-        hdr.setStyleSheet("background: #0f172a; color: white; border-radius: 8px; padding: 14px;")
-        hl = QVBoxLayout(hdr)
-        
-        std_name = self.current_student_name or "Öğrenci"
-        hl.addWidget(QLabel(f"<span style='font-size: 16px; font-weight: bold;'>👤 {std_name} — 360° Bütüncül Koçluk Profili</span>"))
-        hl.addWidget(QLabel(f"<span style='font-size: 12px; color: #94a3b8;'>{profile['summary_text']}</span>"))
-
-        kpi_row = QHBoxLayout()
-        kpi_row.setSpacing(15)
-
-        h_box = QFrame()
-        h_box.setStyleSheet("background: #1e293b; border-radius: 6px; padding: 8px;")
-        h_lay = QVBoxLayout(h_box)
-        h_lay.addWidget(QLabel(f"Akademik Sağlık İndeksi: <b>%{profile['academic_health']}</b>"))
-        hp = QProgressBar()
-        hp.setValue(profile['academic_health'])
-        hp.setFixedHeight(8)
-        hp.setTextVisible(False)
-        hp.setStyleSheet("QProgressBar { background: #334155; border-radius: 4px; } QProgressBar::chunk { background: #22c55e; border-radius: 4px; }")
-        h_lay.addWidget(hp)
-        kpi_row.addWidget(h_box)
-
-        r_box = QFrame()
-        r_box.setStyleSheet("background: #1e293b; border-radius: 6px; padding: 8px;")
-        r_lay = QVBoxLayout(r_box)
-        r_lay.addWidget(QLabel(f"Bileşik Risk Düzeyi: <b>%{profile['risk_index']}</b>"))
-        rp = QProgressBar()
-        rp.setValue(profile['risk_index'])
-        rp.setFixedHeight(8)
-        rp.setTextVisible(False)
-        rp.setStyleSheet("QProgressBar { background: #334155; border-radius: 4px; } QProgressBar::chunk { background: #ef4444; border-radius: 4px; }")
-        r_lay.addWidget(rp)
-        kpi_row.addWidget(r_box)
-
-        hl.addLayout(kpi_row)
-        l.addWidget(hdr)
-
-        txt = QTextEdit()
-        txt.setReadOnly(True)
-
-        html = "<div style='font-family: sans-serif; font-size: 13px; line-height: 1.6;'>"
-        
-        labels = profile.get("labels", [])
-        if labels:
-            html += "<h3 style='color: #1e40af; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;'>🔍 Bilişsel ve Davranışsal Bulgular</h3><ul>"
-            for lab in labels:
-                html += f"<li><b>{lab}</b></li>"
-            html += "</ul>"
-
-        vark = profile["scores"]["vark"]
-        if any(v > 0 for v in vark.values()):
-            html += "<h3 style='color: #1e40af; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;'>🎨 VARK Öğrenme Kanalı Dağılımı</h3>"
-            html += f"<p>• Görsel: <b>%{vark['visual']}</b> | İşitsel: <b>%{vark['auditory']}</b> | Okuma/Yazma: <b>%{vark['read_write']}</b> | Kinestetik: <b>%{vark['kinesthetic']}</b></p>"
-            html += f"<p><i>Baskın Kanal: <b>{profile['dominant_style']}</b> (Öğrencinin en yüksek kavrama sağladığı yöntemdir).</i></p>"
-
-        strat = profile.get("coach_strategy", [])
-        if strat:
-            html += "<h3 style='color: #15803d; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;'>🎯 Koç İçin Pedagojik Strateji Reçetesi</h3>"
-            for s in strat:
-                html += f"<p style='margin: 6px 0;'>{s}</p>"
-
-        tasks = profile.get("student_action_tasks", [])
-        if tasks:
-            html += "<h3 style='color: #b45309; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;'>📋 Öğrenciye Verilecek Haftalık Görevler</h3><ul>"
-            for t in tasks:
-                html += f"<li>{t}</li>"
-            html += "</ul>"
-
-        html += f"<br><p style='color: #64748b; font-size: 11px;'>Rapor Oluşturulma Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}</p></div>"
-
-        txt.setHtml(html)
-        l.addWidget(txt)
-
-        btn_bar = QHBoxLayout()
-        btn_copy_wa = QPushButton("📱 WhatsApp Metni Kopyala")
-        btn_copy_wa.setStyleSheet("background-color: #25D366; color: white; font-weight: bold; padding: 8px 16px; border-radius: 6px;")
-        btn_copy_wa.clicked.connect(lambda: self._copy_whatsapp_summary(profile))
-        btn_bar.addWidget(btn_copy_wa)
-
-        btn_bar.addStretch()
-
-        btn_close = QPushButton("Kapat")
-        btn_close.setFixedWidth(100)
-        btn_close.setStyleSheet("background: #0f172a; color: white; font-weight: bold; padding: 8px 16px; border-radius: 6px;")
-        btn_close.clicked.connect(dlg.accept)
-        btn_bar.addWidget(btn_close)
-
-        l.addLayout(btn_bar)
+        dlg.setWindowTitle('Öğrenci Öz-Değerlendirme: Çalışma Alışkanlıkları')
+        dlg.resize(720, 520)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel('Öğrencinin kendi bildirdiği çalışma alışkanlıkları'))
+        body = QTextEdit()
+        body.setReadOnly(True)
+        lines = ['<h3>Çalışma alışkanlıkları ve tercihler</h3>',
+                 '<p>Yanıt ortalamaları yalnızca 1–5 katılım düzeyidir; '
+                 'hâkimiyet, kişilik, öğrenme stili, klinik risk veya başarı puanı değildir.</p>']
+        for row in rows:
+            lines.append(f"<p><b>{escape(row['title'])}</b> — Yanıt ortalaması: "
+                         f"{row['response_mean']:.2f}/5; {row['answered']} yanıt; "
+                         f"tarih: {escape(str(row.get('date') or 'belirtilmemiş'))}</p>")
+        lines.append('<p>Görüşmede bu yanıtların doğruluğu ve öğrencinin kendi örnekleri sorulmalıdır.</p>')
+        body.setHtml('\n'.join(lines))
+        layout.addWidget(body)
+        close = QPushButton('Kapat')
+        close.clicked.connect(dlg.accept)
+        layout.addWidget(close)
         dlg.exec()
 
     def _copy_whatsapp_summary(self, profile: Dict[str, Any]):
         from PyQt6.QtWidgets import QApplication
-        std_name = self.current_student_name or "Değerli Öğrencimiz"
-        wa_text = (
-            f"🧠 *{std_name} — 360° Öğrenci Profil ve Koçluk Özeti*\n\n"
-            f"🎯 *Baskın Öğrenme Stili:* {profile['dominant_style']}\n"
-            f"📊 *Genel Akademik Sağlık:* %{profile['academic_health']}\n"
-            f"🛡️ *Risk İndeksi:* %{profile['risk_index']}\n\n"
-            f"*Öne Çıkan Bulgular:*\n"
-        )
-        for lab in profile.get("labels", []):
-            wa_text += f"• {lab}\n"
-
-        tasks = profile.get("student_action_tasks", [])
-        if tasks:
-            wa_text += f"\n*📋 Bu Haftaki Koçluk Görevlerin:*\n"
-            for t in tasks:
-                wa_text += f"• {t}\n"
-
-        wa_text += "\n_Başarı, doğru yöntem ve istikrarlı adımlarla gelir! 🚀_"
-
-        QApplication.clipboard().setText(wa_text)
-        QMessageBox.information(self, "Kopyalandı", "WhatsApp paylaşım metni panoya kopyalandı!\nİstediğiniz veli veya öğrenci sohbetine yapıştırabilirsiniz.")
+        rows = safe_general_rows(self.catalog, self.completed_surveys_data)
+        if not rows:
+            QMessageBox.warning(self, 'Paylaşılacak Özet Yok',
+                'Paylaşım için tamamlanmış ve hassas olmayan anket bulunamadı.')
+            return
+        # No responses about anxiety, sleep, health or psychological labels are shared.
+        parts = ['📋 *Çalışma Öz-Değerlendirmesi*',
+                 'Öğrencinin bildirdiği tercih/alışkanlıklar; tanı ya da başarı puanı değildir.']
+        for row in rows:
+            parts.append(f"• {row['title']}: {row['answered']} cevap ({str(row.get('date') or '')[:10]})")
+        QApplication.clipboard().setText('\n'.join(parts))
+        QMessageBox.information(self, 'Kopyalandı',
+            'Yalnızca hassas olmayan anketlerin başlık ve tamamlanma bilgisi kopyalandı.')
 
     def _print_results(self):
-        if not self.completed_surveys_data:
-            QMessageBox.warning(self, "Uyarı", "Yazdırılacak veri yok. Lütfen en az bir anket tamamlayınız.")
+        rows = safe_general_rows(self.catalog, self.completed_surveys_data)
+        if not rows:
+            QMessageBox.information(self, 'Yazdırılacak Özet Yok',
+                'Önce tamamlanmış ve hassas olmayan çalışma anketi gerekir.')
             return
-
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         dialog = QPrintDialog(printer, self)
-
         if dialog.exec() == QPrintDialog.DialogCode.Accepted:
-            profile = StudentProfileAnalyzerV2.analyze(self.completed_surveys_data, student_name=self.current_student_name)
-            std_name = self.current_student_name or "Öğrenci"
-
-            html = f"""
-            <h1 style='color: #0f172a;'>YKS/LGS Öğrenci Tanıma ve Koçluk Gelişim Raporu</h1>
-            <p><b>Öğrenci:</b> {std_name} | <b>Tarih:</b> {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
-            <hr>
-            <h3>1. Genel Bilişsel ve Davranışsal Durum</h3>
-            <p>• <b>Baskın Öğrenme Stili:</b> {profile['dominant_style']}</p>
-            <p>• <b>Akademik Sağlık İndeksi:</b> %{profile['academic_health']} | <b>Risk İndeksi:</b> %{profile['risk_index']}</p>
-            <h4>Tespit Edilen Göstergeler:</h4>
-            <ul>
-                {''.join(f'<li>{t}</li>' for t in profile['labels'])}
-            </ul>
-            <hr>
-            <h3>2. Pedagojik Koçluk Stratejisi</h3>
-            {''.join(f'<p>{s}</p>' for s in profile['coach_strategy'])}
-            <hr>
-            <h3>3. Öğrenci Haftalık Eylem Planı</h3>
-            <ul>
-                {''.join(f'<li>{t}</li>' for t in profile['student_action_tasks'])}
-            </ul>
-            <br><br>
-            <p><i>Eğitim Koçu İmzası: ____________________</i></p>
-            """
+            body = '<h2>Öğrenci Çalışma Öz-Değerlendirme Özeti</h2>'
+            body += '<p>Bu form klinik değerlendirme veya akademik başarı puanı değildir.</p>'
+            body += '<ul>'
+            for row in rows:
+                body += (f"<li>{escape(row['title'])}: yanıt ortalaması "
+                         f"{row['response_mean']:.2f}/5, {row['answered']} yanıt</li>")
+            body += '</ul><p>Öğretmen görüşmesinde doğrulanmalıdır.</p>'
             doc = QTextEdit()
-            doc.setHtml(html)
+            doc.setHtml(body)
             doc.print(printer)

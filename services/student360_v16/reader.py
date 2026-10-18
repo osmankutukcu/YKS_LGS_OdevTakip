@@ -66,7 +66,7 @@ def read_student_overview(con: sqlite3.Connection, student_id: int, *, as_of: da
     # Coach-topic records are planning/teacher markings, not measured mastery.
     total = marked = 0
     if _has(con, 'koc_konu_takip', {'ogrenci_id','durum'}):
-        total, marked = con.execute('''SELECT COUNT(*),COALESCE(SUM(CASE WHEN durum=2 THEN 1 ELSE 0 END),0)
+        total, marked = con.execute('''SELECT COUNT(*),COALESCE(SUM(CASE WHEN durum IN (2,4) THEN 1 ELSE 0 END),0)
                 FROM koc_konu_takip WHERE ogrenci_id=?''', (student_id,)).fetchone()
     return StudentOverview(student_id,name,hw,student.last30.total,student.overdue_all,
                            student.uncertain_count,exam,strength,explanation,plan_label,

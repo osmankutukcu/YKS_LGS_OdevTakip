@@ -102,7 +102,8 @@ class MissingTopicsDialog(QDialog):
         self.cmbLesson = QComboBox()
         self.cmbLesson.addItem("Tüm Dersler", "")
         self.cmbLesson.setStyleSheet("""
-            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 10px; }
+            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 10px; 
+                color: #15191E;}
             QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 22px; border: none; background: transparent; }
             QComboBox::down-arrow { border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #64748b; margin-right: 6px; }
         """)
@@ -114,7 +115,8 @@ class MissingTopicsDialog(QDialog):
         self.cmbImportance = QComboBox()
         self.cmbImportance.addItems(["Tümü", "🔥 Çok Yüksek (⭐⭐⭐)", "⭐ Orta Ağırlık", "🟢 Standart"])
         self.cmbImportance.setStyleSheet("""
-            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 10px; }
+            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 10px; 
+                color: #15191E;}
             QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 22px; border: none; background: transparent; }
             QComboBox::down-arrow { border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #64748b; margin-right: 6px; }
         """)
@@ -126,7 +128,8 @@ class MissingTopicsDialog(QDialog):
         self.cmbStatus = QComboBox()
         self.cmbStatus.addItems(["Tümü (Eksikler)", "⚪ Ödev kaydı olmayanlar", "🟡 Tamamlanmamış ödevi olanlar"])
         self.cmbStatus.setStyleSheet("""
-            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 10px; }
+            QComboBox { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 10px; 
+                color: #15191E;}
             QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 22px; border: none; background: transparent; }
             QComboBox::down-arrow { border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #64748b; margin-right: 6px; }
         """)
@@ -147,7 +150,8 @@ class MissingTopicsDialog(QDialog):
         ])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setStyleSheet("""
-            QTableWidget { background: white; gridline-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; }
+            QTableWidget { background: white; gridline-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; 
+                color: #15191E;}
             QHeaderView::section { background-color: #f8fafc; padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: bold; color: #334155; }
             QTableWidget::item { padding: 4px 6px; }
         """)
@@ -172,7 +176,8 @@ class MissingTopicsDialog(QDialog):
         self.btnAdd = QPushButton("✅ Seçilen Eksikleri Ödev Olarak Ekle")
         self.btnAdd.setStyleSheet("""
             QPushButton { background-color: #059669; color: white; padding: 9px 20px; font-weight: bold; border-radius: 6px; font-size: 13px; }
-            QPushButton:hover { background-color: #047857; }
+            QPushButton:hover { background-color: #047857; 
+                color: #FFFFFF;}
         """)
         self.btnAdd.clicked.connect(self._accept_selection)
         bottom.addWidget(self.btnAdd)

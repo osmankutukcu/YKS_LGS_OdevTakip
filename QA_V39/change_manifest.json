@@ -1,0 +1,29 @@
+{
+  "version": "V39",
+  "source": "YKS_LGS_Tema_V38_Bildirim_GuvenliPilot_TamProje.zip",
+  "changed_existing_files": [
+    "QA_V38/test_notification_theme_v38.py",
+    "ui/theme_popup_runtime_v38.py",
+    "ui/book_dialog.py",
+    "ui/progress.py",
+    "ui/theme.py"
+  ],
+  "added_files": [
+    "YKS_LGS_Tema_V39_Teknik_Rapor.md",
+    "V39_TEMA_POPUP_GUVENLI_PILOT_OKU.md",
+    "QA_V39/preview_popup_windows_v39.py",
+    "QA_V39/test_popup_theme_v39.py",
+    "QA_V39/change_manifest.json",
+    "QA_V39/README.md",
+    "ui/theme_popup_runtime_v39.py"
+  ],
+  "unchanged_existing_files": 679,
+  "deleted_files": [],
+  "checks": [
+    "QA_V39/test_popup_theme_v39.py",
+    "QA_V38/test_notification_theme_v38.py",
+    "QA_V37/test_v37_semantic.py",
+    "QA_V36/run_theme_safety.py"
+  ],
+  "acceptance": "HEADLESS QA PASSED; REAL WINDOWS/MAC VISUAL TEST REQUIRED"
+}

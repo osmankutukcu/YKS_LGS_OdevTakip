@@ -33,7 +33,8 @@ class AdaptiveHomeworkSidebarV27(QWidget):
             background:#ffffff;}
           QPushButton {padding:6px 9px; background:#fff; border:1px solid #cbd5e1;
             border-radius:6px; color:#334155; font-weight:600;}
-          QPushButton:hover {background:#eff6ff; border-color:#93c5fd;}
+          QPushButton:hover {background:#eff6ff; border-color:#93c5fd;
+                color: #15191E;}
           QTabWidget::pane {border:none;background:#f8fafc;}
           QTabBar::tab {padding:7px 9px; font-size:11px;}
           QTabBar::tab:selected {color:#1d4ed8;font-weight:700;}
