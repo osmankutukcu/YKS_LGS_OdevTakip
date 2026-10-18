@@ -41,7 +41,7 @@ def _mini_reference(tmp):
 
 
 def test_original_user_reviewed_full_file_and_protected_handler_are_both_verified():
-    source = (ROOT / CORE[0]).read_bytes()
+    source = (ROOT / CORE[0]).read_bytes().replace(b'\r\n', b'\n')
     assert sha256(source).hexdigest() == APPROVED_WEEKLY_HOMEWORK_SHA256
     assert _ast_fingerprint(source) in APPROVED_TIK_AST_HASHES
     verify_legacy_handlers(ROOT)
@@ -52,7 +52,7 @@ def test_reviewed_exception_rejected_if_file_changes_even_if_handler_ast_unchang
         folder = _mini_reference(tmp)
         original = (folder / CORE[0]).read_text('utf-8')
         (folder / CORE[0]).write_text(original + '\n# unauthorized extra byte\n', 'utf-8')
-        assert _ast_fingerprint((folder / CORE[0]).read_bytes()) in APPROVED_TIK_AST_HASHES
+        assert _ast_fingerprint((folder / CORE[0]).read_bytes().replace(b'\r\n', b'\n')) in APPROVED_TIK_AST_HASHES
         with pytest.raises(ValueError, match='_tik_degisti'):
             verify_legacy_handlers(folder)
 

@@ -70,7 +70,7 @@ def verify_legacy_handlers(root: Path) -> None:
                 relative == 'ui/homework_form.py'
                 and name == '_tik_degisti'
                 and any(actual == [h] for h in APPROVED_TIK_AST_HASHES)
-                and sha256(path.read_bytes()).hexdigest() == APPROVED_WEEKLY_HOMEWORK_SHA256
+                and sha256(path.read_bytes().replace(b'\r\n', b'\n')).hexdigest() == APPROVED_WEEKLY_HOMEWORK_SHA256
             )
             if not reviewed_original_checkbox:
                 raise ValueError('Korunan işlem değişmiş: ' + relative + ' / ' + name)
