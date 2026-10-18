@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from contextlib import closing
 from datetime import date
 from pathlib import Path
 import sqlite3
@@ -20,7 +21,7 @@ TODAY = date(2026, 10, 18)
 
 
 def integrity_database(path):
-    with sqlite3.connect(path) as con:
+    with closing(sqlite3.connect(path)) as con:
         con.executescript('''
         CREATE TABLE ogrenci(id INTEGER PRIMARY KEY);
         CREATE TABLE odev_kume(id INTEGER PRIMARY KEY, ogrenci_id INTEGER);
@@ -104,8 +105,9 @@ class IntegrityWatchTests(unittest.TestCase):
         self.assertTrue(data['read_only'])
         self.assertEqual(before, self.db.read_bytes())
     def test_cross_student_mismatch_is_not_dismissed_as_old_archive(self):
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con:
             con.execute('UPDATE odev_satir SET ogrenci_id=2 WHERE id=30')
+            con.commit()
         before = self.db.read_bytes()
         data = read_integrity_overview(self.db)
         self.assertEqual(data['state'], 'REVIEW')
@@ -118,13 +120,14 @@ class IntegrityWatchTests(unittest.TestCase):
         self.assertEqual(read_integrity_overview(path)['state'], 'UNAVAILABLE')
         self.assertFalse(path.exists())
     def test_incomplete_schema_does_not_appear_healthy(self):
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con:
             con.execute('DROP TABLE odev_satir')
+            con.commit()
         r = read_integrity_overview(self.db)
         self.assertEqual(r['state'], 'REVIEW')
         self.assertIn('MISSING_TABLE', r['codes'])
     def test_locked_database_timeout_not_green(self):
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con:
             con.execute('BEGIN EXCLUSIVE')
             result = read_integrity_overview(self.db, time_budget_seconds=0.1)
             self.assertIn(result['state'], ('UNVERIFIED', 'REVIEW'))

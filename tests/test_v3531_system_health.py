@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+from contextlib import closing
 from pathlib import Path
 import gzip
 import sqlite3
@@ -20,7 +21,7 @@ class HealthTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.dir=Path(self.temp.name)
         self.db=self.dir/'test.db'
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con:
             con.executescript('''
             CREATE TABLE ogrenci(id INTEGER PRIMARY KEY, isim TEXT);
             CREATE TABLE odev(id INTEGER PRIMARY KEY, student INTEGER);
@@ -48,15 +49,16 @@ class HealthTests(unittest.TestCase):
         self.assertFalse(missing.exists())
 
     def test_broken_schema_warns(self):
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con:
             con.execute('DROP TABLE odev_kume')
+            con.commit()
         x=observe_local_health(self.db)
         self.assertEqual(x['database']['state'],'SCHEMA_INCOMPLETE')
         self.assertEqual(x['state'],'REVIEW')
         self.assertEqual(x['issues'][0]['area'],'database')
 
     def test_locked_db_never_claims_all_clear(self):
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con:
             con.execute('BEGIN EXCLUSIVE')
             result=check_database(self.db,seconds=0.1)
             self.assertNotEqual(result['state'],'LOCAL_DB_CHECKS_OK')
@@ -123,7 +125,7 @@ class HealthTests(unittest.TestCase):
         self.assertNotIn(str(ROOT),str(report))
 
     def test_unknown_database_health_is_never_green(self):
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con:
             con.execute('BEGIN EXCLUSIVE')
             observation=observe_local_health(self.db)
             self.assertEqual(observation['state'],'UNVERIFIED')

@@ -1,3 +1,4 @@
+from contextlib import closing
 import json
 import sqlite3
 import sys
@@ -80,9 +81,10 @@ class CopilotV5Tests(unittest.TestCase):
         feed = read_teacher_feed(self.db,today=TODAY,feedback_path=self.feedback,
                                  advisor=self.advisor)
         self.assertEqual([x['student_id'] for x in feed['cards']],[2])
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con:
             con.execute("INSERT INTO odev_kume VALUES(14,1,'2026-10-03','2026-10-14')")
             con.execute("INSERT INTO odev VALUES(105,14,1,'Fen','devam')")
+            con.commit()
         feed=read_teacher_feed(self.db,today=TODAY,feedback_path=self.feedback,advisor=self.advisor)
         self.assertIn(1,[x['student_id'] for x in feed['cards']])
 

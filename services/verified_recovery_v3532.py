@@ -288,6 +288,7 @@ def create_verified_backup(source_path: str | Path, destination_dir: str | Path,
                         if time.monotonic() - started > max(1, timeout_seconds):
                             raise RecoveryError("SOURCE_BACKUP_TIMED_OUT")
                     src.backup(dst, pages=256, progress=progress, sleep=0.05)
+                    dst.execute("PRAGMA journal_mode=DELETE")
             check = _snapshot_check(staged)
             data_sha = _hasher(staged)
             payload = work / name

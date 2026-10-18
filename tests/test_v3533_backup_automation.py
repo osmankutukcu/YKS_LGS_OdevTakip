@@ -1,4 +1,5 @@
 """V3.5.33: synthetic backup schedule and safe opt-in integration tests."""
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import hashlib
@@ -11,7 +12,7 @@ from services.verified_recovery_v3532 import preview_restore
 
 def sample(tmp_path):
     src=tmp_path/'data.db'
-    with sqlite3.connect(src) as db:
+    with closing(sqlite3.connect(src)) as db:
         db.executescript('''CREATE TABLE ogrenci (id INTEGER, name TEXT);
                            CREATE TABLE odev (id INTEGER);
                            CREATE TABLE odev_kume (id INTEGER);
@@ -83,7 +84,7 @@ def test_no_pruning_prior_good_backup(tmp_path):
 def test_separate_sources_same_target_do_not_skip_each_other(tmp_path):
     one, dest = sample(tmp_path)
     other = tmp_path/'data_two.db'
-    with sqlite3.connect(other) as db:
+    with closing(sqlite3.connect(other)) as db:
         db.executescript('''CREATE TABLE ogrenci(id INTEGER);
                            CREATE TABLE odev(id INTEGER);
                            CREATE TABLE odev_kume(id INTEGER);''')

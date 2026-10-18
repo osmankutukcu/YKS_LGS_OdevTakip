@@ -1,5 +1,6 @@
 """V3.5.32 synthetic tests; no user data, Qt, network, UI or live writes."""
 from __future__ import annotations
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import gzip
@@ -16,7 +17,7 @@ from services.verified_recovery_v3532 import (
 @pytest.fixture
 def sample(tmp_path):
     source = tmp_path / 'source.db'
-    with sqlite3.connect(source) as conn:
+    with closing(sqlite3.connect(source)) as conn:
         conn.executescript('''CREATE TABLE ogrenci (id integer PRIMARY KEY, ad text);
             CREATE TABLE odev(id integer PRIMARY KEY, student int);
             CREATE TABLE odev_kume(id integer PRIMARY KEY);
@@ -40,7 +41,7 @@ def test_compressed_backup_wal_and_restore_rehearsal(sample):
     with gzip.open(output, 'rb') as fh:
         sqlite_file = backups / 'check-in-test.db'
         sqlite_file.write_bytes(fh.read())
-    with sqlite3.connect(sqlite_file) as conn:
+    with closing(sqlite3.connect(sqlite_file)) as conn:
         assert conn.execute('SELECT count(*) FROM ogrenci').fetchone()[0] == 2
     sqlite_file.unlink()
     rehearsal = preview_restore(output, require_manifest=True)
@@ -60,7 +61,7 @@ def test_uncommitted_row_excluded(sample):
     with gzip.open(outcome['archive_path'], 'rb') as zipped:
         restored = backups / 'temporary.db'
         restored.write_bytes(zipped.read())
-    with sqlite3.connect(restored) as conn:
+    with closing(sqlite3.connect(restored)) as conn:
         assert conn.execute('select count(*) from ogrenci').fetchone()[0] == 1
     w.rollback();w.close()
 
@@ -153,7 +154,9 @@ def test_zip_hash_tamper_rejected(sample):
 
 def test_broken_database_rejected(sample):
     source,backups=sample
-    with sqlite3.connect(source) as con:con.execute('DROP TABLE odev')
+    with closing(sqlite3.connect(source)) as con:
+        con.execute('DROP TABLE odev')
+        con.commit()
     result=create_verified_backup(source,backups)
     assert result['status']=='BACKUP_FAILED'
     assert list(backups.glob('*.db.gz'))==[]

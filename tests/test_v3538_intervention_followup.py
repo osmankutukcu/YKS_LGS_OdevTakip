@@ -192,9 +192,10 @@ def test_future_as_of_cannot_claim_scheduled_record(con):
 
 
 def test_automatic_teacher_feed_contains_due_reminder(tmp_path):
+    from contextlib import closing
     from services.teacher_copilot_v5 import read_teacher_feed
     db=tmp_path/'koc-test.db'
-    with sqlite3.connect(db) as c:
+    with closing(sqlite3.connect(db)) as c:
         c.executescript('''CREATE TABLE ogrenci(id INTEGER PRIMARY KEY,ad TEXT,soyad TEXT,
             dogum_tarihi TEXT,veli_tel1 TEXT,aktif INTEGER);
         CREATE TABLE odev_kume(id INTEGER PRIMARY KEY,ogrenci_id INTEGER,
