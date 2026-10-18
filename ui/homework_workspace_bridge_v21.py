@@ -83,3 +83,35 @@ class HomeworkWorkspaceBridgeV21:
         btn = getattr(self.form, 'btnOgrenme', None)
         if btn is not None:
             btn.click()  # Reuse the *existing* V25 analysis path.
+
+
+def _install_wizard_toast_hook():
+    from PyQt6.QtWidgets import QMessageBox
+    if getattr(QMessageBox, "_smart_wizard_toast_hooked", False):
+        return
+    _orig_info = QMessageBox.information
+
+    def _intercepted_information(parent, title, text, *args, **kwargs):
+        s_title = str(title or "")
+        s_text = str(text or "")
+        if s_title == "Sihirbaz Aktarım Sonucu" or "standart manuel tik akışıyla eklendi" in s_text:
+            if "aktarılmadı" in s_text or "hata" in s_text.lower():
+                return _orig_info(parent, title, text, *args, **kwargs)
+            toast_func = getattr(parent, "_toast", None)
+            if callable(toast_func):
+                toast_func(f"✅ {s_text}", parent=parent, msec=2500)
+                return QMessageBox.StandardButton.Ok
+            try:
+                from ui.toast import show_toast
+                show_toast(parent=parent, text=f"✅ {s_text}", kind="success", duration_ms=2500)
+            except Exception:
+                pass
+            return QMessageBox.StandardButton.Ok
+        return _orig_info(parent, title, text, *args, **kwargs)
+
+    QMessageBox.information = _intercepted_information
+    QMessageBox._smart_wizard_toast_hooked = True
+
+
+_install_wizard_toast_hook()
+
