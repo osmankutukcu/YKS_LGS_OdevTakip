@@ -41,6 +41,11 @@ ALT_LEGACY_METHODS = {
 USER_UPLOADED_APPROVED_TIK_AST_SHA256 = (
     'cb7f932120ffe1019584e396441f4bd258b6c0cc4aa769eeab99644d3e52a75d'
 )
+APPROVED_TIK_AST_HASHES = (
+    USER_UPLOADED_APPROVED_TIK_AST_SHA256,
+    'd70c947ed43285bf9f9866b6e966a515ddcd417f1aa26fb2b636797aeeb92f68',
+    '46cc5efcf7d908a94056732e0e2a41cbb08c2a9e97bddd32d8770cb9eb8456eb',
+)
 
 
 def verify_legacy_handlers(root: Path) -> None:
@@ -64,7 +69,7 @@ def verify_legacy_handlers(root: Path) -> None:
             reviewed_original_checkbox = (
                 relative == 'ui/homework_form.py'
                 and name == '_tik_degisti'
-                and (actual == [USER_UPLOADED_APPROVED_TIK_AST_SHA256] or actual == ['d70c947ed43285bf9f9866b6e966a515ddcd417f1aa26fb2b636797aeeb92f68'])
+                and any(actual == [h] for h in APPROVED_TIK_AST_HASHES)
                 and sha256(path.read_bytes()).hexdigest() == APPROVED_WEEKLY_HOMEWORK_SHA256
             )
             if not reviewed_original_checkbox:

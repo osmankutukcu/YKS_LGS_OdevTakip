@@ -13,7 +13,7 @@ import pytest
 
 from tools.v35_reviewed_source_contract import (
     verify_legacy_handlers, APPROVED_WEEKLY_HOMEWORK_SHA256,
-    USER_UPLOADED_APPROVED_TIK_AST_SHA256,
+    USER_UPLOADED_APPROVED_TIK_AST_SHA256, APPROVED_TIK_AST_HASHES,
 )
 from services.coach_assistant_v1.event_router_v267 import CoachChange, CoachChangeRouter
 from services.coach_assistant_v1.module_events_v268 import publish_saved_coaching_change
@@ -43,7 +43,7 @@ def _mini_reference(tmp):
 def test_original_user_reviewed_full_file_and_protected_handler_are_both_verified():
     source = (ROOT / CORE[0]).read_bytes()
     assert sha256(source).hexdigest() == APPROVED_WEEKLY_HOMEWORK_SHA256
-    assert _ast_fingerprint(source) in (USER_UPLOADED_APPROVED_TIK_AST_SHA256, 'd70c947ed43285bf9f9866b6e966a515ddcd417f1aa26fb2b636797aeeb92f68')
+    assert _ast_fingerprint(source) in APPROVED_TIK_AST_HASHES
     verify_legacy_handlers(ROOT)
 
 
@@ -52,7 +52,7 @@ def test_reviewed_exception_rejected_if_file_changes_even_if_handler_ast_unchang
         folder = _mini_reference(tmp)
         original = (folder / CORE[0]).read_text('utf-8')
         (folder / CORE[0]).write_text(original + '\n# unauthorized extra byte\n', 'utf-8')
-        assert _ast_fingerprint((folder / CORE[0]).read_bytes()) in (USER_UPLOADED_APPROVED_TIK_AST_SHA256, 'd70c947ed43285bf9f9866b6e966a515ddcd417f1aa26fb2b636797aeeb92f68')
+        assert _ast_fingerprint((folder / CORE[0]).read_bytes()) in APPROVED_TIK_AST_HASHES
         with pytest.raises(ValueError, match='_tik_degisti'):
             verify_legacy_handlers(folder)
 
