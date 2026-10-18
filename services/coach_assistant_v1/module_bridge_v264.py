@@ -154,6 +154,41 @@ def enrich_answer(con: sqlite3.Connection, context, answer, question: str,
     if review.wizard_status == 'available':
         evidence.append('Akıllı Ödev Sihirbazı: geçmiş ödev/deneme değerlendirmesi; '
                         'tamamlanma, akademik öğrenme puanı değildir.')
+    # V3.5.30 same-student bridge for unscoped cross-module requests only.
+    # Never pass a general lesson recommendation as if it proved a scoped result.
+    if explicit and not lesson_scope:
+        try:
+            from services.shared_academic_decision_v3530 import read_verified_plan_context
+            shared = read_verified_plan_context(con, context.student_id)
+            if shared['state'] == 'LINK_REVIEW':
+                evidence.append('Ortak veri kontrolü: öğrenci–ödev bağlantıları gözden geçirilmeli; akademik öneri bastırıldı.')
+            elif shared['state'] in ('MISSING', 'CONFLICT', 'NO_BLOCKS', 'PARTIAL'):
+                evidence.append('Koçluk planı bağlamı: ' + shared['summary'])
+        except (sqlite3.Error, ValueError, TypeError, KeyError, ImportError):
+            # The optional bridge never replaces the original coach answer.
+            pass
+    # V3.5.36 read-only canonical proof; never blend into a scoped lesson
+    # claim, and never let source errors become a false "nothing to do".
+    if (explicit or priority) and not lesson_scope:
+        try:
+            from services.academic_actions_v3536 import read_student_action_card
+            action_card = read_student_action_card(con, context.student_id)
+            if action_card['student_id'] == context.student_id:
+                evidence.append('Ortak akademik kanıt: ' + _safe_text(action_card['next_step'], 210))
+                # V3.5.37: extra review guidance only for GENERAL, non-lesson questions.
+                try:
+                    from services.intervention_advisor_v3537 import build_intervention_draft
+                    draft = build_intervention_draft(con, context.student_id, action_card=action_card)
+                    if draft['student_id'] == context.student_id and draft['recommendations']:
+                        item = draft['recommendations'][0]
+                        evidence.append('Telafi taslağı (öğretmen onayı): ' +
+                                        _safe_text(item['title'] + ' — ' + item['teacher_next_step'], 190))
+                except (sqlite3.Error, ValueError, TypeError, KeyError):
+                    pass
+                if action_card['state'] == 'LINK_REVIEW':
+                    evidence.append('Uyarı: Bu öğrenci için ödev sayıları güvenilir kabul edilmiyor.')
+        except (sqlite3.Error, ValueError, TypeError, KeyError, ImportError):
+            evidence.append('Ortak ödev kanıtı: kaynak doğrulanamadı; eksik veri başarı anlamına gelmez.')
     if review.discrepancy:
         evidence.append('Kapsam kontrolü: ' + review.discrepancy)
         if explicit or evidence_question:

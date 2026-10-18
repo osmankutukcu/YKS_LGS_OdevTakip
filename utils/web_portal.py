@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+from html import escape as html_escape
+from services.portal_homework_v3526 import subject_progress, pending_homework
 import sqlite3
 from datetime import date, datetime, timedelta
 import db
@@ -61,29 +63,9 @@ class WebPortalGenerator:
             success_rate = 0
 
         # 2. Ders Bazlı Başarı (Bar Chart)
-        # Hem odev hem de odev_satir tablolarını birleştirelim
-        
-        cur.execute("""
-            SELECT COALESCE(ders, 'Genel') as ders_adi,
-                   COUNT(*) as toplam,
-                   SUM(CASE WHEN durum IN ('tamam','yapildi','yapıldı','bitti','done') THEN 1 ELSE 0 END) as bitti
-              FROM (
-                  SELECT ders, LOWER(COALESCE(durum,'devam')) as durum FROM odev_satir WHERE ogrenci_id=?
-                  UNION ALL
-                  SELECT ders, LOWER(COALESCE(durum,'devam')) as durum FROM odev WHERE ogrenci_id=?
-              )
-             GROUP BY COALESCE(ders, 'Genel')
-        """, (self.sid, self.sid))
-        
-        subjects = []
-        subj_rates = []
-        for r in cur.fetchall():
-            d_name = r[0]
-            d_tot = r[1]
-            d_done = r[2]
-            rate = int((d_done/d_tot)*100) if d_tot > 0 else 0
-            subjects.append(d_name)
-            subj_rates.append(rate)
+        # V3.5.26: açık odev_id bağı varsa çift sayımı engelle.
+        # Ana formların kaydetme akışı ve veritabanı değiştirilmez.
+        subjects, subj_rates = subject_progress(self.con, self.sid)
 
         # 3. Son 5 Hafta Gelişim (Line Chart)
         # ogrenci_perf_gunluk tablosunu haftalık gruplayarak
@@ -115,27 +97,7 @@ class WebPortalGenerator:
             weekly_rates.append(rate)
 
         # 4. Geciken/Bekleyen Ödev Listesi (Son 10)
-        # Hem odev hem odev_satir
-        cur.execute("""
-            SELECT ders, kitap, konu, tarih
-            FROM (
-                SELECT ders, kitap, konu, tarih, id, durum FROM odev_satir WHERE ogrenci_id=?
-                UNION ALL
-                SELECT ders, kitap_ad as kitap, konu_ad as konu, NULL as tarih, id, durum FROM odev WHERE ogrenci_id=?
-            )
-            WHERE durum NOT IN ('tamam','yapildi','yapıldı','bitti','done')
-            ORDER BY COALESCE(tarih, '9999-99-99') ASC, id DESC
-            LIMIT 10
-        """, (self.sid, self.sid))
-        
-        pending_tasks = []
-        for r in cur.fetchall():
-            pending_tasks.append({
-                "ders": r[0] or "-",
-                "kitap": r[1] or "-",
-                "konu": r[2] or "-",
-                "tarih": r[3] or "-"
-            })
+        pending_tasks = pending_homework(self.con, self.sid, limit=10)
 
         return {
             "generated_at": date.today().strftime("%d.%m.%Y"),
@@ -156,14 +118,19 @@ class WebPortalGenerator:
 
     def _render_html(self, data):
         # JSON verileri JS içine gömmek için
-        chart_data_js = json.dumps(data["charts"])
+        # JSON nesnesini JS string literaline gömmeyerek tek tırnak kırılmasını önle.
+        # </script> gibi dizeler HTML script bloğunu kapatamamalı.
+        chart_data_js = (json.dumps(data["charts"], ensure_ascii=True)
+                         .replace('<', r'\u003c').replace('>', r'\u003e')
+                         .replace('&', r'\u0026'))
+        safe_name = html_escape(str(data['student_name']), quote=True)
         
         html = f"""<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Öğrenci Portalı - {data['student_name']}</title>
+    <title>Öğrenci Portalı - {safe_name}</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {{
@@ -255,7 +222,7 @@ class WebPortalGenerator:
 <div class="container">
     <header>
         <div>
-            <h1>👋 Merhaba, {data['student_name']}</h1>
+            <h1>👋 Merhaba, {safe_name}</h1>
             <div class="date">Rapor Tarihi: {data['generated_at']}</div>
         </div>
         <div style="text-align:right">
@@ -305,10 +272,10 @@ class WebPortalGenerator:
         for task in data["pending"]:
             html += f"""
                 <tr>
-                    <td><b>{task['ders']}</b></td>
-                    <td>{task['kitap']}</td>
-                    <td>{task['konu']}</td>
-                    <td><span class="badge badge-red">{task['tarih']}</span></td>
+                    <td><b>{html_escape(str(task['ders']), quote=True)}</b></td>
+                    <td>{html_escape(str(task['kitap']), quote=True)}</td>
+                    <td>{html_escape(str(task['konu']), quote=True)}</td>
+                    <td><span class="badge badge-red">{html_escape(str(task['tarih']), quote=True)}</span></td>
                 </tr>
             """
             
@@ -322,7 +289,7 @@ class WebPortalGenerator:
 </div>
 
 <script>
-    const data = JSON.parse('""" + chart_data_js + """');
+    const data = """ + chart_data_js + """;
     
     // Trend Chart
     new Chart(document.getElementById('trendChart'), {

@@ -361,18 +361,24 @@ def build_qss():
     QLabel#inverse {{ background:#000; color:#EAF2FF; padding:2px 4px; border-radius:4px; }}
 
     /* V36: shell elements shared by every theme; fixed-color subviews remain intact. */
-    QWidget#Sidebar {{ background:{card}; border-right:1px solid {bd}; }}
-    QLabel#ThemeSidebarBrand {{ background:transparent; color:{card_fg}; }}
+    QWidget#Sidebar {{ background:#0d1527; border-right:1px solid #1e293b; }}
+    QLabel#ThemeSidebarBrand {{ background:transparent; color:#ffffff; }}
     QPushButton#ThemeSidebarAction {{
-        text-align:left; padding:10px 15px; border:none; border-radius:8px;
-        background:transparent; color:{card_fg}; font-size:14px; font-weight:600;
+        text-align:left; padding:9px 14px; border:none; border-radius:10px;
+        background:transparent; color:#e2e8f0; font-size:13px; font-weight:600;
     }}
     QPushButton#ThemeSidebarAction:hover {{
-        background:{_mix(primary,card,0.13)}; color:{readable_text(_mix(primary,card,0.13),card_fg)};
+        background:rgba(56,189,248,0.14); color:#ffffff;
     }}
     QPushButton#ThemeSidebarAction:pressed {{
-        background:{_mix(primary,card,0.25)}; color:{readable_text(_mix(primary,card,0.25),card_fg)};
+        background:rgba(56,189,248,0.24); color:#ffffff;
     }}
+    QPushButton#ThemeSidebarAction[active="true"] {{
+        background:qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1d4ed8, stop:1 #0284c7);
+        color:#ffffff; font-weight:800; border:1px solid #38bdf8; border-radius:12px; padding:8px 13px;
+    }}
+    QWidget#Sidebar QScrollArea {{ background:transparent; border:none; }}
+    QWidget#Sidebar QScrollArea > QWidget > QWidget {{ background:transparent; }}
     QWidget#ThemeContentHost {{ background:{bg}; }}
 
     /* ====== Butonlar ====== */

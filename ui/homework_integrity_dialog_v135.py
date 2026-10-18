@@ -77,26 +77,27 @@ def _humanize_finding(item) -> tuple[str, str, str, str, str]:
     refs = "; ".join(getattr(item, "references", ()) or ())
     guidance = str(getattr(item, "guidance", "") or "")
 
-    if "odev_satir.odev_id" in msg:
-        badge = f'<span style="background-color:#fef3c7;color:#92400e;font-weight:800;padding:3px 7px;font-size:11px;">⚠️ Arşiv Uyarısı ({cnt} Adet)</span>'
-        title = f'<b>Üst Başlığı Silinmiş Eski Ödev Satırı</b><br><span style="color:#64748b;font-size:10.5px;">(Teknik kod: {_html_escape(msg)})</span>'
-        why = 'Geçmişte bir ödev silinirken veya taşınırken altındaki konu satırlarının veritabanı arşivinde tek başına kalmasından kaynaklanır.'
-        act = '<b style="color:#0f766e;">Hiçbir işlem gerekmez.</b> Şu anki öğrencinizin aktif ödev tablosunu veya tiklerini etkilemez.'
-    elif "ogrenci_id" in msg:
-        badge = f'<span style="background-color:#fef3c7;color:#92400e;font-weight:800;padding:3px 7px;font-size:11px;">⚠️ Arşiv Uyarısı ({cnt} Adet)</span>'
-        title = f'<b>Kaydı Silinmiş Öğrenciye Ait Eski Kayıt</b><br><span style="color:#64748b;font-size:10.5px;">({_html_escape(msg)})</span>'
-        why = 'Daha önce silinen bir öğrencinin geçmiş ödev veya küme kaydının arşivde kalmasından kaynaklanır.'
-        act = '<b style="color:#0f766e;">Günlük çalışmaya engel değildir.</b> Aktif öğrencilerinizin verilerini bozmaz.'
-    elif sev == "high":
-        badge = f'<span style="background-color:#ffe4e6;color:#9f1239;font-weight:800;padding:3px 7px;font-size:11px;">🔴 Kontrol Gerekli ({cnt} Adet)</span>'
+    # A broken student/group link is never dismissed merely because it appears
+    # in an old table. This dialog cannot prove that active work is unaffected.
+    if sev in ('critical', 'high'):
+        badge = (f'<span style="background-color:#ffe4e6;color:#9f1239;font-weight:800;'
+                 f'padding:3px 7px;font-size:11px;">🔴 Bağlantıyı İncele ({cnt} kayıt)</span>')
         title = f'<b>{_html_escape(msg)}</b>'
-        why = 'Ekran durumu ile kayıtlı veri arasında uyumsuzluk tespit edildi.'
-        act = _html_escape(guidance or 'Öğrenciyi yeniden seçip ekranı yenileyerek kontrol edin.')
+        why = ('Ödev, öğrenci veya küme bağlantısı beklenen kuralları karşılamıyor. '
+               'Etki alanı yalnızca bu raporla kesinleştirilemez.')
+        act = _html_escape(guidance or 'İlgili kayıtları ve yedeği karşılaştırın; otomatik değiştirmeyin.')
+    elif sev == 'medium':
+        badge = (f'<span style="background-color:#fef3c7;color:#92400e;font-weight:800;'
+                 f'padding:3px 7px;font-size:11px;">⚠️ Taslağı İncele ({cnt} kayıt)</span>')
+        title = f'<b>{_html_escape(msg)}</b>'
+        why = 'Düzenlenebilir ödev taslağı ile seçili ekrandaki diğer bilgiler uyuşmayabilir.'
+        act = _html_escape(guidance or 'Kaydetmeden önce seçimi gözden geçirin.')
     else:
-        badge = f'<span style="background-color:#e0f2fe;color:#0369a1;font-weight:800;padding:3px 7px;font-size:11px;">ℹ️ Bilgi ({cnt} Adet)</span>'
+        badge = (f'<span style="background-color:#e0f2fe;color:#0369a1;font-weight:800;'
+                 f'padding:3px 7px;font-size:11px;">ℹ️ Bilgi ({cnt} kayıt)</span>')
         title = f'<b>{_html_escape(msg)}</b>'
-        why = 'Bilgilendirme amaçlı denetim bulgusu.'
-        act = _html_escape(guidance or 'Herhangi bir işlem gerekmez.')
+        why = 'Bu kontrolün kapsamında bilgi amaçlı bulgu.'
+        act = _html_escape(guidance or 'Gerekiyorsa ilgili kayıtları gözden geçirin.')
     return badge, title, why, act, refs
 
 
@@ -206,13 +207,13 @@ class IntegrityDialog(QDialog):
             c1_body = _html_escape(draft_err)
         elif not draft_findings:
             c1_bg, c1_brd, c1_fg = "#f0fdf4", "#86efac", "#166534"
-            c1_title = "✅ Sorun Yok — Tamamen Sağlam"
+            c1_title = "✅ Kontrol Edilen Taslak Alanlarında Bulgu Yok"
             st_lbl = f"Öğrenci #{selected}" if selected else "Seçili öğrenci yok"
             c1_body = (
                 f"• <b>Seçili Öğrenci:</b> {_html_escape(st_lbl)}<br>"
                 f"• <b>İncelenen Hücre / Satır:</b> {cells_count} hücre, {tasks_count} verilen ödev satırı<br>"
                 f"• <b>Tespit Edilen Sorun:</b> 0<br>"
-                f"• <b>Anlamı:</b> Şu an ekranda işaretlediğiniz ödev tikleri, kaynaklar ve tarihler güvenle kaydedilebilir durumdadır."
+                f"• <b>Anlamı:</b> Yalnız bu denetimin kapsadığı taslak eşleşmelerinde uyarı yok. Kaydetme ve diğer kontroller ayrıca gereklidir."
             )
         else:
             c1_bg, c1_brd, c1_fg = "#fffbeb", "#fcd34d", "#92400e"
@@ -229,20 +230,20 @@ class IntegrityDialog(QDialog):
             c2_body = _html_escape(db_err)
         elif not db_findings:
             c2_bg, c2_brd, c2_fg = "#f0fdf4", "#86efac", "#166534"
-            c2_title = "✅ Veritabanı Bağlantıları Sağlam"
+            c2_title = "✅ Kontrol Edilen Veritabanı Bağlantılarında Bulgu Yok"
             c2_body = (
-                "• <b>Durum:</b> Tüm ödev, küme ve öğrenci bağlantıları eksiksiz.<br>"
+                "• <b>Durum:</b> Denetlenen ödev–küme–öğrenci bağlantılarında bulgu yok; genel sistem sağlığı sınanmadı.<br>"
                 "• <b>Tespit Edilen Sorun:</b> 0<br>"
-                "• <b>Öğretmen Ne Yapmalı?</b> Güvenle çalışmaya devam edebilirsiniz."
+                "• <b>Öğretmen Ne Yapmalı?</b> Bu kapsamda uyarı yok; mevcut kayıt akışını normal şekilde kullanabilirsiniz."
             )
         else:
             total_orphan = sum(int(getattr(f, "count", 0) or 0) for f in db_findings)
             c2_bg, c2_brd, c2_fg = "#fffbeb", "#fcd34d", "#92400e"
-            c2_title = f"⚠️ {total_orphan} Eski Arşiv Kaydında Bağlantı Uyarısı"
+            c2_title = f"⚠️ {total_orphan} Kayıt Bağlantısında İnceleme Gerekiyor"
             c2_body = (
-                f"• <b>Tespit:</b> Geçmişte silinmiş kayıtların <b>{total_orphan} alt satırı</b> arşivde tek başına kalmış (<i>yetim kayıt</i>).<br>"
-                f"• <b>Aktif Öğrenciyi Etkiler mi?</b> <b>Hayır.</b> Şu anki ödev tablonuzu veya çalışmalarınızı etkilemez.<br>"
-                f"• <b>Öğretmen Ne Yapmalı?</b> Günlük çalışmanıza güvenle devam edebilirsiniz."
+                f"• <b>Tespit:</b> Ödev/küme/öğrenci bağlantıları için <b>{total_orphan} bulgu</b> var; hepsi eski ve etkisiz kabul edilmemelidir.<br>"
+                f"• <b>Aktif Öğrenciyi Etkiler mi?</b> Bu rapordan kesin belirlenemez; kayıt aidiyetleri incelenmelidir.<br>"
+                f"• <b>Öğretmen Ne Yapmalı?</b> Önce kayıtları ve yedekleri karşılaştırın; otomatik düzeltme yapmayın."
             )
 
         rows_html = []
@@ -264,7 +265,7 @@ class IntegrityDialog(QDialog):
               <td valign="top"><span style="background-color:#dcfce7;color:#166534;font-weight:800;padding:3px 7px;font-size:11px;">✅ Canlı Taslak (0 Sorun)</span></td>
               <td valign="top" style="font-size:11.5px;"><b>Açık Ödev Tablosu Kontrolü</b><br><span style="color:#64748b;font-size:10.5px;">({cells_count} hücre / {tasks_count} satır denetlendi)</span></td>
               <td valign="top" style="font-size:11.5px;color:#334155;">Mükerrer konu, öğrenci uyuşmazlığı veya bozuk tik olup olmadığı kontrol edildi.</td>
-              <td valign="top" style="font-size:11.5px;color:#166534;"><b>Güvenle çalışmaya devam edebilirsiniz.</b></td>
+              <td valign="top" style="font-size:11.5px;color:#166534;"><b>Bu kapsamda uyarı yok; mevcut kayıt akışını normal şekilde kullanabilirsiniz.</b></td>
             </tr>
             ''')
 

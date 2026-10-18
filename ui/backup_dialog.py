@@ -9,7 +9,7 @@ class BackupDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Google Drive / Bulut Yedekleme")
-        self.resize(500, 350)
+        self.resize(530, 480)
         self.manager = BackupManager()
         
         self.setStyleSheet("""
@@ -18,7 +18,7 @@ class BackupDialog(QDialog):
         """)
         
         lay = QVBoxLayout(self)
-        lay.setSpacing(20)
+        lay.setSpacing(12)
         lay.setContentsMargins(30,30,30,30)
         
         # Başlık ve İkon
@@ -29,7 +29,7 @@ class BackupDialog(QDialog):
         title_lay = QVBoxLayout()
         lbl_t = QLabel("Bulut Yedekleme")
         lbl_t.setStyleSheet("font-size: 20px; font-weight: bold; color: #2d3748;")
-        lbl_d = QLabel("Verilerinizi Google Drive veya OneDrive klasörünüze\notomatik olarak yedekleyin.")
+        lbl_d = QLabel("Yedekleri seçtiğiniz klasöre kaydedin.\nBulut eşitlemesi ayrıca doğrulanmalıdır.")
         lbl_d.setStyleSheet("color: #718096; font-size: 13px;")
         title_lay.addWidget(lbl_t)
         title_lay.addWidget(lbl_d)
@@ -71,6 +71,24 @@ class BackupDialog(QDialog):
         self.chk_auto.setChecked(self.manager.is_auto_backup())
         self.chk_auto.toggled.connect(self.manager.set_auto_backup)
         lay.addWidget(self.chk_auto)
+
+        # V3.5.33: independent, explicit opt-in. Existing close-on-exit
+        # setting, ZIP backup and manual backup behaviour remain unchanged.
+        from utils import settings as appset
+        self.chk_verified_daily = QCheckBox('Program açıkken günlük doğrulamalı SQLite yedeği al')
+        self.chk_verified_daily.setAccessibleName('Günlük doğrulamalı yedekleme')
+        self.chk_verified_daily.setStyleSheet('font-size: 13px; color: #2d3748;')
+        self.chk_verified_daily.setChecked(
+            str(appset.ayar_get('yedek_gunluk_dogrulamali_v3533', 'false')).lower() == 'true')
+        self.chk_verified_daily.toggled.connect(
+            lambda active: appset.ayar_set('yedek_gunluk_dogrulamali_v3533',
+                                          'true' if active else 'false'))
+        lay.addWidget(self.chk_verified_daily)
+        note = QLabel('Günlük yedek yalnız SQLite veritabanını kapsar; planlayıcı profil dosyaları '
+                      'için mevcut ZIP yedeğini de kullanın. Yedekler şifrelenmemiştir.')
+        note.setWordWrap(True)
+        note.setStyleSheet('font-size: 11px; color: #64748b;')
+        lay.addWidget(note)
         
         # Alt Butonlar
         bot = QHBoxLayout()

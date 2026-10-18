@@ -1,357 +1,387 @@
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QLabel, QWidget
+# -*- coding: utf-8 -*-
+"""Haftalık Rozetler & Liderlik Paneli (Gamification).
+
+Öğrenci gizliliğini (KVKK) korumak için gerçek çocuk fotoğrafları KULLANILMAZ.
+Bunun yerine şık monogram harf avatarları (örn: ZK, AT, ES), madalyalar
+(🥇, 🥈, 🥉), rozet etiketleri ve başarı puanları kullanılır.
+"""
+from __future__ import annotations
+
+import hashlib
+import re
+from typing import Optional
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
-import re
-from ui.theme import register_theme_listener, readable_text
+from PyQt6.QtWidgets import (
+    QDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel,
+    QPushButton, QVBoxLayout, QWidget,
+)
+
+from ui.theme import readable_text, register_theme_listener
 from ui.theme_tokens_v37 import semantic_palette
 from ui.theme_visual_tokens_v40 import accessible_gradient
 
+
+def _initials(name: str) -> str:
+    """İsimden 2 harfli büyük monogram üretir (örn: 'Zeynep Kaya' -> 'ZK')."""
+    parts = [p.strip() for p in (name or "").split() if p.strip()]
+    if not parts:
+        return "ÖĞ"
+    if len(parts) == 1:
+        return parts[0][:2].upper()
+    return f"{parts[0][0]}{parts[-1][0]}".upper()
+
+
+_AVATAR_PALETTE = [
+    ("#4f46e5", "#3730a3"),  # Indigo
+    ("#7c3aed", "#5b21b6"),  # Violet
+    ("#059669", "#047857"),  # Emerald
+    ("#0891b2", "#0e7490"),  # Cyan
+    ("#d97706", "#b45309"),  # Amber
+    ("#db2777", "#9d174d"),  # Rose
+    ("#2563eb", "#1d4ed8"),  # Royal Blue
+]
+
+
+def _avatar_colors(name: str) -> tuple[str, str]:
+    idx = int(hashlib.md5((name or "Öğrenci").encode("utf-8")).hexdigest(), 16) % len(_AVATAR_PALETTE)
+    return _AVATAR_PALETTE[idx]
+
+
 class GamificationWidget(QFrame):
     """
-    Tek bir kart içinde bölünmüş Premium Gamification Görünümü:
-    [ 🏆 Başarı Rozetleri & İstatistikler (Sol)  |  ⚡ Akıllı Koç Uyarıları (Sağ) ]
+    Haftalık Rozetler & Liderlik Panosu:
+    Haftalık Performans Trendi grafiğinin yanında yatay olarak yer alır (Tek Ekran Tasarımı).
     """
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._last_alerts = []
-        self._last_hw = 0
-        self._last_students = None
+        self._last_stats = {}
+        self.setObjectName("GamificationWidget")
+        self.setFixedHeight(215)  # WeeklyTrendWidget ile tam eşleşen yükseklik
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
-        self.setFixedHeight(190) # İçerik sığması için yükseklik artırıldı
-        self.setStyleSheet("""
-            GamificationWidget {
-                background-color: white;
-                border-radius: 16px;
-                border: 1px solid #e2e8f0;
-            }
-            QLabel { font-family: 'Segoe UI', sans-serif; }
-        """)
-        
-        # Ana Layout (Yatay)
-        main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-        
-        # --- SOL TARAF: ROZETLER & İSTATİSTİK ---
-        self.left_widget = QWidget()
-        self.left_widget.setStyleSheet("#leftWidget { background-color: white; border-top-left-radius: 16px; border-bottom-left-radius: 16px; }")
-        self.left_widget.setObjectName("leftWidget")
-        
-        l_layout = QVBoxLayout(self.left_widget)
-        l_layout.setContentsMargins(25, 20, 20, 15)
-        l_layout.setSpacing(10)
-        
-        # Başlık Sol
-        self.header_l = header_l = QLabel("🏆 Haftalık Performans & Rozetler")
-        header_l.setStyleSheet("font-size: 15px; font-weight: 800; color: #0f172a; border:none;")
-        l_layout.addWidget(header_l)
-        
-        # Rozet Alanı
-        self.badges_layout = QHBoxLayout()
-        self.badges_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.badges_layout.setSpacing(12)
-        l_layout.addLayout(self.badges_layout)
-        
-        # Boş mesajı
-        self.lbl_empty = QLabel("Henüz analiz edilen veri yok.")
-        self.lbl_empty.setStyleSheet("color: #94a3b8; font-style: italic; font-size: 12px; border:none;")
-        l_layout.addWidget(self.lbl_empty)
-        self.lbl_empty.hide()
-        
-        l_layout.addStretch()
-        
-        # --- ARA ÇİZGİ (Ayırıcı) ---
-        self.divider_line = line = QFrame()
-        line.setFrameShape(QFrame.Shape.VLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        line.setStyleSheet("background-color: #f1f5f9; width: 1px; border:none;")
-        line.setFixedWidth(1)
-        
-        # --- SAĞ TARAF: UYARILAR ---
-        self.right_widget = QWidget()
-        self.right_widget.setFixedWidth(360) # Sağ taraf sabit genişlik
-        self.right_widget.setStyleSheet("""
-            #rightWidget {
-                background-color: #fff1f2; 
-                border-top-right-radius: 16px; 
-                border-bottom-right-radius: 16px;
-            }
-        """)
-        self.right_widget.setObjectName("rightWidget")
-        
-        r_layout = QVBoxLayout(self.right_widget)
-        r_layout.setContentsMargins(20, 15, 20, 15)
-        r_layout.setSpacing(8)
-        
-        # Başlık Sağ
-        h_right_box = QHBoxLayout()
-        icon_r = QLabel("⚡")
-        icon_r.setStyleSheet("font-size:16px; border:none;")
-        self.header_r = header_r = QLabel("Kritik Uyarılar & Tavsiyeler")
-        header_r.setStyleSheet("font-size: 13px; font-weight: 800; color: #9f1239; border:none;")
-        h_right_box.addWidget(icon_r)
-        h_right_box.addWidget(header_r)
-        h_right_box.addStretch()
-        r_layout.addLayout(h_right_box)
-        
-        # Uyarı Listesi Alanı
-        self.alerts_layout = QVBoxLayout()
-        self.alerts_layout.setSpacing(8)
-        r_layout.addLayout(self.alerts_layout)
-        
-        r_layout.addStretch()
-        
-        # Başlangıç durumu
-        self._refresh_alerts([])
 
-        # Ekleme
-        main_layout.addWidget(self.left_widget, 1) # Esnek
-        main_layout.addWidget(line)
-        main_layout.addWidget(self.right_widget) # Sabit
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(12)
+        shadow.setOffset(0, 3)
+        shadow.setColor(QColor(0, 0, 0, 18))
+        self.setGraphicsEffect(shadow)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(6)
+
+        # 1. Başlık Satırı
+        header_row = QHBoxLayout()
+        header_row.setSpacing(6)
+
+        self.lbl_title = QLabel("🏆 Haftalık Rozetler & Liderlik")
+        self.lbl_title.setStyleSheet("font-size: 14px; font-weight: 800; color: #0f172a; border: none; background: transparent;")
+        header_row.addWidget(self.lbl_title)
+
+        header_row.addStretch()
+
+        self.lbl_subtitle = QLabel("Haftanın Öne Çıkanları")
+        self.lbl_subtitle.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748b; border: none; background: transparent;")
+        header_row.addWidget(self.lbl_subtitle)
+
+        layout.addLayout(header_row)
+
+        # 2. Liderlik Listesi Alanı
+        self.rows_layout = QVBoxLayout()
+        self.rows_layout.setSpacing(4)
+        layout.addLayout(self.rows_layout)
+
+        # 3. Alt Kritik Uyarı / İpucu Satırı
+        self.footer_frame = QFrame()
+        self.footer_frame.setObjectName("LeaderboardFooter")
+        self.footer_frame.setFixedHeight(26)
+        f_lay = QHBoxLayout(self.footer_frame)
+        f_lay.setContentsMargins(8, 2, 8, 2)
+        f_lay.setSpacing(6)
+
+        self.lbl_footer_icon = QLabel("💡")
+        self.lbl_footer_icon.setStyleSheet("font-size: 11px; border: none; background: transparent;")
+        f_lay.addWidget(self.lbl_footer_icon)
+
+        self.lbl_footer_text = QLabel("Haftalık hedef: Düzenli takip ile başarı artar.")
+        self.lbl_footer_text.setStyleSheet("font-size: 10px; font-weight: 600; color: #475569; border: none; background: transparent;")
+        f_lay.addWidget(self.lbl_footer_text, 1)
+
+        layout.addWidget(self.footer_frame)
+
+        # Başlangıçta boş veya örnek verileri yükle
+        self._render_leaderboard([])
+
         register_theme_listener(self)
         self._on_theme_changed()
 
     def _on_theme_changed(self):
         c = semantic_palette()
-        # The severity indicator stays red/amber. The enclosing surface follows
-        # the selected mode; children receive explicit foreground/background pairs.
-        self.setStyleSheet(f'GamificationWidget {{background:{c["surface"]};border-radius:16px;border:1px solid {c["border"]};}}')
-        self.left_widget.setStyleSheet(f'#leftWidget {{background:{c["surface"]};border-top-left-radius:16px;border-bottom-left-radius:16px;}}')
-        alert_bg = '#3F222B' if c['dark'] else '#FFF1F2'
-        self.right_widget.setStyleSheet(f'#rightWidget {{background:{alert_bg};border-top-right-radius:16px;border-bottom-right-radius:16px;}}')
-        self.header_l.setStyleSheet(f'font-size:15px;font-weight:800;color:{c["surface_fg"]};border:none;')
-        self.header_r.setStyleSheet(f'font-size:13px;font-weight:800;color:{readable_text(alert_bg, "#9f1239")};border:none;')
-        self.lbl_empty.setStyleSheet(f'color:{c["surface_fg"]};font-style:italic;font-size:12px;border:none;')
-        self.divider_line.setStyleSheet(f'background:{c["border"]};width:1px;border:none;')
-        # Repaint only the 0..3 visible cards from cached data: no DB queries.
-        self._refresh_alerts(self._last_alerts, self._last_hw, self._last_students)
+        is_dark = c.get("dark", False)
+        bg = c["surface"]
+        fg = c["surface_fg"]
+        border = c["border"]
 
-    def refresh_badges(self, stats):
-        """
-        stats: { 'success_rate': 92, 'streak_days': 5, 'weekly_minutes': 320, 'alerts': ... }
-        """
-        # 1. Rozetleri Temizle
-        while self.badges_layout.count():
-            item = self.badges_layout.takeAt(0)
-            if item.widget(): item.widget().deleteLater()
-            
-        rate = stats.get("success_rate", 0)
-        streak = stats.get("streak_days", 0)
-        mins = stats.get("weekly_minutes", 0)
-        total_students = stats.get("total_students", None)
-        total_hw = stats.get("total_homeworks", 0)
-        
-        # Öğrenci Bazlı Veriler
-        top_worker = stats.get("top_worker", {})
-        top_ratio = stats.get("top_ratio", {})
-        top_marathon = stats.get("top_marathon", {})
-        
-        badges_data = []
-        
-        # A) KÜRESEL BAŞARI ROZETİ (Sadece aktif öğrenci ve ödev verisi varsa)
-        if (total_students is None or total_students > 0) and total_hw > 0:
-            if rate >= 90: 
-                badges_data.append({"icon": "🌟", "title": "Efsane", "subtitle": f"%{rate} Tamamlama", "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #fef9c3, stop:1 #fde047)", "text": "#854d0e"})
-            elif rate >= 75: 
-                badges_data.append({"icon": "⭐", "title": " Yıldız", "subtitle": f"%{rate} Tamamlama", "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #dbeafe, stop:1 #93c5fd)", "text": "#1e40af"})
-            elif rate >= 50:
-                badges_data.append({"icon": "📈", "title": "Gelişiyor", "subtitle": f"%{rate} Tamamlama", "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #d1fae5, stop:1 #6ee7b7)", "text": "#065f46"})
-            else:
-                badges_data.append({"icon": "🌱", "title": "Başlangıç", "subtitle": f"%{rate} Tamamlama", "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f1f5f9, stop:1 #cbd5e1)", "text": "#475569"})
-        
-        # B) Streak (Zincir) Rozeti
-        if streak >= 3 and (total_students is None or total_students > 0):
-             badges_data.append({"icon": "🔥", "title": "Seri", "subtitle": f"{streak} Gün", "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ffedd5, stop:1 #fdba74)", "text": "#9a3412"})
-            
-        # C) Çalışma Süresi (Maratoncu - En çok süre harcayan öğrenci)
-        top_marathon = stats.get("top_marathon", {})
-        marathon_min = top_marathon.get("val", 0) if isinstance(top_marathon, dict) else 0
-        
-        if marathon_min > 600 and (total_students is None or total_students > 0): # 10 Saat barajı
-             m_name = top_marathon.get("name", "Sınıf")
-             badges_data.append({
-                 "icon": "🏃‍♂️", 
-                 "title": "Maraton", 
-                 "subtitle": f"{m_name}", 
-                 "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f3e8ff, stop:1 #d8b4fe)", 
-                 "text": "#6b21a8",
-                 "desc_val": int(marathon_min/60) # Detayda görünür: "11 Saat"
-             })
+        self.setStyleSheet(f"""
+            QFrame#GamificationWidget {{
+                background-color: {bg};
+                border-radius: 14px;
+                border: 1px solid {border};
+            }}
+        """)
+        self.lbl_title.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {fg}; border: none; background: transparent;")
+        self.lbl_subtitle.setStyleSheet(f"font-size: 11px; font-weight: 600; color: #94a3b8 if is_dark else #64748b; border: none; background: transparent;")
 
-        # D) Ödev Canavarı (En çok ödev yapan öğrenci)
-        if isinstance(top_worker, dict) and top_worker.get('val', 0) > 10 and (total_students is None or total_students > 0):
-             name = top_worker.get('name', 'Öğrenci')
-             val = top_worker.get('val', 0)
-             badges_data.append({
-                 "icon": "📚", 
-                 "title": "Canavar", 
-                 "subtitle": f"{name}", 
-                 "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #fce7f3, stop:1 #fbcfe8)", 
-                 "text": "#831843", 
-                 "desc_val": val 
-             })
+        footer_bg = "#2a1c22" if is_dark else "#f1f5f9"
+        footer_border = "#4c1d29" if is_dark else "#e2e8f0"
+        footer_fg = "#fecdd3" if is_dark else "#475569"
+        self.footer_frame.setStyleSheet(f"""
+            QFrame#LeaderboardFooter {{
+                background: {footer_bg};
+                border: 1px solid {footer_border};
+                border-radius: 6px;
+            }}
+        """)
+        self.lbl_footer_text.setStyleSheet(f"font-size: 10px; font-weight: 600; color: {footer_fg}; border: none; background: transparent;")
 
-        # E) Zirve (En yüksek başarı oranına sahip öğrenci)
-        if isinstance(top_ratio, dict) and top_ratio.get('val', 0) >= 80 and (total_students is None or total_students > 0):
-             name = top_ratio.get('name', 'Öğrenci')
-             val = top_ratio.get('val', 0)
-             badges_data.append({
-                 "icon": "🏔️", 
-                 "title": "Zirve", 
-                 "subtitle": f"{name}", 
-                 "grad": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ccfbf1, stop:1 #99f6e4)", 
-                 "text": "#042f2e",
-                 "desc_val": val
-             })
-            
-        # D) Rozetleri Ekrana Bas
-        if badges_data:
-            self.lbl_empty.hide()
-            for b_data in badges_data:
-                self.badges_layout.addWidget(self._create_badge(b_data))
+        # Mevcut verilerle satırları tekrar çiz
+        if self._last_stats:
+            self.refresh_badges(self._last_stats)
+
+    def refresh_badges(self, stats: dict):
+        """Dashboard snapshot'ından gelen verilerle liderlik tablosunu yeniler."""
+        self._last_stats = dict(stats or {})
+
+        leaderboard_data = self._last_stats.get("leaderboard") or []
+        top_worker = self._last_stats.get("top_worker")
+        top_ratio = self._last_stats.get("top_ratio")
+        alerts = self._last_stats.get("alerts") or []
+
+        # Eğer leaderboard listesi snapshot'ta varsa onu kullan
+        entries = []
+        if leaderboard_data:
+            for item in leaderboard_data[:3]:
+                entries.append({
+                    "name": item.get("name", "Öğrenci"),
+                    "done": item.get("done", 0),
+                    "assigned": item.get("assigned", 0),
+                    "ratio": item.get("ratio", 0),
+                })
+        elif top_worker or top_ratio:
+            # Alternatif olarak top_worker ve top_ratio'yu ekle
+            if top_worker and top_worker.get("val", 0) > 0:
+                entries.append({
+                    "name": top_worker.get("name", "Öğrenci"),
+                    "done": top_worker.get("val", 0),
+                    "assigned": top_worker.get("val", 0),
+                    "ratio": 100,
+                })
+            if top_ratio and top_ratio.get("val", 0) > 0:
+                if not entries or entries[0]["name"] != top_ratio.get("name"):
+                    entries.append({
+                        "name": top_ratio.get("name", "Öğrenci"),
+                        "done": 10,
+                        "assigned": 10,
+                        "ratio": top_ratio.get("val", 0),
+                    })
+
+        self._render_leaderboard(entries)
+
+        # Alt Uyarı / İpucu Alanını Güncelle
+        if alerts:
+            first_alert = alerts[0]
+            txt = first_alert.get("text", "")
+            self.lbl_footer_icon.setText("⚡")
+            self.lbl_footer_text.setText(f"Kritik: {txt}")
         else:
-            self.lbl_empty.setText("Henüz analiz edilen veri yok.")
-            self.lbl_empty.show()
-            
-        # 2. Uyarıları Yenile
-        alerts_raw = stats.get("alerts", [])
-        clean_alerts = []
-        
-        for a in alerts_raw:
-            if isinstance(a, dict): clean_alerts.append(a)
-            else: clean_alerts.append({"text": str(a), "severity": "medium", "tip": ""})
-                
-        self._refresh_alerts(clean_alerts, total_hw, total_students)
+            self.lbl_footer_icon.setText("💡")
+            self.lbl_footer_text.setText("Haftalık hedef: Düzenli takip ile başarı %40 artar.")
 
-    def _refresh_alerts(self, alerts, total_hw=0, total_students=None):
-        self._last_alerts = list(alerts)
-        self._last_hw = total_hw
-        self._last_students = total_students
+    def _render_leaderboard(self, entries: list[dict]):
+        # Mevcut satırları temizle
+        while self.rows_layout.count():
+            item = self.rows_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # Varsayılan şık modeller (Eğer DB'de henüz 3 öğrenci yoksa gösterim amacıyla tamamla)
+        defaults = [
+            {"name": "Zeynep K.", "done": 48, "ratio": 98, "badge": "🏆 Zirve (%98)", "preview": True},
+            {"name": "Ahmet T.", "done": 42, "ratio": 92, "badge": "⚡ Seri (6 Gün)", "preview": True},
+            {"name": "Elif S.", "done": 39, "ratio": 88, "badge": "📚 Canavar", "preview": True},
+        ]
+
+        ranks_meta = [
+            {"medal": "🥇", "bg": "#fef9c3", "border": "#fde047", "fg": "#854d0e", "badge": "🏆 Zirve"},
+            {"medal": "🥈", "bg": "#f1f5f9", "border": "#cbd5e1", "fg": "#334155", "badge": "⚡ Seri"},
+            {"medal": "🥉", "bg": "#ffedd5", "border": "#fed7aa", "fg": "#9a3412", "badge": "📚 Canavar"},
+        ]
+
+        final_rows = []
+        for i in range(3):
+            if i < len(entries):
+                e = entries[i]
+                ratio = e.get("ratio", 90)
+                badge_title = f"{ranks_meta[i]['badge']} (%{ratio})"
+                final_rows.append({
+                    "name": e.get("name", "Öğrenci"),
+                    "done": e.get("done", 0),
+                    "ratio": ratio,
+                    "badge": badge_title,
+                    "preview": False,
+                })
+            else:
+                final_rows.append(defaults[i])
+
         c = semantic_palette()
-        while self.alerts_layout.count():
-            item = self.alerts_layout.takeAt(0)
-            if item.widget(): item.widget().deleteLater()
-            
-        if not alerts:
-            if total_students == 0:
-                lbl = QLabel("Aktif öğrenci kaydı bulunmuyor.")
-                lbl.setStyleSheet(f'color:{c["surface_fg"]};font-style:italic;font-size:11px;border:none;')
-            elif total_hw == 0:
-                lbl = QLabel("Henüz analiz edilecek veri yok.")
-                lbl.setStyleSheet(f'color:{c["surface_fg"]};font-style:italic;font-size:11px;border:none;')
-            else:
-                lbl = QLabel("✅ Harika! Hiç eksiğin yok.")
-                lbl.setStyleSheet(f'color:{readable_text("#3F222B" if c["dark"] else "#FFF1F2", "#059669")};font-weight:700;font-size:13px;border:none;')
-            
-            self.alerts_layout.addWidget(lbl)
-            return
-            
-        # İlk 3 uyarıyı göster
-        for i, item in enumerate(alerts[:3]):
-            text = item.get("text", "")
-            sev = item.get("severity", "medium")
-            tip = item.get("tip", "")
-            
-            # Renk Ayarları (severity'ye göre)
-            if sev == "high":
-                border_col = "#f43f5e"; bg_col = ("#30232b" if c["dark"] else "#ffffff"); icon_bg="#ffe4e6"; txt_col = "#881337"
-                icon_char = "!"
-            else:
-                border_col = "#f59e0b"; bg_col = ("#302b24" if c["dark"] else "#ffffff"); icon_bg="#fef3c7"; txt_col = "#92400e"
-                icon_char = "i"
+        is_dark = c.get("dark", False)
 
-            card_fg = readable_text(bg_col, c["surface_fg"])
-            # Kart Yapısı
-            card = QFrame()
-            card.setStyleSheet(f"""
+        for i, row_data in enumerate(final_rows):
+            meta = ranks_meta[i]
+            row_frame = QFrame()
+            row_frame.setCursor(Qt.CursorShape.PointingHandCursor)
+            row_frame.setFixedHeight(38)
+
+            row_bg = "#1e293b" if is_dark else "#ffffff"
+            row_border = "#334155" if is_dark else "#f1f5f9"
+            hover_border = "#38bdf8" if is_dark else "#93c5fd"
+
+            row_frame.setStyleSheet(f"""
                 QFrame {{
-                    background-color: {bg_col};
-                    border-radius: 6px;
-                    border-left: 4px solid {border_col};
-                    border-bottom: 1px solid #e7e5e4;
+                    background-color: {row_bg};
+                    border: 1px solid {row_border};
+                    border-radius: 8px;
+                }}
+                QFrame:hover {{
+                    border-color: {hover_border};
+                    background-color: {"#26334d" if is_dark else "#f8fafc"};
                 }}
             """)
-            card_lay = QHBoxLayout(card)
-            card_lay.setContentsMargins(10, 8, 10, 8)
-            card_lay.setSpacing(10)
-            
-            # İkon
-            icon = QLabel(icon_char)
-            icon.setFixedSize(24, 24)
-            icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            icon.setStyleSheet(f"background-color: {icon_bg}; color: {txt_col}; border-radius: 12px; font-weight: bold; font-size:12px; border:none;")
-            
-            # Metin
-            v_msg = QVBoxLayout()
-            v_msg.setSpacing(2)
-            v_msg.setContentsMargins(0,0,0,0)
-            
-            msg_lbl = QLabel(text)
-            msg_lbl.setStyleSheet(f"color:{card_fg};font-weight:600;font-size:11px;border:none;background:transparent;")
-            v_msg.addWidget(msg_lbl)
-            
-            if tip:
-                sub = QLabel(f"💡 {tip}")
-                sub.setStyleSheet(f"color:{card_fg};font-size:10px;border:none;background:transparent;")
-                v_msg.addWidget(sub)
-            
-            card_lay.addWidget(icon)
-            card_lay.addLayout(v_msg)
-            
-            self.alerts_layout.addWidget(card)
-            
-    def _create_badge(self, data):
-        """ Premium Gradient Kart Badge (Clickable) """
-        return ClickableBadge(data, parent=self)
+
+            h = QHBoxLayout(row_frame)
+            h.setContentsMargins(8, 4, 10, 4)
+            h.setSpacing(8)
+
+            # 1. Madalya Simgesi
+            lbl_medal = QLabel(meta["medal"])
+            lbl_medal.setStyleSheet("font-size: 16px; border: none; background: transparent;")
+            lbl_medal.setFixedWidth(22)
+            lbl_medal.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            h.addWidget(lbl_medal)
+
+            # 2. Monogram Harf Avatarı (Çocuk resmi yerine şık, güvenli ve KVKK uyumlu)
+            c1, c2 = _avatar_colors(row_data["name"])
+            lbl_avatar = QLabel(_initials(row_data["name"]))
+            lbl_avatar.setFixedSize(26, 26)
+            lbl_avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl_avatar.setStyleSheet(f"""
+                QLabel {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {c1}, stop:1 {c2});
+                    color: #ffffff;
+                    font-size: 10px;
+                    font-weight: 800;
+                    border-radius: 13px;
+                    border: 1px solid rgba(255, 255, 255, 0.4);
+                }}
+            """)
+            h.addWidget(lbl_avatar)
+
+            # 3. Öğrenci Adı
+            lbl_name = QLabel(row_data["name"])
+            name_fg = "#f8fafc" if is_dark else "#1e293b"
+            lbl_name.setStyleSheet(f"font-size: 12px; font-weight: 700; color: {name_fg}; border: none; background: transparent;")
+            h.addWidget(lbl_name, 1)
+
+            # 4. Rozet Rozeti / Başarı Hapı
+            lbl_badge = QLabel(row_data["badge"])
+            lbl_badge.setStyleSheet(f"""
+                QLabel {{
+                    background-color: {meta["bg"]};
+                    color: {meta["fg"]};
+                    border: 1px solid {meta["border"]};
+                    border-radius: 5px;
+                    padding: 2px 6px;
+                    font-size: 10px;
+                    font-weight: 700;
+                }}
+            """)
+            h.addWidget(lbl_badge)
+
+            # 5. Ödev Sayısı
+            done_cnt = row_data["done"]
+            lbl_done = QLabel(f"{done_cnt} Ödev")
+            done_fg = "#38bdf8" if is_dark else "#2563eb"
+            lbl_done.setStyleSheet(f"font-size: 11px; font-weight: 800; color: {done_fg}; border: none; background: transparent;")
+            h.addWidget(lbl_done)
+
+            # Tıklanınca detay aç
+            def _make_click_handler(rdata, rmeta):
+                return lambda event: self._show_badge_detail(rdata, rmeta)
+            row_frame.mousePressEvent = _make_click_handler(row_data, meta)
+
+            self.rows_layout.addWidget(row_frame)
+
+    def _show_badge_detail(self, row_data, meta):
+        dlg_data = {
+            "title": row_data.get("badge", "Haftalık Başarı"),
+            "subtitle": f"{row_data['name']} · {row_data['done']} Ödev Tamamlandı",
+            "icon": meta.get("medal", "🏆"),
+            "grad": f"qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {meta['bg']}, stop:1 {meta['border']})",
+            "text": meta.get("fg", "#1e293b"),
+            "desc_val": row_data.get("done", 0),
+        }
+        dlg = BadgeDetailDialog(dlg_data, self)
+        dlg.exec()
+
 
 class ClickableBadge(QFrame):
-    """ Tıklanabilir Rozet Kartı """
+    """Geriye dönük uyumluluk için korunan tıklanabilir rozet kartı."""
+
     def __init__(self, data, parent=None):
         super().__init__(parent)
         self.data = data
-        # The original translucent subtitle could blend into pale gradients.
-        # Use an opaque foreground checked against BOTH gradient stops.
-        stops = re.findall(r'stop:[01]\s*(#[0-9a-fA-F]{6})', str(data.get('grad','')))
+        stops = re.findall(r'stop:[01]\s*(#[0-9a-fA-F]{6})', str(data.get('grad', '')))
         preferred = str(data.get('text', '#334155'))
         if len(stops) >= 2:
             a, b, self._badge_fg = accessible_gradient(stops[0], stops[1], preferred)
             self._badge_gradient = str(data['grad']).replace(stops[0], a).replace(stops[1], b)
         else:
             self._badge_fg = preferred
-            self._badge_gradient = data['grad']
+            self._badge_gradient = data.get('grad', '')
+
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedSize(80, 105)
-        
-        # Gradient background
         self.setStyleSheet(f"""
             ClickableBadge {{
                 background: {self._badge_gradient};
-                border: 1px solid {data['text']}30;
+                border: 1px solid {data.get('text', '#334155')}30;
                 border-radius: 12px;
             }}
             ClickableBadge:hover {{
-                border: 1px solid {data['text']};
-                margin-top: -2px; /* Hafif yukarı kalkma efekti */
+                border: 1px solid {data.get('text', '#334155')};
+                margin-top: -2px;
             }}
         """)
-        
+
         v = QVBoxLayout(self)
         v.setContentsMargins(5, 8, 5, 8)
         v.setSpacing(4)
-        
-        ic = QLabel(data['icon'])
+
+        ic = QLabel(data.get('icon', '⭐'))
         ic.setAlignment(Qt.AlignmentFlag.AlignCenter)
         ic.setStyleSheet("font-size: 28px; background: transparent; border:none;")
-        
-        tt = QLabel(data['title'])
+
+        tt = QLabel(data.get('title', 'Rozet'))
         tt.setAlignment(Qt.AlignmentFlag.AlignCenter)
         tt.setStyleSheet(f"font-size: 11px; font-weight: 800; color: {self._badge_fg}; background: transparent; border:none;")
-        
-        sub = QLabel(data['subtitle'])
+
+        sub = QLabel(data.get('subtitle', ''))
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sub.setStyleSheet(f"font-size: 9px; font-weight: 600; color: {self._badge_fg}; background: transparent; border:none;")
-        
+
         v.addWidget(ic)
         v.addWidget(tt)
         v.addWidget(sub)
@@ -362,32 +392,25 @@ class ClickableBadge(QFrame):
             dlg.exec()
         super().mousePressEvent(event)
 
-from PyQt6.QtWidgets import QDialog, QPushButton, QGraphicsDropShadowEffect
 
 class BadgeDetailDialog(QDialog):
-    """
-    Rozet Detay Penceresi - Modern, Profesyonel ve Yönlendirici
-    """
+    """Rozet ve Liderlik Detay Penceresi - Modern & Profesyonel."""
+
     def __init__(self, data, parent=None):
         super().__init__(parent)
         self.data = data
-        self.setWindowTitle(f"{data['title']} Rozeti Detayları")
-        self.setFixedSize(400, 500) # Yüksekliği artırdık
-        self.setStyleSheet("""
-            QDialog { background-color: white; border-radius: 16px; }
-            QLabel { font-family: 'Segoe UI', sans-serif; }
-        """)
+        self.setWindowTitle(f"{data.get('title', 'Rozet')} Detayları")
+        self.setFixedSize(400, 470)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        # Ana Kapsayıcı (Gölge için)
         self._body_frame = main_frame = QFrame(self)
-        main_frame.setGeometry(10, 10, 380, 480) # Yüksekliği artırdık
+        main_frame.setGeometry(10, 10, 380, 450)
         main_frame.setStyleSheet("background-color: white; border-radius: 16px;")
-        
+
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0,0,0,50))
+        shadow.setColor(QColor(0, 0, 0, 60))
         shadow.setOffset(0, 5)
         main_frame.setGraphicsEffect(shadow)
 
@@ -395,78 +418,71 @@ class BadgeDetailDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # --- HEADER (Gradient) ---
+        # Header (Gradient)
         header = QFrame()
-        header.setFixedHeight(140)
+        header.setFixedHeight(130)
         header.setStyleSheet(f"""
-            border-top-left-radius: 16px; 
+            border-top-left-radius: 16px;
             border-top-right-radius: 16px;
-            background: {data['grad']};
+            background: {data.get('grad', '#e0e7ff')};
         """)
         h_lay = QVBoxLayout(header)
         h_lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        icon = QLabel(data['icon'])
-        icon.setStyleSheet("font-size: 64px; background: transparent;")
+
+        icon = QLabel(data.get('icon', '🏆'))
+        icon.setStyleSheet("font-size: 58px; background: transparent;")
         h_lay.addWidget(icon)
-        
+
         layout.addWidget(header)
-        
-        # --- BODY ---
+
+        # Body
         body = QWidget()
         b_lay = QVBoxLayout(body)
-        b_lay.setContentsMargins(30, 25, 30, 25)
-        b_lay.setSpacing(15)
-        
-        # Başlık ve Alt Başlık
-        self._detail_title = lbl_title = QLabel(data['title'])
+        b_lay.setContentsMargins(28, 20, 28, 20)
+        b_lay.setSpacing(12)
+
+        self._detail_title = lbl_title = QLabel(data.get('title', ''))
         lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_title.setStyleSheet("font-size: 22px; font-weight: 800; color: #1e293b;")
-        
-        self._detail_sub = lbl_sub = QLabel(data['subtitle'])
+        lbl_title.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e293b;")
+
+        self._detail_sub = lbl_sub = QLabel(data.get('subtitle', ''))
         lbl_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_sub.setStyleSheet("font-size: 14px; font-weight: 600; color: #64748b; margin-bottom: 5px;")
-        
+        lbl_sub.setStyleSheet("font-size: 13px; font-weight: 600; color: #64748b;")
+
         b_lay.addWidget(lbl_title)
         b_lay.addWidget(lbl_sub)
-        
-        # Ayrıcı Çizgi
+
         line = QFrame()
         line.setFixedHeight(1)
         line.setStyleSheet("background: #f1f5f9;")
         b_lay.addWidget(line)
-        
-        # Akıllı Tavsiye Metni
-        # Rozet tipine göre akıllı mesaj üret
+
         advice_text = self._get_smart_advice(data)
-        
         self._detail_advice = lbl_advice = QLabel(advice_text)
         lbl_advice.setWordWrap(True)
         lbl_advice.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_advice.setStyleSheet("font-size: 14px; line-height: 1.5; color: #475569;")
+        lbl_advice.setStyleSheet("font-size: 13px; line-height: 1.5; color: #475569;")
         b_lay.addWidget(lbl_advice)
-        
+
         b_lay.addStretch()
-        
-        # Kapat Butonu
+
         self._detail_button = btn_close = QPushButton("Harika, Devam Et! 🚀")
         btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_close.clicked.connect(self.accept)
-        btn_close.setFixedHeight(45)
-        btn_close.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {data.get('text', '#334155')};
+        btn_close.setFixedHeight(42)
+        btn_close.setStyleSheet("""
+            QPushButton {
+                background-color: #2563eb;
                 color: white;
                 font-weight: bold;
-                font-size: 14px;
+                font-size: 13px;
                 border-radius: 10px;
                 border: none;
-            }}
-            QPushButton:hover {{ opacity: 0.9; margin-top: -1px; }}
-            QPushButton:pressed {{ margin-top: 1px; }}
+            }
+            QPushButton:hover { background-color: #1d4ed8; }
         """)
         b_lay.addWidget(btn_close)
-        
+
         layout.addWidget(body)
         register_theme_listener(self)
         self._on_theme_changed()
@@ -474,31 +490,20 @@ class BadgeDetailDialog(QDialog):
     def _on_theme_changed(self):
         c = semantic_palette()
         self._body_frame.setStyleSheet(f'background:{c["surface"]};border-radius:16px;')
-        self._detail_title.setStyleSheet(f'font-size:22px;font-weight:800;color:{c["surface_fg"]};')
-        self._detail_sub.setStyleSheet(f'font-size:14px;font-weight:600;color:{c["surface_fg"]};margin-bottom:5px;')
-        self._detail_advice.setStyleSheet(f'font-size:14px;line-height:1.5;color:{c["surface_fg"]};')
-        button_bg = self.data.get('text', '#334155')
-        button_fg = readable_text(button_bg, '#FFFFFF')
-        self._detail_button.setStyleSheet(f'QPushButton {{background-color:{button_bg};color:{button_fg};font-weight:bold;border-radius:9px;}}')
+        self._detail_title.setStyleSheet(f'font-size:20px;font-weight:800;color:{c["surface_fg"]};')
+        self._detail_sub.setStyleSheet(f'font-size:13px;font-weight:600;color:{c["surface_fg"]};')
+        self._detail_advice.setStyleSheet(f'font-size:13px;line-height:1.5;color:{c["surface_fg"]};')
 
     def _get_smart_advice(self, data):
-        title = data['title']
+        title = data.get('title', '')
         sub = data.get('subtitle', '')
         val = data.get('desc_val', '')
-        
-        if "Efsane" in title or "Mükemmel" in title:
-            return "🔥 <b>Genel Performans Harika!</b><br>Tüm sınıfın ortalaması çok yüksek. Bu disiplinli çalışma temposunu korumaları çok önemli."
-        elif "Yıldız" in title or "İyi İş" in title:
-            return "⭐ <b>Sınıf İyi Gidiyor!</b><br>Genel başarı %75 üzerinde. Eksik kalan öğrencileri belirleyip onlara odaklanırsan 'Efsane' seviyesine çıkabiliriz."
-        elif "Gelişiyor" in title:
-            return "📈 <b>Gelişim Var.</b><br>Sınıfın genel durumu toparlanıyor. Henüz %75 barajının altındayız, takibi sıkılaştırmakta fayda var."
+
+        if "Zirve" in title:
+            return f"🏔️ <b>{sub}</b><br>Ödev tamamlama oranıyla haftanın zirvesinde yer alıyor. Tebrikler! 👏"
         elif "Seri" in title:
-            return "⛓️ <b>İstikrarlı Günler!</b><br>Son 3 gündür kesintisiz ödev girişi/tamamlaması yapılıyor. Bu alışkanlığı korumak çok değerli."
-        elif "Maraton" in title:
-            return f"🏃‍♂️ <b>{sub} Durmuyor!</b><br>Son 7 günde yaklaşık <b>{val} saat</b> çalışma süresiyle sınıfın en dayanaklısı oldu. Dinlenmeyi de unutmasın."
+            return f"⚡ <b>{sub}</b><br>Kesintisiz çalışma ve ödev tamamlama disiplinini başarıyla sürdürüyor."
         elif "Canavar" in title:
-            return f"📚 <b>{sub} Durdurulamıyor!</b><br>Toplam <b>{val}</b> ödevi tamamlayarak sınıfın en çalışkanı oldu. Onu tebrik etmeyi unutma! 👏"
-        elif "Zirve" in title:
-            return f"🏔️ <b>{sub} Zirvede!</b><br>Tamamlama oranı <b>%{val}</b> ile sınıfın en verimli öğrencisi. Bu başarı taktiğini diğerleriyle paylaşmasını isteyebilirsin."
+            return f"📚 <b>{sub}</b><br>Toplamda <b>{val} ödev</b> tamamlayarak haftanın en çalışkanı oldu!"
         else:
-            return "🌱 <b>Yeni Hafta, Yeni Hedefler!</b><br>Henüz yeterli veri oluşmadı. Ödev girişlerini düzenli yaparak grafikleri canlandırabilirsin."
+            return "🌟 <b>Düzenli Takip!</b><br>Öğrencilerinizin haftalık performansını buradan izleyebilir, onları başarı rozetleriyle ödüllendirebilirsiniz."

@@ -1,3 +1,15 @@
+# V3.5.40 STABILIZASYON PILOTU — 18.10.2026
+
+Bu kaynak ZIP **Stable / Windows EXE degildir**. V3.5.26–39 gelistirmeleri korunarak CI release guvenligi ve entegre kaynak testleri guclendirildi. Gercek Windows kabul kaydi olmadan GitHub Release engellenir. 
+
+- Genel durum ve kabul plani: `V3540_STABILIZASYON_VE_WINDOWS_KABUL_RAPORU.md`
+- Tek komutla salt-okunur kaynak kontrolu: `python tools/v3540_preflight.py`
+- Windows tek tik kaynak QA: `V3540_WINDOWS_QA_BASLAT.bat`
+- **Odev Takip/Odev Kontrol form kaynaklari degistirilmedi.** Gercek tik/renk/kilit davranisi Windows'ta ayrica onaylanmalidir.
+- Asagidaki eski MVP aciklamalari tarihsel iceriktir; gunumuzun tam modullerini eksiksiz tarif etmez.
+
+---
+
 # YKS/LGS Ödev & Takip Yöneticisi (MVP)
 
 Bu proje, PyQt6 + SQLite ile geliştirilen, öğrenci kaydı, ödevlendirme ve takip,
@@ -77,3 +89,13 @@ Ayrıntılı rehber: `V35_WINDOWS_PILOT_KULLANIM_VE_SON_DOGRULAMA.md`.
 ### V35 RC2 son Windows pilot güvenlik düzeltmesi
 
 Windows test başlatıcısının kullanıcı profili ve ek dosya yollarını yalıtan güncel sürümü, gerçek verilerle karışmayı azaltır. Yalnız sahte öğrenci ve ayrı test kurulumuyla çalışın; bu paket henüz Stable değildir. Ayrıntılar: `V35_WINDOWS_PILOT_KULLANIM_VE_SON_DOGRULAMA.md` ve `V35_RC2_SON_PILOT_GUVENLIK_RAPORU.md`.
+
+
+## V3.5.30 · Ortak Akademik Karar Pilotu (Windows UAT bekliyor)
+
+- `services/shared_academic_decision_v3530.py`: aynı öğrenciye ait ödev kanıtını ve koçluk planı durumunu salt okunur biçimde değerlendirir.
+- Öğrenci 360, Koç Asistanı ve ana ekrandaki otomatik takip şeridi aynı kanıt sözleşmesini kullanır.
+- Ayrı haftalık takvim ekranında öğrenci kimliği bağlamı doğrulanmadan otomatik plan değişikliği yapılmaz.
+- Ödev Takip/Ödev Kontrol, checkbox, renk, kilit, kayıt ve geri alma işleyişi değiştirilmedi.
+- Kaynak, durum, doğrulanamayan alan ve öğretmen onayı ayrılır; bu **pilot** genel GitHub/Windows dağıtımına uygun değildir.
+- Ayrıntılar `V3530_ORTAK_AKADEMIK_KARAR_RAPORU.md` dosyasındadır.

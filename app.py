@@ -416,14 +416,160 @@ def main() -> None:
     w = AnaPencere()
     w.setWindowTitle("KoçPilot 360 — Bütünleşik Koçluk & Sınav Platformu")
     try:
-        from PyQt6.QtWidgets import QLabel
-        for _lbl in w.findChildren(QLabel):
-            if "YKS/LGS" in _lbl.text() and "Asistanı" in _lbl.text():
-                _lbl.setText("KoçPilot 360\nBütünleşik Platform")
-                _lbl.setStyleSheet("font-size: 13px; font-weight: 800; color: #1e293b; letter-spacing: -0.3px;")
-                break
+        from PyQt6.QtWidgets import QLabel, QMenu, QPushButton, QScrollArea
+        from ui.brand_card_widget import BrandCardWidget
+
+        # 1. Sol Sidebar: Eski metin etiketi yerine Kurumsal KoçPilot 360 Marka Kartı
+        if hasattr(w, "sidebar") and w.sidebar.layout():
+            for _lbl in w.sidebar.findChildren(QLabel):
+                if "YKS/LGS" in _lbl.text() or "Asistanı" in _lbl.text():
+                    _lbl.hide()
+                    break
+            brand_card = BrandCardWidget()
+            w.sidebar.layout().insertWidget(0, brand_card)
+
+            # QScrollArea üzerindeki seçicisiz 'background: transparent;' alt butonların
+            # arka planını ezdiği için yalnızca QScrollArea ve doğrudan konteynerine sınırlandır
+            for _sa in w.sidebar.findChildren(QScrollArea):
+                _sa.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+                _sa.setStyleSheet("""
+                    QScrollArea { background: transparent; border: none; }
+                    QScrollArea > QWidget { background: transparent; }
+                    QScrollArea > QWidget > QWidget { background: transparent; }
+                    QScrollBar:vertical {
+                        background: transparent; width: 5px; margin: 2px 0px;
+                    }
+                    QScrollBar::handle:vertical {
+                        background: rgba(148, 163, 184, 0.35); border-radius: 2px; min-height: 24px;
+                    }
+                    QScrollBar::handle:vertical:hover {
+                        background: rgba(56, 189, 248, 0.65);
+                    }
+                    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                        height: 0px; background: none;
+                    }
+                """)
+
+        # 2. Sol Sidebar Butonları: Aktif hap (pill) durumu
+        all_sidebar_btns = w.sidebar.findChildren(QPushButton)
+        def _set_active_btn(target_btn):
+            for btn in all_sidebar_btns:
+                is_act = (btn == target_btn)
+                btn.setProperty("active", "true" if is_act else "false")
+                btn.style().unpolish(btn)
+                btn.style().polish(btn)
+                btn.update()
+
+        for btn in all_sidebar_btns:
+            btn.clicked.connect(lambda ch, b=btn: _set_active_btn(b))
+
+        # Başlangıçta Ana Sayfa (Genel Bakış) aktif
+        if hasattr(w, "btnHome"):
+            _set_active_btn(w.btnHome)
+
+        # 3. Üst Gri Şeridi Gizle (Kompakt Karar Masasına Taşındı - Dikey Alan Tasarrufu)
+        if hasattr(w, "_today_focus_v4"):
+            w._today_focus_v4.hide()
+
+            # Veri güncellendiğinde Karar Masası rozetini otomatik besle
+            orig_present = getattr(w._today_focus_v4, "_present", None)
+            if callable(orig_present):
+                def _synced_present(result):
+                    orig_present(result)
+                    try:
+                        cards = getattr(w._today_focus_v4, "_cards", [])
+                        count = len(cards)
+                        preview = ""
+                        if cards:
+                            preview = f"{cards[0].get('title', '')} — {cards[0].get('reason', '')}"
+                        if hasattr(w, "dashboard") and hasattr(w.dashboard, "update_priorities_badge"):
+                            w.dashboard.update_priorities_badge(count, preview)
+                    except Exception:
+                        pass
+                w._today_focus_v4._present = _synced_present
+
+            # Karar Masası [🔔 Öncelikler ▾] Butonu: Hızlı Açılır Menü
+            if hasattr(w, "dashboard") and hasattr(w.dashboard, "sig_open_priorities"):
+                def _show_priorities_dropdown():
+                    cards = getattr(w._today_focus_v4, "_cards", [])
+                    target_btn = getattr(w.dashboard, "btn_priorities", w.dashboard)
+                    menu = QMenu(target_btn)
+                    menu.setStyleSheet("""
+                        QMenu {
+                            background-color: #ffffff;
+                            border: 1px solid #cbd5e1;
+                            border-radius: 8px;
+                            padding: 6px;
+                            font-size: 12px;
+                        }
+                        QMenu::item {
+                            padding: 8px 16px;
+                            border-radius: 6px;
+                            color: #1e293b;
+                        }
+                        QMenu::item:selected {
+                            background-color: #eff6ff;
+                            color: #1d4ed8;
+                            font-weight: bold;
+                        }
+                    """)
+                    if not cards:
+                        act = menu.addAction("✅ Bekleyen acil öncelik bulunmuyor")
+                        act.setEnabled(False)
+                    else:
+                        for c in cards[:8]:
+                            sid = int(c.get("student_id", 0))
+                            title = c.get("title", "Öğrenci")
+                            reason = c.get("reason", "")
+                            act = menu.addAction(f"📌 {title} — {reason}")
+                            if sid > 0:
+                                act.triggered.connect(lambda ch, s=sid: w.open_homework_for_student(s))
+                        menu.addSeparator()
+                        all_act = menu.addAction("📋 Tüm Öncelikleri Gör (Günün Özeti)...")
+                        all_act.triggered.connect(w._smart_asistan)
+                    menu.exec(target_btn.mapToGlobal(target_btn.rect().bottomLeft()))
+
+                w.dashboard.sig_open_priorities.connect(_show_priorities_dropdown)
+
+            # Karar Masası [⚡ Günün Özeti] Butonu: Günün Özeti Dialogunu Aç
+            if hasattr(w, "dashboard") and hasattr(w.dashboard, "sig_open_summary"):
+                w.dashboard.sig_open_summary.connect(w._smart_asistan)
+
+            # Platform Keşif Vitrini [Hemen Keşfet →] Butonlarını İlgili Modüle Bağla
+            if hasattr(w, "dashboard") and hasattr(w.dashboard, "sig_open_feature"):
+                def _handle_feature_launch(f_key: str):
+                    try:
+                        if f_key == "mobile" and hasattr(w, "_cep_programi"):
+                            w._cep_programi()
+                        elif f_key == "topic_map" and hasattr(w, "_open_topic_map"):
+                            w._open_topic_map()
+                        elif f_key == "pomodoro" and hasattr(w, "_open_pomodoro"):
+                            w._open_pomodoro()
+                        elif f_key == "target" and hasattr(w, "_hedef_analiz_open"):
+                            w._hedef_analiz_open()
+                        elif f_key == "whatsapp" and hasattr(w, "_wp_hizli"):
+                            w._wp_hizli()
+                        elif f_key == "simulation" and hasattr(w, "_open_exam_simulation"):
+                            w._open_exam_simulation()
+                    except Exception:
+                        pass
+
+                w.dashboard.sig_open_feature.connect(_handle_feature_launch)
+
+            # Dashboard her yenilendiğinde öncelik analizini de tazele
+            if hasattr(w, "dashboard") and hasattr(w.dashboard, "refresh_stats"):
+                orig_refresh_stats = w.dashboard.refresh_stats
+                def _synced_refresh():
+                    orig_refresh_stats()
+                    try:
+                        w._today_focus_v4.request_refresh()
+                    except Exception:
+                        pass
+                w.dashboard.refresh_stats = _synced_refresh
+
     except Exception:
-        pass
+        import logging
+        logging.getLogger(__name__).exception("KoçPilot 360 arayüz geliştirmeleri yüklenirken hata oluştu")
 
     splash.set_progress(90, "Takvim ayarları yapılıyor...")
     # 5) Takvim fix

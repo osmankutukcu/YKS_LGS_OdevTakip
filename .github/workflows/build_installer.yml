@@ -37,11 +37,53 @@ jobs:
         shell: pwsh
         run: python tools/v35_release_gate.py
 
+      - name: V3.5.27 korunan formlar ve yardimci davranislar kapisi
+        shell: pwsh
+        run: |
+          python tools/v3527_core_guard.py
+          if ($LASTEXITCODE -ne 0) { throw 'Korunan formlarda beklenmeyen degisiklik bulundu' }
+          python -m unittest tests.test_v3527_protected_forms -v
+          if ($LASTEXITCODE -ne 0) { throw 'Korunan formlar regresyon testleri gecemedi' }
+
+      - name: V3.5.28 modül koordinasyonu regresyon ve kaynak denetimi
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_v3528_live_system -v
+          if ($LASTEXITCODE -ne 0) { throw 'Canli sistem koordinasyon regresyon testleri gecemedi' }
+          python tools/v3528_system_doctor.py | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Modul kaynak katalogu/korunan cekirdek denetimi gecemedi' }
+
+      - name: V3.5.29 otomatik akademik takip ve denetim guvenlik testi
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_v3529_proactive_advisor -v
+          if ($LASTEXITCODE -ne 0) { throw 'V3.5.29 otomatik takip testi basarisiz' }
+
+      - name: V3.5.30 ortak akademik karar ve korunan cekirdek testleri
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_v3530_shared_academic -v
+          if ($LASTEXITCODE -ne 0) { throw 'V3.5.30 akademik kanit uyumluluk testi basarisiz' }
+          python tools/v3527_core_guard.py
+          if ($LASTEXITCODE -ne 0) { throw 'Korunan cekirdek beklenmedik bicimde degisti' }
+
+      - name: V3.5.40 butunlesik kaynak ve yayin preflight (release onayi degildir)
+        shell: pwsh
+        run: |
+          python tools/v3540_preflight.py
+          if ($LASTEXITCODE -ne 0) { throw 'V3.5.40 kaynak ve yayin preflight engeli' }
+
       - name: Windows bagimliliklari
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements_win.txt pytest httpx
+
+      - name: V3.5.30-40 akademik danisman ve butunlesik regresyon
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_v3530_shared_academic tests.test_v3531_system_health tests.test_v3532_verified_recovery tests.test_v3533_backup_automation tests.test_v3534_cohort_advisor tests.test_v3535_canonical_evidence tests.test_v3536_academic_actions tests.test_v3537_intervention_advisor tests.test_v3538_intervention_followup tests.test_v3539_intervention_patterns tests.test_v3540_release_safety -q
+          if ($LASTEXITCODE -ne 0) { throw 'Akademik danisman/butunlesik testler gecemedi' }
 
       - name: Otomatik testler
         shell: pwsh
@@ -101,11 +143,13 @@ jobs:
             Set-Content -Path release/windows_acceptance_v35.json -Value $env:V35_ACCEPTANCE_JSON -Encoding utf8
             try {
               python tools/v35_release_gate.py --require-acceptance
+              if ($LASTEXITCODE -ne 0) { throw 'Windows manuel kabul onayı doğrulanamadı; Release engellendi' }
             } finally {
               Remove-Item release/windows_acceptance_v35.json -ErrorAction SilentlyContinue
             }
           } else {
             python tools/v35_release_gate.py
+            if ($LASTEXITCODE -ne 0) { throw 'Kaynak kapisi gecemedi; Release engellendi' }
           }
 
       - name: v3.5.4 gibi etiketlerde Release yayinla

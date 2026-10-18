@@ -36,6 +36,7 @@ class DashboardSnapshot:
     # minutes or daily streak may be asserted from these sources.
     verified_study_minutes: Optional[int] = None
     verified_streak_days: Optional[int] = None
+    leaderboard: list[dict] = field(default_factory=list)
 
     def to_gamification_stats(self) -> dict:
         return {
@@ -48,6 +49,7 @@ class DashboardSnapshot:
             "top_worker": self.top_worker,
             "top_ratio": self.top_ratio,
             "top_marathon": None,
+            "leaderboard": self.leaderboard,
         }
 
 
@@ -150,8 +152,21 @@ def build_snapshot(con: sqlite3.Connection, *, today: Optional[date] = None) -> 
     workers = [(int(r[0]), str(r[1] or ""), int(r[2]), int(r[3])) for r in rows_students]
     top_worker = None
     best_ratio = None
+    leaderboard = []
     if workers:
-        worker = sorted(workers, key=lambda x: (-x[3], x[0]))[0]
+        sorted_workers = sorted(workers, key=lambda x: (-x[3], x[0]))
+        for rank, w in enumerate(sorted_workers[:3]):
+            if w[3] > 0 or w[2] > 0:
+                ratio = int(100 * w[3] / w[2]) if w[2] else 0
+                leaderboard.append({
+                    "rank": rank + 1,
+                    "id": w[0],
+                    "name": w[1],
+                    "assigned": w[2],
+                    "done": w[3],
+                    "ratio": ratio
+                })
+        worker = sorted_workers[0]
         if worker[3]:
             top_worker = {"name": worker[1], "val": worker[3]}
         qualified = [x for x in workers if x[2] >= 5]
@@ -160,7 +175,8 @@ def build_snapshot(con: sqlite3.Connection, *, today: Optional[date] = None) -> 
             best_ratio = {"name": best[1], "val": int(100 * best[3] / best[2])}
 
     return DashboardSnapshot(today, active, today_sets, overdue, total, done,
-                             completion, trend, alerts, top_worker, best_ratio)
+                             completion, trend, alerts, top_worker, best_ratio,
+                             leaderboard=leaderboard)
 
 
 def build_teacher_insight(snapshot: DashboardSnapshot) -> str:

@@ -4,6 +4,7 @@ import sqlite3
 from contextlib import closing
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QTextEdit, QHBoxLayout
 from services.student360_v16 import read_student_overview
+from services.shared_academic_decision_v3530 import read_shared_academic_card
 from services.student360_v16.advisor import suggestions
 from services.student360_v16.profile import student_routine_status
 from services.target_analysis_v24.student_target import read_saved_target
@@ -90,8 +91,54 @@ class Student360Panel(QWidget):
             uri = 'file:' + quote(str(DB_PATH.resolve()), safe='/') + '?mode=ro'
             with closing(sqlite3.connect(uri, uri=True, timeout=8)) as con:
                 con.execute('PRAGMA query_only=ON')
+                con.execute('BEGIN')  # V3.5.36: one coherent read snapshot for the overview.
                 data = read_student_overview(con, sid)
                 academic_target = read_saved_target(con, sid)
+                shared_academic = None
+                try:
+                    shared_academic = read_shared_academic_card(con, sid)
+                except (sqlite3.Error, ValueError, TypeError, KeyError):
+                    # Optional advisory does not block the existing Student360 screen.
+                    pass
+                # V3.5.36 optional canonical same-student action. No writes/UI controls.
+                canonical_action = None
+                try:
+                    from services.academic_actions_v3536 import read_student_action_card
+                    canonical_action = read_student_action_card(con, sid)
+                except (sqlite3.Error, ValueError, TypeError, KeyError):
+                    pass  # Cannot conclude that missing evidence means no risk.
+                # V3.5.37 read-only intervention DRAFT from the same student/snapshot.
+                intervention_draft = None
+                if canonical_action and canonical_action.get('student_id') == sid:
+                    try:
+                        from services.intervention_advisor_v3537 import build_intervention_draft
+                        intervention_draft = build_intervention_draft(
+                            con, sid, action_card=canonical_action)
+                    except (sqlite3.Error, ValueError, TypeError, KeyError):
+                        pass  # Optional advice is never a clean academic verdict.
+                # V3.5.38: only teacher-approved V11 entries. Never create
+                # interventions or learning observations during a refresh.
+                intervention_followup = None
+                try:
+                    from services.intervention_followup_v3538 import read_student_followups
+                    intervention_followup = read_student_followups(con, sid, limit=3)
+                except (sqlite3.Error, ValueError, TypeError, KeyError):
+                    intervention_followup = {'state': 'UNVERIFIED', 'student_id': sid}
+                # V3.5.39: opt-in-by-evidence, anonymous descriptive history.
+                # Only show a cohort pattern for the student's OWN approved
+                # latest intervention topic, never infer a prescription.
+                historical_pattern = None
+                if intervention_followup and intervention_followup.get('student_id') == sid:
+                    entries = intervention_followup.get('records') or []
+                    if entries:
+                        try:
+                            from services.intervention_patterns_v3539 import read_historical_patterns
+                            rec = entries[0]
+                            historical_pattern = read_historical_patterns(
+                                con, lesson=rec['lesson'], topic=rec['topic'],
+                                max_scan=100, max_groups=2)
+                        except (sqlite3.Error, ValueError, TypeError, KeyError):
+                            historical_pattern = {'state': 'SOURCE_UNVERIFIED', 'patterns': []}
                 # V7: existing survey records, no scoring or diagnosis.
                 try:
                     from services.survey_evidence_v7 import read_survey_evidence, brief_lines
@@ -129,6 +176,61 @@ class Student360Panel(QWidget):
             'ÖĞRETMEN İÇİN KISA KONTROL LİSTESİ',
         ]
         parts += [f'• {x}' for x in suggestions(data)]
+        if shared_academic and shared_academic.get('student_id') == sid:
+            parts += ['', 'ORTAK AKADEMİK KARAR · ÖĞRETMEN ONAYINA TABİ',
+                      shared_academic['next_step'],
+                      'Dayanak: ' + shared_academic['basis'],
+                      'Haftalık koçluk planı: ' + shared_academic['plan']['summary'],
+                      'Not: Koçluk planı, haftalık takvimin doğrulandığı anlamına gelmez.']
+        if canonical_action and canonical_action.get('student_id') == sid:
+            evidence = canonical_action['homework']
+            parts += ['', 'ORTAK ÖDEV KANITI · V3.5.36 · YEREL KAYITLAR']
+            if canonical_action['state'] == 'LINK_REVIEW':
+                parts += ['⚠ Öğrenci–ödev bağlantısı doğrulanamadı; akademik sayılar gösterilmiyor.',
+                          canonical_action['next_step']]
+            else:
+                parts += ['Doğrulanabilen satır: ' + str(evidence['canonical_tasks']),
+                          'Tamamlanan satır: ' + str(evidence['completed_tasks']),
+                          'Gecikmiş açık satır: ' + str(evidence['overdue_open_tasks']),
+                          'Akademik takip önerisi: ' + canonical_action['next_step'],
+                          'Kapsam: ' + canonical_action['global_coverage'],
+                          canonical_action['note']]
+                if canonical_action.get('plan_attention'):
+                    parts.append('Plan durumu: ' + canonical_action['plan_attention'])
+        else:
+            parts += ['', 'ORTAK ÖDEV KANITI · Kayıtlar doğrulanamadı; sıfır ödev veya sorunsuz durum anlamına gelmez.']
+        if intervention_draft and intervention_draft.get('student_id') == sid:
+            parts += ['', 'AKADEMİK TELAFİ TASLAĞI · V3.5.37 · ÖĞRETMEN ONAYI']
+            if intervention_draft['state'] == 'DATA_REVIEW':
+                parts.append('Veri bağlantıları kontrol edilmeden akademik öneri verilmiyor.')
+            for suggestion in intervention_draft['recommendations'][:3]:
+                parts += ['• ' + suggestion['title'],
+                          '  Dayanak: ' + suggestion['why'],
+                          '  Önerilen kontrol: ' + suggestion['teacher_next_step'],
+                          '  Takip: ' + suggestion['recheck']]
+            if not intervention_draft['recommendations']:
+                parts.append('Kanıta dayalı telafi taslağı üretilemedi; ek ölçüm gerekebilir.')
+            parts += intervention_draft['limitations'][:2]
+        if intervention_followup and intervention_followup.get('student_id') == sid:
+            if intervention_followup['state'] == 'OBSERVED':
+                parts += ['', 'ONAYLI MÜDAHALE İZLEMİ · V3.5.38 · OTOMATİK OKUMA']
+                for rec in intervention_followup['records']:
+                    parts += [f"• {rec['lesson']} / {rec['topic']} · {rec['status']}",
+                              f"  7. gün: {rec['day7']} · 14. gün: {rec['day14']}",
+                              '  ' + rec['reason']]
+                    if rec['measurement_ready']:
+                        parts.append('  Ölçüm doğruluğu farkı: '
+                                     f"{rec['delta_percentage_points']:+.1f} yüzde puan; nedensellik kanıtı değildir.")
+                parts.append(intervention_followup['warning'])
+            elif intervention_followup['state'] == 'UNVERIFIED':
+                parts += ['', 'Müdahale izlem kayıtları doğrulanamadı; müdahale bulunmadığı varsayılmıyor.']
+        if historical_pattern:
+            from services.intervention_patterns_v3539 import compact_history_line
+            history_line = compact_history_line(historical_pattern)
+            if history_line:
+                parts += ['', 'GEÇMİŞ MÜDAHALE GÖZLEMLERİ · V3.5.39 · BETİMSEL',
+                          history_line,
+                          'Bu geçmiş örüntü aynı öğrencide başarıyı veya yöntemin etkisini öngörmez.']
         if adaptive_text:
             parts += ['', adaptive_text]
         parts += ['', 'ANKET KANITLARI · TANISAL DEĞİL', *survey_lines]

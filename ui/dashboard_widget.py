@@ -268,7 +268,7 @@ class WeeklyTrendWidget(QFrame):
     """
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(180) # Biraz genişçe
+        self.setFixedHeight(215)  # GamificationWidget ile tam dengeli yükseklik
         # V40: light/dark surface is refreshed without recreating the chart.
         
         # Gölge
@@ -342,6 +342,9 @@ class DashboardWidget(QWidget):
     sig_open_students = pyqtSignal()
     sig_open_overdue = pyqtSignal()
     sig_open_adaptive = pyqtSignal()
+    sig_open_priorities = pyqtSignal()
+    sig_open_summary = pyqtSignal()
+    sig_open_feature = pyqtSignal(str)
     
 
 
@@ -362,19 +365,107 @@ class DashboardWidget(QWidget):
         # --- 0. BİLGİ PANOSU (YENİ - WEB) ---
         self.info_board = InfoBoardWidget()
         main_layout.addWidget(self.info_board)
-        # V26: visible decision workflow; never calculates false mastery scores.
+        # --- 1. BİRLEŞİK ÖĞRETMEN KARAR MASASI VE AKILLI TAKİP ŞERİDİ ---
         from services.adaptive_coaching_v26.flags import enabled as adaptive_v26_enabled
         if adaptive_v26_enabled():
-            coachbar = QFrame()
-            coachbar.setStyleSheet("QFrame {background:#eaf1fb;border:1px solid #d5e3f4;border-radius:9px;}")
+            self.coachbar = coachbar = QFrame()
+            coachbar.setObjectName("DecisionBar")
+            coachbar.setFixedHeight(40)  # Butonların sığacağı kadar kibar ve kompakt yükseklik
+            coachbar.setStyleSheet("""
+                QFrame#DecisionBar {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #f0f7ff, stop:0.5 #e2effe, stop:1 #f0f7ff);
+                    border: 1px solid #bfdbfe;
+                    border-radius: 8px;
+                }
+            """)
             coachrow = QHBoxLayout(coachbar)
-            coachrow.setContentsMargins(12,7,12,7)
-            prompt = QLabel('🧠  Öğretmen Karar Masası · Önce kazanımı ölç, sonra kişisel ödev öner')
-            prompt.setWordWrap(True)
-            prompt.setStyleSheet('font-size:12px;font-weight:600;color:#173354;border:0;background:transparent;')
-            coachrow.addWidget(prompt,1)
+            coachrow.setContentsMargins(14, 0, 14, 0)
+            coachrow.setSpacing(10)
+            coachrow.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+            prompt = QLabel('🧠 <b>Öğretmen Karar Masası</b> <span style="color:#475569; font-weight:400;">· Önce kazanımı ölç, sonra kişisel ödev öner</span>')
+            prompt.setStyleSheet('font-size:12px;color:#1e3a8a;border:0;background:transparent;')
+            coachrow.addWidget(prompt, 1)
+
+            # Dinamik öncelik uyarı rozeti (Kibar hap rozet)
+            self.lbl_coach_alert = QLabel("")
+            self.lbl_coach_alert.setFixedHeight(24)
+            self.lbl_coach_alert.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.lbl_coach_alert.setStyleSheet("""
+                background: #fef2f2;
+                color: #b91c1c;
+                font-size: 11px;
+                font-weight: 700;
+                padding: 0 10px;
+                border-radius: 12px;
+                border: 1px solid #fecaca;
+            """)
+            self.lbl_coach_alert.hide()
+            coachrow.addWidget(self.lbl_coach_alert)
+
+            # Kompakt Simge Buton 1: Öncelikler
+            self.btn_priorities = QPushButton("🔔 Öncelikler ▾")
+            self.btn_priorities.setFixedHeight(28)
+            self.btn_priorities.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.btn_priorities.setStyleSheet("""
+                QPushButton {
+                    background: white;
+                    color: #b45309;
+                    padding: 0 10px;
+                    border: 1px solid #fde68a;
+                    border-radius: 6px;
+                    font-weight: 700;
+                    font-size: 11px;
+                }
+                QPushButton:hover {
+                    background: #fef3c7;
+                    border-color: #f59e0b;
+                }
+            """)
+            self.btn_priorities.clicked.connect(self.sig_open_priorities.emit)
+            coachrow.addWidget(self.btn_priorities)
+
+            # Kompakt Simge Buton 2: Günün Özeti
+            self.btn_summary = QPushButton("⚡ Günün Özeti")
+            self.btn_summary.setFixedHeight(28)
+            self.btn_summary.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.btn_summary.setStyleSheet("""
+                QPushButton {
+                    background: white;
+                    color: #4338ca;
+                    padding: 0 10px;
+                    border: 1px solid #c7d2fe;
+                    border-radius: 6px;
+                    font-weight: 700;
+                    font-size: 11px;
+                }
+                QPushButton:hover {
+                    background: #e0e7ff;
+                    border-color: #6366f1;
+                }
+            """)
+            self.btn_summary.clicked.connect(self.sig_open_summary.emit)
+            coachrow.addWidget(self.btn_summary)
+
+            # Ana Buton: Adaptif Koçluk Merkezi
             opencoach = QPushButton('Adaptif Koçluk Merkezi  →')
-            opencoach.setStyleSheet('background:white;color:#1d4ed8;padding:8px 10px;border:1px solid #b9cfee;border-radius:7px;font-weight:700;')
+            opencoach.setFixedHeight(28)
+            opencoach.setCursor(Qt.CursorShape.PointingHandCursor)
+            opencoach.setStyleSheet("""
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2563eb, stop:1 #1d4ed8);
+                    color: white;
+                    padding: 0 12px;
+                    border: 1px solid #1d4ed8;
+                    border-radius: 6px;
+                    font-weight: 700;
+                    font-size: 11px;
+                }
+                QPushButton:hover {
+                    background: #1d4ed8;
+                }
+            """)
             opencoach.clicked.connect(self.sig_open_adaptive.emit)
             coachrow.addWidget(opencoach)
             main_layout.addWidget(coachbar)
@@ -438,20 +529,31 @@ class DashboardWidget(QWidget):
         
         main_layout.addLayout(top_row)
         
-        # --- ORTA GRUP: HAFTALIK TREND GRAFİĞİ (YENİ) ---
+        # --- ORTA GRUP: HAFTALIK TREND VE ROZETLER & LİDERLİK (YAN YANA - TEK EKRAN DÜZENİ) ---
+        mid_row = QHBoxLayout()
+        mid_row.setSpacing(12)
+
         self.trend_widget = WeeklyTrendWidget()
-        main_layout.addWidget(self.trend_widget)
-        
-        # --- ROZET ALANI (YENİ) ---
         self.badge_widget = GamificationWidget()
-        main_layout.addWidget(self.badge_widget)
+
+        mid_row.addWidget(self.trend_widget, 55)
+        mid_row.addWidget(self.badge_widget, 45)
+        main_layout.addLayout(mid_row)
         
 
 
         
-        # Alt Sıra: AKILLI ÖNERİ KARTI
+        # Alt Sıra 1: AKILLI ÖNERİ KARTI
         self.smart_card = SmartInsightCard()
         main_layout.addWidget(self.smart_card)
+
+        # Alt Sıra 2: PLATFORM KEŞİF & PRO TAKTİK VİTRİNİ (MODÜLER)
+        from ui.platform_discovery_widget import PlatformDiscoveryWidget
+        self.discovery_widget = PlatformDiscoveryWidget()
+        self.discovery_widget.sig_action_triggered.connect(self.sig_open_feature.emit)
+        main_layout.addWidget(self.discovery_widget)
+
+        main_layout.addStretch(1)
 
 
     def _on_theme_changed(self):
@@ -460,7 +562,31 @@ class DashboardWidget(QWidget):
         self.frame_chart.setStyleSheet(f'QFrame {{background:{c["surface"]};border-radius:12px;border:1px solid {c["border"]};}}')
         self.lbl_chart_title.setStyleSheet(f'color:{c["surface_fg"]};font-size:11px;font-weight:600;')
         self.chart.update()
-        # Trend/badge panels subscribe to the same theme event independently.
+        if hasattr(self, "coachbar") and self.coachbar:
+            if c.get("dark", False):
+                self.coachbar.setStyleSheet('QFrame#DecisionBar {background:#1e293b;border:1px solid #334155;border-radius:8px;}')
+            else:
+                self.coachbar.setStyleSheet('QFrame#DecisionBar {background:qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #f0f7ff, stop:0.5 #e2effe, stop:1 #f0f7ff);border:1px solid #bfdbfe;border-radius:8px;}')
+
+    def update_priorities_badge(self, count: int, preview_text: str = ""):
+        """Kompakt karar masası üzerindeki öncelik sayısını ve ipucunu günceller."""
+        if hasattr(self, "btn_priorities"):
+            if count > 0:
+                self.btn_priorities.setText(f"🔔 {count} Öncelik ▾")
+            else:
+                self.btn_priorities.setText("🔔 Öncelikler ▾")
+        if hasattr(self, "lbl_coach_alert"):
+            if count > 0:
+                short_text = f"⚠️ {count} Öncelik Bekliyor"
+                if preview_text:
+                    clean = preview_text.split("—")[0].strip()
+                    clean = clean.replace("⚠️", "").strip()
+                    if clean:
+                        short_text = f"⚠️ {count} Öncelik · {clean}"
+                self.lbl_coach_alert.setText(short_text)
+                self.lbl_coach_alert.show()
+            else:
+                self.lbl_coach_alert.hide()
 
     def refresh_stats(self):
         """Read one reliable snapshot, then refresh the *existing* UI widgets.

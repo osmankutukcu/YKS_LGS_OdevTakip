@@ -135,10 +135,17 @@ class SmartMobileSchedulePreviewDialog(QDialog):
         self.cbx_group.currentTextChanged.connect(self._refresh_preview)
         toolbar.addWidget(self.cbx_group)
 
-        self.chk_all_students = QCheckBox("Tüm Aktif Öğrencileri Göster (Haftalık Karneli)")
-        self.chk_all_students.setStyleSheet("font-size: 13px; font-weight: 600; color: #475569; margin-left: 10px;")
+        self.chk_all_students = QCheckBox("Tüm Aktif Öğrenciler (Haftalık Karneli)")
+        self.chk_all_students.setStyleSheet("font-size: 12.5px; font-weight: 600; color: #475569; margin-left: 6px;")
         self.chk_all_students.stateChanged.connect(self._refresh_preview)
         toolbar.addWidget(self.chk_all_students)
+
+        self.chk_deep_analytics = QCheckBox("📊 360° Akademik Analiz & 6 Akıllı Buton")
+        self.chk_deep_analytics.setChecked(True)
+        self.chk_deep_analytics.setToolTip("Her öğrenci kartına ders bazlı başarı analizi, darboğaz tespiti ve 6 farklı tek tıkla WhatsApp/Arama butonu ekler")
+        self.chk_deep_analytics.setStyleSheet("font-size: 12.5px; font-weight: 700; color: #1d4ed8; margin-left: 6px;")
+        self.chk_deep_analytics.stateChanged.connect(self._refresh_preview)
+        toolbar.addWidget(self.chk_deep_analytics)
 
         toolbar.addStretch()
 
@@ -216,6 +223,20 @@ class SmartMobileSchedulePreviewDialog(QDialog):
         self.btn_pdf.clicked.connect(self._save_pdf)
         btn_layout.addWidget(self.btn_pdf)
 
+        self.btn_wa_self = QPushButton("📲 PDF Kaydet & WhatsApp'ı Aç")
+        self.btn_wa_self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_wa_self.setToolTip("PDF'i kaydeder, dosya konumunu gösterir ve telefona atabilmeniz için WhatsApp Web'i açar")
+        self.btn_wa_self.setStyleSheet("""
+            QPushButton {
+                background-color: #16a34a; color: white; font-weight: bold; font-size: 13px;
+                padding: 10px 18px; border-radius: 8px; border: none;
+            }
+            QPushButton:hover { background-color: #15803d;
+                color: #FFFFFF;}
+        """)
+        self.btn_wa_self.clicked.connect(self._save_pdf_and_open_whatsapp)
+        btn_layout.addWidget(self.btn_wa_self)
+
         btn_close = QPushButton("Kapat")
         btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_close.setStyleSheet("""
@@ -234,9 +255,93 @@ class SmartMobileSchedulePreviewDialog(QDialog):
     def _refresh_preview(self):
         grp = self.cbx_group.currentText()
         all_st = self.chk_all_students.isChecked()
+        inc_an = self.chk_deep_analytics.isChecked()
         schedule, next_7_days = self.generator._fetch_data(group_filter=grp, include_all_active=all_st)
-        self._current_html = self.generator._build_html(schedule, next_7_days, for_pdf=False)
+        self._current_html = self.generator._build_html(schedule, next_7_days, for_pdf=False, include_analytics=inc_an)
         self.viewer.setHtml(self._current_html)
+
+    def _export_pdf_to_path(self, fn: str):
+        grp = self.cbx_group.currentText()
+        all_st = self.chk_all_students.isChecked()
+        inc_an = self.chk_deep_analytics.isChecked()
+        schedule, next_7_days = self.generator._fetch_data(group_filter=grp, include_all_active=all_st)
+        pdf_html = self.generator._build_html(schedule, next_7_days, for_pdf=True, include_analytics=inc_an)
+
+        # 1. Öncelik: QtWebEngine (Chromium) PDF Motoru
+        # Önizleme ekranındaki tüm renkli emojileri, yuvarlatılmış köşeleri, sol durum şeritlerini,
+        # sayfa bölünme korumalarını (break-inside: avoid) ve tıklanabilir WhatsApp/Arama linklerini
+        # birebir aynı görsel kalitede PDF'e aktarır.
+        webengine_ok = False
+        try:
+            from PyQt6.QtCore import QEventLoop, QMarginsF
+            from PyQt6.QtGui import QPageLayout, QPageSize
+            from PyQt6.QtWebEngineCore import QWebEnginePage
+
+            if os.path.exists(fn):
+                try:
+                    os.remove(fn)
+                except Exception:
+                    pass
+
+            page = QWebEnginePage(self)
+            loop = QEventLoop(self)
+            state = {"done": False, "ok": False}
+
+            def _on_load(ok: bool):
+                if not ok:
+                    state["done"] = True
+                    loop.quit()
+                    return
+                layout = QPageLayout(
+                    QPageSize(QPageSize.PageSizeId.A4),
+                    QPageLayout.Orientation.Portrait,
+                    QMarginsF(8, 8, 8, 8),
+                )
+                page.printToPdf(fn, layout)
+
+            def _on_pdf_done(_path: str, ok: bool):
+                state["ok"] = bool(ok)
+                state["done"] = True
+                loop.quit()
+
+            page.loadFinished.connect(_on_load)
+            page.pdfPrintingFinished.connect(_on_pdf_done)
+            QTimer.singleShot(15000, loop.quit)
+            page.setHtml(pdf_html)
+            loop.exec()
+            page.deleteLater()
+
+            if state["ok"] and os.path.exists(fn) and os.path.getsize(fn) > 1024:
+                webengine_ok = True
+        except Exception as e:
+            print(f"[MobileSchedule] WebEngine PDF fallback notice: {e}")
+
+        if webengine_ok:
+            return
+
+        # 2. Yedek Motor: QPrinter (ScreenResolution + Point)
+        printer = QPrinter(QPrinter.PrinterMode.ScreenResolution)
+        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+        printer.setOutputFileName(fn)
+
+        doc = QTextDocument()
+        doc.setDefaultFont(QFont("Arial", 10))
+        page_rect = printer.pageRect(QPrinter.Unit.Point)
+        if page_rect.width() > 0 and page_rect.height() > 0:
+            doc.setPageSize(QSizeF(page_rect.size()))
+        doc.setHtml(pdf_html)
+        doc.print(printer)
+
+    def _reveal_in_file_manager(self, fn: str):
+        """Kaydedilen PDF dosyasını Finder / Windows Explorer'da seçili olarak gösterir."""
+        try:
+            norm_fn = os.path.abspath(fn)
+            if sys.platform == "darwin":
+                subprocess.Popen(["open", "-R", norm_fn])
+            elif sys.platform == "win32":
+                subprocess.Popen(["explorer", f"/select,{norm_fn}"])
+        except Exception:
+            pass
 
     def _save_pdf(self):
         default_name = f"cep_ajandasi_{datetime.date.today().strftime('%Y_%m_%d')}.pdf"
@@ -244,27 +349,50 @@ class SmartMobileSchedulePreviewDialog(QDialog):
         if not fn:
             return
         try:
-            grp = self.cbx_group.currentText()
-            all_st = self.chk_all_students.isChecked()
-            schedule, next_7_days = self.generator._fetch_data(group_filter=grp, include_all_active=all_st)
-            pdf_html = self.generator._build_html(schedule, next_7_days, for_pdf=True)
-            
-            doc = QTextDocument()
-            doc.setHtml(pdf_html)
-            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-            printer.setOutputFileName(fn)
-            doc.setPageSize(QSizeF(printer.pageRect(QPrinter.Unit.Point).size()))
-            doc.print(printer)
-
-            QMessageBox.information(self, "Başarılı", f"PDF başarıyla oluşturuldu:\n{fn}")
+            self._export_pdf_to_path(fn)
             self.generator._open_file(fn)
+            self._reveal_in_file_manager(fn)
+            QMessageBox.information(
+                self,
+                "Başarılı",
+                f"Akıllı Mobil PDF Ajanda başarıyla oluşturuldu ve açıldı:\n{fn}\n\n"
+                "💡 Dosya klasörde seçili hale getirildi. Bu PDF'i WhatsApp'tan kendinize göndererek\n"
+                "telefonunuzdan her öğrencinin altındaki 6 akıllı butonu tek dokunuşla kullanabilirsiniz."
+            )
         except Exception as e:
             QMessageBox.critical(self, "Hata", f"PDF oluşturulamadı:\n{e}")
 
+    def _save_pdf_and_open_whatsapp(self):
+        default_name = f"cep_ajandasi_{datetime.date.today().strftime('%Y_%m_%d')}.pdf"
+        fn, _ = QFileDialog.getSaveFileName(self, "PDF Ajandayı Kaydet ve WhatsApp'ı Aç", default_name, "PDF Dosyası (*.pdf)")
+        if not fn:
+            return
+        try:
+            self._export_pdf_to_path(fn)
+            self._reveal_in_file_manager(fn)
+            # Masaüstü WhatsApp uygulaması varsa onu öne getir, yoksa WhatsApp Web aç
+            opened_native = False
+            if sys.platform == "darwin" and (os.path.exists("/Applications/WhatsApp.app") or os.path.exists("/Applications/WhatsApp 2.app")):
+                try:
+                    subprocess.Popen(["open", "-a", "WhatsApp"])
+                    opened_native = True
+                except Exception:
+                    pass
+            if not opened_native:
+                webbrowser.open("https://web.whatsapp.com/")
+            QMessageBox.information(
+                self,
+                "PDF Hazır & Klasörde Seçildi",
+                f"Yeni 6 Butonlu 360° PDF kaydedildi:\n{fn}\n\n"
+                "📂 Dosya Finder/Klasör penceresinde seçili olarak açıldı.\n"
+                "📲 Seçili olan bu yeni PDF dosyasını doğrudan WhatsApp sohbetinize sürükleyip gönderin!"
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Hata", f"İşlem tamamlanamadı:\n{e}")
+
     def _print_schedule(self):
         try:
-            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+            printer = QPrinter(QPrinter.PrinterMode.ScreenResolution)
             dlg = QPrintDialog(printer, self)
             if dlg.exec() == QDialog.DialogCode.Accepted:
                 doc = QTextDocument()
@@ -1649,9 +1777,23 @@ class MobileScheduleGenerator:
             """, (sid,)).fetchone()
             done = r[0] if r and r[0] else 0
             total = r[1] if r and r[1] else 0
-            return f"✅ {done} / 📋 {total}"
+            pct = int(round((done / total) * 100)) if total > 0 else 0
+            return f"✅ {done} / 📋 {total} (%{pct})" if total > 0 else "✅ 0 / 📋 0"
         except Exception:
             return "Veri yok"
+
+    def _get_overdue_count(self, sid: int) -> int:
+        if not sid:
+            return 0
+        try:
+            r = self.con.execute("""
+                SELECT COUNT(*) FROM odev o
+                JOIN odev_kume k ON k.id=o.kume_id
+                WHERE o.ogrenci_id=? AND o.durum='devam' AND date(k.bitis_tarihi) < date('now')
+            """, (sid,)).fetchone()
+            return int(r[0] or 0) if r else 0
+        except Exception:
+            return 0
 
     def generate(self):
         """Cep Ajandası Ana Menüsünü Açar"""
@@ -1696,6 +1838,8 @@ class MobileScheduleGenerator:
             next_7_days.append((d_str, day_name))
             schedule[day_name] = []
 
+        scheduled_student_ids = set()
+
         # 1. Sabit Görüşmeler
         rows_fixed = self.con.execute("""
             SELECT id, ad, soyad, ogr_tel, veli_tel1, kocluk_gunu, kocluk_saati, ana_grup, alt_grup 
@@ -1708,16 +1852,27 @@ class MobileScheduleGenerator:
                 continue
             gun = r["kocluk_gunu"]
             if gun in schedule:
+                scheduled_student_ids.add(r["id"])
+                status, badge_icon, smart_note = self._analyze_student(r["id"])
                 schedule[gun].append({
                     "oid": r["id"],
                     "ad": f"{r['ad']} {r['soyad']}",
+                    "grup": f"{r['ana_grup'] or ''} {r['alt_grup'] or ''}".strip(),
                     "tel_ogr": r["ogr_tel"],
                     "tel_veli": r["veli_tel1"],
                     "saat": r["kocluk_saati"] or "??:??",
                     "tip": "Görüşme",
-                    "detay": "Haftalık Koçluk Görüşmesi",
+                    "detay": "Haftalık Birebir Koçluk & Değerlendirme Görüşmesi",
                     "renk": self.COLOR_MEETING,
-                    "meta": {"lines": [], "notes": [], "badge": "", "smart_note": "", "stats": self._get_mini_stats(r["id"])}
+                    "meta": {
+                        "lines": [],
+                        "notes": [],
+                        "badge": badge_icon,
+                        "smart_note": smart_note,
+                        "status": status,
+                        "stats": self._get_mini_stats(r["id"]),
+                        "overdue": self._get_overdue_count(r["id"]),
+                    }
                 })
 
         # 2. Ödev Teslimleri
@@ -1728,7 +1883,7 @@ class MobileScheduleGenerator:
             FROM odev_kume k
             JOIN ogrenci o ON o.id = k.ogrenci_id
             LEFT JOIN odev os ON os.kume_id = k.id
-            WHERE date(k.bitis_tarihi) BETWEEN date(?) AND date(?)
+            WHERE o.aktif=1 AND date(k.bitis_tarihi) BETWEEN date(?) AND date(?)
             GROUP BY k.id
         """, (next_7_days[0][0], end_date)).fetchall()
 
@@ -1741,47 +1896,18 @@ class MobileScheduleGenerator:
                 if day_name not in schedule:
                     continue
 
-                lines = []
-                raw_str = r["icerik_raw"] or ""
-                for item in raw_str.split("$$$"):
-                    parts = item.split("|")
-                    if len(parts) >= 3:
-                        d, k, kn = parts[0], parts[1], parts[2]
-                        d_clean = d.replace('_', ' ').strip().title() if d else ""
-                        k_clean = k.replace('_', ' ').strip().title() if k else ""
-                        kn_clean = kn.replace('_', ' ').strip()
-                        if kn_clean == "Genel":
-                            kn_clean = ""
-                        if kn_clean:
-                            kn_clean = kn_clean[0].upper() + kn_clean[1:]
-
-                        line = d_clean
-                        if k_clean:
-                            line += f" - {k_clean}"
-                        if kn_clean:
-                            line += f" - {kn_clean}"
-                        if line:
-                            lines.append(line)
-
+                scheduled_student_ids.add(r["oid"])
+                lines = self._parse_icerik_raw(r["icerik_raw"] or "")
                 notes = [r["aciklama"]] if r["aciklama"] else []
                 status, badge_icon, smart_note = self._analyze_student(r["oid"])
                 stats_text = self._get_mini_stats(r["oid"])
 
-                card_color = self.COLOR_DEADLINE
-                if status == "star":
-                    card_color = "#f59e0b"
-                elif status == "risk":
-                    card_color = "#ef4444"
-                elif status == "marathon":
-                    card_color = "#3b82f6"
-                elif status == "steady":
-                    card_color = "#10b981"
-                elif status == "silent":
-                    card_color = "#64748b"
+                card_color = self._status_color(status)
 
                 schedule[day_name].append({
                     "oid": r["oid"],
                     "ad": f"{r['ad']} {r['soyad']}",
+                    "grup": f"{r['ana_grup'] or ''} {r['alt_grup'] or ''}".strip(),
                     "tel_ogr": r["ogr_tel"],
                     "tel_veli": r["veli_tel1"],
                     "saat": "18:00",
@@ -1794,7 +1920,8 @@ class MobileScheduleGenerator:
                         "status": status,
                         "badge": badge_icon,
                         "smart_note": smart_note,
-                        "stats": stats_text
+                        "stats": stats_text,
+                        "overdue": self._get_overdue_count(r["oid"]),
                     }
                 })
             except Exception:
@@ -1803,11 +1930,112 @@ class MobileScheduleGenerator:
         # 3. Merging Deadlines per day
         self._merge_deadlines(schedule)
 
-        # 4. Sorting
+        # 4. Tüm Aktif Öğrencileri Göster (Haftalık Karneli) seçeneği işaretliyse:
+        # Bu hafta takvimde teslimi olmayan aktif öğrencileri de son ödev/telafi karneleriyle ekle
+        if include_all_active:
+            karne_key = "📊 Haftalık Genel Karne & Telafi Takibi"
+            schedule[karne_key] = []
+            next_7_days.append((today.strftime("%Y-%m-%d"), karne_key))
+
+            all_rows = self.con.execute("""
+                SELECT id, ad, soyad, ogr_tel, veli_tel1, ana_grup, alt_grup
+                FROM ogrenci
+                WHERE aktif=1
+                ORDER BY ad, soyad
+            """).fetchall()
+
+            for st in all_rows:
+                if group_filter != "Tümü" and st["ana_grup"] != group_filter:
+                    continue
+                if st["id"] in scheduled_student_ids:
+                    continue
+
+                # Öğrencinin bekleyen/geciken veya son verilen ödevlerini çek
+                pend_rows = self.con.execute("""
+                    SELECT COALESCE(os.ders,'') || '|' || COALESCE(os.kitap_ad,'') || '|' || COALESCE(os.konu_ad,'Genel') as raw_item
+                    FROM odev os
+                    JOIN odev_kume k ON k.id = os.kume_id
+                    WHERE os.ogrenci_id=? AND os.durum='devam'
+                    ORDER BY date(k.bitis_tarihi) DESC
+                    LIMIT 8
+                """, (st["id"],)).fetchall()
+                raw_joined = "$$$".join([pr["raw_item"] for pr in pend_rows if pr["raw_item"]])
+                lines = self._parse_icerik_raw(raw_joined)
+                if not lines:
+                    lines = ["Aktif bekleyen ödev kaydı bulunmuyor (Genel haftalık takip)."]
+
+                status, badge_icon, smart_note = self._analyze_student(st["id"])
+                schedule[karne_key].append({
+                    "oid": st["id"],
+                    "ad": f"{st['ad']} {st['soyad']}",
+                    "grup": f"{st['ana_grup'] or ''} {st['alt_grup'] or ''}".strip(),
+                    "tel_ogr": st["ogr_tel"],
+                    "tel_veli": st["veli_tel1"],
+                    "saat": "Genel",
+                    "tip": "Teslim",
+                    "renk": self._status_color(status),
+                    "meta": {
+                        "lines": lines,
+                        "notes": [],
+                        "nice_date": today.strftime("%d.%m.%Y"),
+                        "status": status,
+                        "badge": badge_icon or "📊",
+                        "smart_note": smart_note or "Haftalık Genel Durum Karnesi",
+                        "stats": self._get_mini_stats(st["id"]),
+                        "overdue": self._get_overdue_count(st["id"]),
+                    }
+                })
+
+        # 5. Sorting
         for day in schedule:
             schedule[day].sort(key=lambda x: (x["saat"], x["ad"]))
 
         return schedule, next_7_days
+
+    @staticmethod
+    def _tr_title(text: str) -> str:
+        if not text:
+            return ""
+        cleaned = str(text).replace("_", " ").strip()
+        return cleaned.replace("İ", "i").replace("I", "ı").title().replace("\u0307", "")
+
+    def _parse_icerik_raw(self, raw_str: str) -> List[str]:
+        lines = []
+        if not raw_str:
+            return lines
+        for item in raw_str.split("$$$"):
+            parts = item.split("|")
+            if len(parts) >= 3:
+                d, k, kn = parts[0], parts[1], parts[2]
+                d_clean = self._tr_title(d) if d else ""
+                k_clean = self._tr_title(k) if k else ""
+                kn_clean = kn.replace('_', ' ').strip().replace("\u0307", "")
+                if kn_clean == "Genel":
+                    kn_clean = ""
+                if kn_clean:
+                    kn_clean = kn_clean[0].upper() + kn_clean[1:]
+
+                line = d_clean
+                if k_clean:
+                    line += f" - {k_clean}"
+                if kn_clean:
+                    line += f" - {kn_clean}"
+                if line and line not in lines:
+                    lines.append(line)
+        return lines
+
+    def _status_color(self, status: str) -> str:
+        if status == "star":
+            return "#f59e0b"
+        if status == "risk":
+            return "#ef4444"
+        if status == "marathon":
+            return "#3b82f6"
+        if status == "steady":
+            return "#10b981"
+        if status == "silent":
+            return "#64748b"
+        return self.COLOR_DEADLINE
 
     def _merge_deadlines(self, schedule):
         for day, events in schedule.items():
@@ -1823,8 +2051,12 @@ class MobileScheduleGenerator:
                     merged[key] = ev
                 else:
                     base = merged[key]
-                    base["meta"]["lines"].extend(ev["meta"]["lines"])
-                    base["meta"]["notes"].extend(ev["meta"]["notes"])
+                    for l in ev["meta"]["lines"]:
+                        if l not in base["meta"]["lines"]:
+                            base["meta"]["lines"].append(l)
+                    for n in ev["meta"]["notes"]:
+                        if n not in base["meta"]["notes"]:
+                            base["meta"]["notes"].append(n)
                     if not base["tel_ogr"]:
                         base["tel_ogr"] = ev["tel_ogr"]
                     if not base["tel_veli"]:
@@ -1842,8 +2074,19 @@ class MobileScheduleGenerator:
 
     # --- Message Builders ---
     def _build_msg_single(self, ev, day_name, d_nice):
+        stats_txt = ev["meta"].get("stats", "")
+        overdue_cnt = ev["meta"].get("overdue", 0)
+        perf_line = f"\n📊 *Son 14 Gün Performansın:* {stats_txt}" if stats_txt and stats_txt != "Veri yok" else ""
+        if overdue_cnt > 0:
+            perf_line += f"\n⚠️ *Bekleyen Telafi Ödevin:* {overdue_cnt} adet"
+
         if ev["tip"] == "Görüşme":
-            return f"Merhaba {ev['ad']}, {day_name} ({d_nice}) saat {ev['saat']} haftalık koçluk görüşmemiz planlanmıştır. Hazırlıklarınla birlikte görüşmek üzere! 👋"
+            return (
+                f"Merhaba {ev['ad']}, 👋\n\n"
+                f"📅 *{day_name} ({d_nice}) Saat {ev['saat']}* için haftalık birebir koçluk görüşmemiz planlanmıştır."
+                f"{perf_line}\n\n"
+                f"Hazırlıklarınla birlikte görüşmek üzere, başarılar dilerim! 🚀"
+            )
         else:
             t_date = ev["meta"].get("nice_date", d_nice)
             tasks = "\n".join([f"  • {l}" for l in ev["meta"]["lines"]])
@@ -1862,24 +2105,292 @@ class MobileScheduleGenerator:
 
             notes_str = ""
             if ev["meta"].get("notes"):
-                notes_str = "\n📌 Notlar: " + ", ".join(ev["meta"]["notes"])
+                notes_str = "\n\n📌 *Koç Notu:* " + ", ".join(ev["meta"]["notes"])
 
-            return f"{intro}\n\n{day_name} ({t_date}) günü için teslim programın:\n\n{tasks}{notes_str}\n\nİyi çalışmalar ve başarılar dilerim! 📚"
+            return (
+                f"{intro}\n\n"
+                f"📅 *{day_name} ({t_date}) Teslim Programın:*\n\n"
+                f"{tasks}{notes_str}{perf_line}\n\n"
+                f"İyi çalışmalar ve başarılar dilerim! 📚"
+            )
 
     def _build_parent_msg(self, ev, day_name, d_nice):
         t_date = ev["meta"].get("nice_date", d_nice)
+        stats_txt = ev["meta"].get("stats", "")
+        overdue_cnt = ev["meta"].get("overdue", 0)
+        perf_line = f"\n📊 *Son 14 Gün Ödev Tamamlama:* {stats_txt}" if stats_txt and stats_txt != "Veri yok" else ""
+        if overdue_cnt > 0:
+            perf_line += f"\n⚠️ *Teslim Tarihi Geçmiş Telafi Ödevi:* {overdue_cnt} adet"
+
         if ev["tip"] == "Görüşme":
-            return f"Sayın Velimiz, öğrencimiz {ev['ad']}'in {day_name} ({d_nice}) saat {ev['saat']} haftalık koçluk randevusu bulunmaktadır. Bilginize sunar, iyi günler dileriz."
+            return (
+                f"Sayın Velimiz,\n\n"
+                f"Öğrencimiz *{ev['ad']}* ile *{day_name} ({d_nice}) Saat {ev['saat']}* haftalık koçluk randevumuz bulunmaktadır."
+                f"{perf_line}\n\n"
+                f"Bilginize sunar, iyi günler dileriz."
+            )
         else:
             tasks = "\n".join([f"  • {l}" for l in ev["meta"]["lines"]])
-            return f"Sayın Velimiz, öğrencimiz {ev['ad']}'in {day_name} ({t_date}) günü teslim etmesi gereken ödev programı:\n\n{tasks}\n\nÖğrencimizin çalışmalarını evde desteklemenizi rica eder, iyi günler dileriz."
+            return (
+                f"Sayın Velimiz,\n\n"
+                f"Öğrencimiz *{ev['ad']}*'in *{day_name} ({t_date})* günü teslim etmesi gereken ödev programı aşağıdadır:\n\n"
+                f"{tasks}{perf_line}\n\n"
+                f"Öğrencimizin çalışmalarını evde desteklemenizi rica eder, iyi günler dileriz."
+            )
+
+    def _get_student_360_analytics(self, sid: int) -> Dict[str, Any]:
+        """Öğrencinin ders bazlı başarı dağılımını, darboğaz dersini, geciken konularını,
+        deneme/hedef durumunu ve V3.5.40 ortak karar motoru önerisini hesaplar."""
+        result: Dict[str, Any] = {
+            "total_all": 0,
+            "done_all": 0,
+            "pct_all": 0,
+            "late_all": 0,
+            "subjects": [],
+            "strongest_subject": "",
+            "bottleneck_subject": "",
+            "late_topics": [],
+            "latest_exam": "",
+            "target_info": "",
+            "coach_advice": "",
+        }
+        if not sid:
+            return result
+        try:
+            # 1. Genel ve ders bazlı ödev dağılımı
+            subj_rows = self.con.execute("""
+                SELECT COALESCE(o.ders, 'Genel') as ders,
+                       SUM(CASE WHEN o.durum IN ('tamam','yapildi') THEN 1 ELSE 0 END) as done_cnt,
+                       SUM(CASE WHEN o.durum='devam' AND date(k.bitis_tarihi) < date('now') THEN 1 ELSE 0 END) as late_cnt,
+                       COUNT(*) as total_cnt
+                FROM odev o
+                JOIN odev_kume k ON k.id = o.kume_id
+                WHERE o.ogrenci_id=? AND COALESCE(o.silindi, 0)=0
+                GROUP BY COALESCE(o.ders, 'Genel')
+                ORDER BY total_cnt DESC
+            """, (sid,)).fetchall()
+
+            total_all = sum(int(r["total_cnt"] or 0) for r in subj_rows)
+            done_all = sum(int(r["done_cnt"] or 0) for r in subj_rows)
+            late_all = sum(int(r["late_cnt"] or 0) for r in subj_rows)
+            pct_all = int(round((done_all / total_all) * 100)) if total_all > 0 else 0
+
+            result["total_all"] = total_all
+            result["done_all"] = done_all
+            result["late_all"] = late_all
+            result["pct_all"] = pct_all
+
+            subjects_list = []
+            for r in subj_rows:
+                d_raw = self._tr_title(str(r["ders"] or "Genel"))
+                d_cnt = int(r["done_cnt"] or 0)
+                l_cnt = int(r["late_cnt"] or 0)
+                t_cnt = int(r["total_cnt"] or 0)
+                s_pct = int(round((d_cnt / t_cnt) * 100)) if t_cnt > 0 else 0
+                subjects_list.append({
+                    "ders": d_raw,
+                    "done": d_cnt,
+                    "late": l_cnt,
+                    "total": t_cnt,
+                    "pct": s_pct,
+                })
+            result["subjects"] = subjects_list[:5]
+
+            if subjects_list:
+                # En güçlü ders
+                with_done = [s for s in subjects_list if s["done"] > 0]
+                if with_done:
+                    best = max(with_done, key=lambda x: (x["pct"], x["done"]))
+                    result["strongest_subject"] = f"{best['ders']} (%{best['pct']} • {best['done']}/{best['total']})"
+                # Darboğaz / En çok aksayan ders
+                with_late = [s for s in subjects_list if s["late"] > 0]
+                if with_late:
+                    worst = max(with_late, key=lambda x: (x["late"], -x["pct"]))
+                    result["bottleneck_subject"] = f"{worst['ders']} ({worst['late']} Gecikmiş • %{worst['pct']})"
+                else:
+                    lowest = min(subjects_list, key=lambda x: (x["pct"], -x["total"]))
+                    if lowest["pct"] < 80:
+                        result["bottleneck_subject"] = f"{lowest['ders']} (%{lowest['pct']} Tamamlama)"
+
+            # 2. Geciken spesifik konular (Telafi listesi)
+            late_rows = self.con.execute("""
+                SELECT COALESCE(o.ders,'') as ders, COALESCE(o.kitap_ad,'') as kitap, COALESCE(o.konu_ad,'') as konu
+                FROM odev o
+                JOIN odev_kume k ON k.id = o.kume_id
+                WHERE o.ogrenci_id=? AND o.durum='devam' AND date(k.bitis_tarihi) < date('now') AND COALESCE(o.silindi, 0)=0
+                ORDER BY date(k.bitis_tarihi) DESC
+                LIMIT 12
+            """, (sid,)).fetchall()
+            seen_topics = []
+            for lr in late_rows:
+                d_c = self._tr_title(str(lr["ders"] or ""))
+                k_c = self._tr_title(str(lr["kitap"] or ""))
+                kn_c = str(lr["konu"] or "").replace("_", " ").strip().replace("\u0307", "")
+                t_item = " - ".join([p for p in (d_c, k_c, kn_c) if p and p != "Genel"])
+                if t_item and t_item not in seen_topics:
+                    seen_topics.append(t_item)
+                if len(seen_topics) >= 5:
+                    break
+            result["late_topics"] = seen_topics
+
+            # 3. Öğrenci hedef ve son deneme bilgisi
+            st_row = self.con.execute("""
+                SELECT hedef_bolum, hedef_tyt, hedef_ayt, hedef_lgs
+                FROM ogrenci WHERE id=?
+            """, (sid,)).fetchone()
+            if st_row:
+                h_parts = []
+                if st_row["hedef_bolum"]:
+                    h_parts.append(str(st_row["hedef_bolum"]))
+                if st_row["hedef_tyt"]:
+                    h_parts.append(f"TYT Hedef: {st_row['hedef_tyt']} Net")
+                if st_row["hedef_ayt"]:
+                    h_parts.append(f"AYT Hedef: {st_row['hedef_ayt']} Net")
+                if st_row["hedef_lgs"]:
+                    h_parts.append(f"LGS Hedef: {st_row['hedef_lgs']} Puan/Net")
+                result["target_info"] = " • ".join(h_parts)
+
+            ex_row = self.con.execute("""
+                SELECT dm.deneme_adi, dm.tur, dm.tarih, SUM(ds.net) as top_net
+                FROM deneme_sonuclari ds
+                JOIN denemeler dm ON dm.id = ds.deneme_id
+                WHERE ds.ogrenci_id=?
+                GROUP BY ds.deneme_id
+                ORDER BY date(dm.tarih) DESC
+                LIMIT 1
+            """, (sid,)).fetchone()
+            if ex_row and ex_row["top_net"] is not None:
+                result["latest_exam"] = f"{ex_row['deneme_adi']} ({ex_row['tur']}): {float(ex_row['top_net']):.2f} Net"
+
+            # 4. V3.5.40 Ortak Akademik Karar & Eylem Önerisi
+            try:
+                from services.academic_actions_v3536 import read_student_action_card
+                act_card = read_student_action_card(self.con, sid)
+                if isinstance(act_card, dict) and act_card.get("next_step"):
+                    result["coach_advice"] = str(act_card["next_step"])
+            except Exception:
+                pass
+
+            if not result["coach_advice"]:
+                if late_all > 0 and result["bottleneck_subject"]:
+                    result["coach_advice"] = f"{result['bottleneck_subject']} alanında biriken görevler için öncelikli telafi etüdü uygulanmalı."
+                elif pct_all >= 75:
+                    result["coach_advice"] = "Genel ödev disiplini yüksek; deneme net artışı ve süre odaklı soru çözümüne ağırlık verilebilir."
+                else:
+                    result["coach_advice"] = "Günlük soru çözüm rutini ve teslim saatlerine uyum yakından takip edilmeli."
+
+        except Exception as e:
+            print(f"[MobileSchedule] 360 analytics error for {sid}: {e}")
+        return result
+
+    def _build_academic_analysis_msg(self, ev: Dict[str, Any], an: Dict[str, Any], day_name: str, d_nice: str) -> str:
+        """Buton 4: Öğrenci veya Veliye gönderilebilecek Profesyonel 360° Akademik Analiz Raporu"""
+        stats_14 = ev["meta"].get("stats", "Veri yok")
+        subj_lines = []
+        for s in an.get("subjects", []):
+            late_tag = f" (⚠️ {s['late']} Gecikmiş)" if s["late"] > 0 else " (✅ Tamam)" if s["pct"] >= 80 else ""
+            subj_lines.append(f"  ▪ *{s['ders']}:* %{s['pct']} Başarı ({s['done']}/{s['total']} Görev){late_tag}")
+        subj_block = "\n".join(subj_lines) if subj_lines else "  ▪ Henüz ders bazlı ödev verisi oluşmadı."
+
+        extra_lines = []
+        if an.get("strongest_subject"):
+            extra_lines.append(f"🌟 *En Güçlü Ders:* {an['strongest_subject']}")
+        if an.get("bottleneck_subject"):
+            extra_lines.append(f"🔎 *Odaklanılacak Darboğaz Ders:* {an['bottleneck_subject']}")
+        if an.get("latest_exam"):
+            extra_lines.append(f"📝 *Son Deneme Performansı:* {an['latest_exam']}")
+        if an.get("target_info"):
+            extra_lines.append(f"🎯 *Hedef:* {an['target_info']}")
+        extra_block = "\n".join(extra_lines)
+
+        advice = an.get("coach_advice") or "Düzenli tekrar ve zamanında ödev teslimine devam edelim."
+        grup_str = f" ({ev.get('grup')})" if ev.get("grup") else ""
+
+        return (
+            f"🧭 *KOÇPİLOT 360 — AKADEMİK ANALİZ & PERFORMANS KARNESİ*\n"
+            f"👤 *Öğrenci:* {ev['ad']}{grup_str}\n"
+            f"📅 *Rapor Tarihi:* {day_name} ({d_nice})\n"
+            f"──────────────────────────\n"
+            f"📈 *Genel Ödev Disiplini:* %{an['pct_all']} ({an['done_all']} Tamamlanan / {an['total_all']} Toplam)\n"
+            f"⚡ *Son 14 Gün Temposu:* {stats_14}\n"
+            f"{extra_block}\n\n"
+            f"📚 *DERS BAZLI BAŞARI DAĞILIMI:*\n"
+            f"{subj_block}\n\n"
+            f"🧠 *Koç Değerlendirmesi & Stratejik Hedef:*\n"
+            f"{advice}\n\n"
+            f"İyi çalışmalar ve başarılar dilerim! 🚀"
+        )
+
+    def _build_recovery_plan_msg(self, ev: Dict[str, Any], an: Dict[str, Any], day_name: str, d_nice: str) -> str:
+        """Buton 5: Geciken / Eksik Konular İçin Kişisel Telafi Reçetesi (veya Gecikme Yoksa Tebrik)"""
+        late_cnt = an.get("late_all", 0)
+        late_topics = an.get("late_topics", [])
+        if late_cnt > 0:
+            topics_str = "\n".join([f"  🔸 {t}" for t in late_topics]) if late_topics else "  🔸 Sistemdeki teslim tarihi geçmiş açık ödevler"
+            bottleneck = an.get("bottleneck_subject") or "aksayan dersler"
+            return (
+                f"⚠️ *KOÇPİLOT 360 — KİŞİSEL TELAFİ & EYLEM PLANI*\n"
+                f"Merhaba *{ev['ad']}*,\n\n"
+                f"Sistem analizimizde teslim tarihi geçmiş toplam *{late_cnt} adet* açık görev ve özellikle *{bottleneck}* alanında birikme tespit edildi.\n\n"
+                f"📌 *Öncelikli Telafi Edilecek Konular:*\n"
+                f"{topics_str}\n\n"
+                f"🛠️ *3 Adımlı Telafi Reçeten:*\n"
+                f"1️⃣ Bugün güncel ödevinin yanına yukarıdaki listeden en az 1 eksik konuyu ekle.\n"
+                f"2️⃣ Çözemediğin soruları işaretle ve koçluk görüşmemize getir.\n"
+                f"3️⃣ Tamamladığın her telafi görevini bana WhatsApp'tan bildir.\n\n"
+                f"Seninle bu eksikleri hızla kapatacağız, sana güveniyorum! 💪📚"
+            )
+        else:
+            return (
+                f"🌟 *KOÇPİLOT 360 — ÜSTÜN DİSİPLİN & MOTİVASYON MESAJI*\n"
+                f"Tebrikler *{ev['ad']}*! 👏\n\n"
+                f"Sistemde teslim tarihi geçmiş *hiçbir eksik ödevin bulunmuyor* (Genel Başarı: *%{an['pct_all']}* • {an['done_all']}/{an['total_all']} görev).\n\n"
+                f"🚀 *Bu Haftaki İleri Seviye Hedefin:*\n"
+                f"• Branş denemelerinde süre tutarak hız kazanmak,\n"
+                f"• Yanlış ve boş soruların video/konu analizlerini aynı gün tamamlamak.\n\n"
+                f"Harika disiplinin için seni kutluyorum, zirveye doğru aynen devam! 🏆🔥"
+            )
+
+    def _build_parent_executive_report_msg(self, ev: Dict[str, Any], an: Dict[str, Any], day_name: str, d_nice: str) -> str:
+        """Buton 6: Veliye Özel Detaylı 360° Gelişim & Takip Karnesi"""
+        stats_14 = ev["meta"].get("stats", "Veri yok")
+        subj_lines = []
+        for s in an.get("subjects", [])[:4]:
+            subj_lines.append(f"  • {s['ders']}: %{s['pct']} tamamlanma ({s['done']}/{s['total']} ödev)")
+        subj_block = "\n".join(subj_lines) if subj_lines else "  • Ders bazlı ödev takibi devam etmektedir."
+
+        late_cnt = an.get("late_all", 0)
+        if late_cnt > 0:
+            late_info = f"⚠️ *Telafi Bekleyen Görev:* {late_cnt} adet (Öncelikli ders: {an.get('bottleneck_subject', 'Belirlendi')})"
+            home_tip = "Öğrencimizin biriken telafi ödevlerini bu hafta içinde eritebilmesi için evdeki çalışma saatlerini desteklemenizi rica ederiz."
+        else:
+            late_info = "✅ *Geciken Ödev Durumu:* Süresi geçmiş eksik ödevi bulunmamaktadır. Tebrik ederiz!"
+            home_tip = "Öğrencimiz ödevlerini zamanında ve düzenli olarak tamamlamaktadır. Gösterdiğiniz ilgi ve destek için teşekkür ederiz."
+
+        exam_line = f"\n📝 *Son Deneme Sonucu:* {an['latest_exam']}" if an.get("latest_exam") else ""
+
+        return (
+            f"📋 *SAYIN VELİMİZ — HAFTALIK 360° ÖĞRENCİ GELİŞİM KARNESİ*\n\n"
+            f"Öğrencimiz *{ev['ad']}* için güncel akademik takip ve çalışma analizi aşağıda bilgilerinize sunulmuştur:\n"
+            f"──────────────────────────\n"
+            f"📊 *Genel Ödev Tamamlama:* %{an['pct_all']} ({an['done_all']} / {an['total_all']} Görev)\n"
+            f"🗓️ *Son 14 Gün Performansı:* {stats_14}\n"
+            f"{late_info}{exam_line}\n\n"
+            f"📚 *Ders Bazlı Çalışma Özeti:*\n"
+            f"{subj_block}\n\n"
+            f"💡 *Koçluk Değerlendirmesi:*\n"
+            f"{home_tip}\n\n"
+            f"İyi günler dileriz. 🙏"
+        )
 
     # --- HTML Builder for PDF / Browser ---
-    def _build_html(self, schedule, next_7_days, for_pdf=False):
+    def _build_html(self, schedule, next_7_days, for_pdf=False, include_analytics=True):
         now_str = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
-        today_date = datetime.date.today()
-        today_name = next_7_days[0][1]
-        today_evs = [e for e in schedule.get(today_name, []) if e["tip"] == "Teslim"]
+        op_stats = self._get_operational_summary()
+
+        # Toplam hafta içi kart sayısı
+        total_cards = sum(len(schedule.get(dn, [])) for _, dn in next_7_days)
+        analytics_cache: Dict[int, Dict[str, Any]] = {}
 
         html_out = f"""
         <!DOCTYPE html>
@@ -1887,174 +2398,422 @@ class MobileScheduleGenerator:
         <head>
             <meta charset="utf-8">
             <style>
+                @page {{
+                    size: A4 portrait;
+                    margin: 8mm;
+                }}
                 body {{
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    color: #1e293b; margin: 0; padding: 20px;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, Helvetica, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+                    color: #0f172a; margin: 0; padding: 10px;
                     background-color: #f8fafc;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
                 }}
-                .header-area {{
-                    background-color: #1e3a8a; color: white; border-radius: 10px;
-                    padding: 20px; text-align: center; margin-bottom: 25px;
-                }}
-                h1 {{ margin: 0; font-size: 26px; font-weight: 800; }}
-                .sub {{ margin-top: 6px; font-size: 13px; color: #bfdbfe; }}
-
-                .day-table {{
-                    width: 100%; border-collapse: collapse; margin-top: 25px; margin-bottom: 10px;
-                }}
+                a {{ text-decoration: none; }}
                 .day-header {{
-                    background-color: #e2e8f0; color: #0f172a; padding: 10px 14px;
-                    font-size: 16px; font-weight: 800; border-radius: 6px;
-                    border-left: 6px solid #2563eb;
+                    page-break-after: avoid;
+                    break-after: avoid;
+                    margin-top: 16px;
+                    margin-bottom: 10px;
                 }}
-                .day-date {{
-                    float: right; color: #64748b; font-size: 13px; font-weight: 600;
+                .student-card {{
+                    page-break-inside: avoid;
+                    break-inside: avoid;
+                    margin-bottom: 14px;
                 }}
-
-                .card-table {{
-                    width: 100%; border-collapse: collapse; margin-bottom: 16px;
-                    background: white; border: 1px solid #e2e8f0; border-radius: 8px;
-                }}
-                .card-td {{
-                    padding: 14px 18px; vertical-align: top;
-                }}
-                .student-name {{
-                    font-size: 17px; font-weight: 800; color: #0f172a;
-                }}
-                .student-sub {{
-                    font-size: 12px; color: #64748b; margin-top: 4px;
-                }}
-                .badge-span {{
-                    background: #fef3c7; color: #92400e; font-size: 11px; font-weight: bold;
-                    padding: 3px 8px; border-radius: 12px; border: 1px solid #fde68a; display: inline-block;
-                }}
-                .time-span {{
-                    background: #eff6ff; color: #1d4ed8; font-size: 12px; font-weight: bold;
-                    padding: 4px 10px; border-radius: 12px; border: 1px solid #bfdbfe;
-                }}
-                .deadline-span {{
-                    background: #fef2f2; color: #b91c1c; font-size: 12px; font-weight: bold;
-                    padding: 4px 10px; border-radius: 12px; border: 1px solid #fecaca;
-                }}
-                .task-list {{
-                    margin: 8px 0 0 0; padding-left: 20px; font-size: 14px; color: #334155; line-height: 1.6;
-                }}
-                .btn-link {{
-                    display: inline-block; padding: 6px 12px; background: #16a34a; color: white !important;
-                    text-decoration: none; border-radius: 6px; font-size: 12px; font-weight: bold; margin-right: 6px;
-                }}
-                .btn-call {{
-                    display: inline-block; padding: 6px 12px; background: #ffffff; color: #334155 !important;
-                    text-decoration: none; border-radius: 6px; font-size: 12px; font-weight: bold; border: 1px solid #cbd5e1;
-                }}
-                .empty-day {{
-                    text-align: center; color: #94a3b8; font-style: italic; padding: 14px; font-size: 13px;
+                .btn-bar {{
+                    page-break-inside: avoid;
+                    break-inside: avoid;
                 }}
             </style>
         </head>
         <body>
-            <div class="header-area">
-                <h1>📱 Haftalık Mobil Cep Ajandası</h1>
-                <div class="sub">Oluşturulma: {now_str} • YKS / LGS Asistanı v2</div>
-            </div>
+            <!-- ÜST KURUMSAL BAŞLIK (KOÇPİLOT 360) -->
+            <table width="100%" cellspacing="0" cellpadding="0" bgcolor="#0f172a" style="border-radius: 10px; margin-bottom: 12px;">
+                <tr>
+                    <td style="padding: 18px 20px;">
+                        <table width="100%" cellspacing="0" cellpadding="0">
+                            <tr>
+                                <td align="left" valign="middle">
+                                    <div style="font-size: 22px; font-weight: 900; color: #ffffff;">
+                                        🧭 KoçPilot 360 — Haftalık Akıllı Mobil Cep Ajandası &amp; Analiz Paketi
+                                    </div>
+                                    <div style="font-size: 12px; color: #93c5fd; margin-top: 4px;">
+                                        Oluşturulma: {now_str} • Bütünleşik Koçluk, Ödev &amp; 360° Akademik Analiz Platformu (v3.5.41)
+                                    </div>
+                                </td>
+                                <td align="right" valign="middle">
+                                    <span style="background-color: #1e3a8a; color: #38bdf8; font-size: 11px; font-weight: bold; padding: 5px 10px; border-radius: 6px;">
+                                        📲 6 AKILLI BUTONLU MOBİL PDF
+                                    </span>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- OPERASYONEL ÖZET ŞERİDİ -->
+            <table width="100%" cellspacing="4" cellpadding="0" style="margin-bottom: 12px;">
+                <tr>
+                    <td width="25%" bgcolor="#eff6ff" align="center" style="padding: 10px; border: 1px solid #bfdbfe; border-radius: 8px;">
+                        <div style="font-size: 16px; font-weight: 900; color: #1d4ed8;">📅 {op_stats['today_deadlines']}</div>
+                        <div style="font-size: 10px; font-weight: bold; color: #475569; margin-top: 2px;">BUGÜN TESLİM</div>
+                    </td>
+                    <td width="25%" bgcolor="#f0fdfa" align="center" style="padding: 10px; border: 1px solid #99f6e4; border-radius: 8px;">
+                        <div style="font-size: 16px; font-weight: 900; color: #0f766e;">🕒 {op_stats['weekly_meetings']}</div>
+                        <div style="font-size: 10px; font-weight: bold; color: #475569; margin-top: 2px;">HAFTALIK RANDEVU</div>
+                    </td>
+                    <td width="25%" bgcolor="#fef2f2" align="center" style="padding: 10px; border: 1px solid #fecaca; border-radius: 8px;">
+                        <div style="font-size: 16px; font-weight: 900; color: #dc2626;">⚠️ {op_stats['overdue_tasks']}</div>
+                        <div style="font-size: 10px; font-weight: bold; color: #475569; margin-top: 2px;">GECİKEN ÖDEV</div>
+                    </td>
+                    <td width="25%" bgcolor="#f8fafc" align="center" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                        <div style="font-size: 16px; font-weight: 900; color: #0f172a;">👥 {op_stats['active_students']} ({total_cards} Kart)</div>
+                        <div style="font-size: 10px; font-weight: bold; color: #475569; margin-top: 2px;">AKTİF ÖĞRENCİ</div>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- MOBİL KULLANIM KILAVUZU ŞERİDİ -->
+            <table width="100%" cellspacing="0" cellpadding="0" bgcolor="#f0fdf4" style="border: 1px solid #bbf7d0; border-radius: 8px; margin-bottom: 16px;">
+                <tr>
+                    <td style="padding: 9px 14px; font-size: 11px; color: #166534; line-height: 1.45;">
+                        <b>📲 Telefondan 6 Farklı Profesyonel WhatsApp Raporu Gönderimi:</b> Bu PDF'i WhatsApp'tan kendinize gönderin. Telefonda PDF'i açıp her öğrencinin altındaki:<br/>
+                        <b>1) 💬 Ödev Programı</b> &nbsp;•&nbsp;
+                        <b>2) 👪 Veli Ödev</b> &nbsp;•&nbsp;
+                        <b>3) 📞 Hızlı Ara</b> &nbsp;•&nbsp;
+                        <b>4) 📊 360° Akademik Analiz</b> &nbsp;•&nbsp;
+                        <b>5) ⚠️ Telafi &amp; Eksik Planı</b> &nbsp;•&nbsp;
+                        <b>6) 🎯 Veli Gelişim Karnesi</b> butonlarına dokunarak hazır raporları tek tıkla gönderin!
+                    </td>
+                </tr>
+            </table>
         """
 
         for d_str, day_name in next_7_days:
             events = schedule.get(day_name, [])
-            nice_date = f"{d_str.split('-')[2]}.{d_str.split('-')[1]}.{d_str.split('-')[0]}"
+            parts_d = d_str.split("-")
+            nice_date = f"{parts_d[2]}.{parts_d[1]}.{parts_d[0]}" if len(parts_d) == 3 else d_str
+            short_date = f"{parts_d[2]}.{parts_d[1]}" if len(parts_d) == 3 else d_str
 
             html_out += f"""
-            <table class="day-table">
-                <tr>
-                    <td class="day-header">
-                        <span>📅 {day_name}</span>
-                        <span class="day-date">{nice_date}</span>
-                    </td>
-                </tr>
-            </table>
+            <div class="day-header">
+                <table width="100%" cellspacing="0" cellpadding="0" bgcolor="#e2e8f0" style="border-left: 6px solid #2563eb; border-radius: 6px;">
+                    <tr>
+                        <td align="left" style="padding: 9px 14px; font-size: 15px; font-weight: 900; color: #0f172a;">
+                            📅 {html.escape(day_name)}
+                        </td>
+                        <td align="right" style="padding: 9px 14px; font-size: 12px; font-weight: bold; color: #475569;">
+                            {nice_date} • {len(events)} Kayıt
+                        </td>
+                    </tr>
+                </table>
+            </div>
             """
 
             if not events:
-                html_out += "<div class='empty-day'>Bugün için planlanmış bir ödev teslimi veya randevu bulunmamaktadır.</div>"
+                html_out += """
+                <table width="100%" cellspacing="0" cellpadding="0" bgcolor="#ffffff" style="border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 10px;">
+                    <tr>
+                        <td align="center" style="padding: 12px; color: #94a3b8; font-style: italic; font-size: 12px;">
+                            Bu gün için planlanmış bir ödev teslimi veya randevu bulunmamaktadır.
+                        </td>
+                    </tr>
+                </table>
+                """
                 continue
 
             for ev in events:
-                targets = []
-                if ev['tel_ogr']:
-                    targets.append(f"Öğr: {ev['tel_ogr']}")
-                if ev['tel_veli']:
-                    targets.append(f"Veli: {ev['tel_veli']}")
-                contact_str = " • ".join(targets) if targets else "İletişim numarası kayıtlı değil"
+                sid = ev.get("oid")
+                if sid not in analytics_cache:
+                    analytics_cache[sid] = self._get_student_360_analytics(sid)
+                an = analytics_cache[sid]
 
-                # Badges
+                ogr_clean = self._clean(ev.get("tel_ogr"))
+                veli_clean = self._clean(ev.get("tel_veli"))
+                ogr_disp = self._format_phone(ev.get("tel_ogr"))
+                veli_disp = self._format_phone(ev.get("tel_veli"))
+
+                targets = []
+                if ogr_disp:
+                    targets.append(f"📱 Öğr: <b>{html.escape(ogr_disp)}</b>")
+                if veli_disp:
+                    targets.append(f"👪 Veli: <b>{html.escape(veli_disp)}</b>")
+                contact_str = " &nbsp;•&nbsp; ".join(targets) if targets else "<span style='color:#d97706;'>📵 Telefon numarası kayıtlı değil (WhatsApp'ta kişi seçerek gönderilir)</span>"
+
+                # Grup etiketi
+                grup_txt = ev.get("grup", "").strip()
+                grup_badge = f"<span style='background-color:#f1f5f9; color:#334155; font-size:11px; font-weight:bold; padding:2px 7px; border-radius:6px;'>{html.escape(grup_txt)}</span>" if grup_txt else ""
+
+                # Teslim / Randevu rozeti
                 is_deadline = (ev["tip"] == "Teslim")
                 if is_deadline:
                     t_date = ev["meta"].get("nice_date", nice_date)
-                    header_badge = f"<span class='deadline-span'>⏰ {t_date} • 18:00 Teslim</span>"
-                    lines_html = "".join([f"<li>{line}</li>" for line in ev["meta"]["lines"]])
-                    body_content = f"<ul class='task-list'>{lines_html}</ul>"
-                else:
-                    header_badge = f"<span class='time-span'>🕒 Saat: {ev['saat']} Randevu</span>"
-                    body_content = f"<div style='margin-top:6px; font-size:14px; color:#475569;'>{ev['detay']}</div>"
+                    saat_lbl = ev.get("saat", "18:00")
+                    if saat_lbl == "Genel":
+                        header_badge = f"<span style='background-color:#eff6ff; color:#1d4ed8; font-size:11px; font-weight:bold; padding:4px 9px; border-radius:8px;'>📊 Haftalık Karne ({t_date})</span>"
+                    else:
+                        header_badge = f"<span style='background-color:#fef2f2; color:#b91c1c; font-size:11px; font-weight:bold; padding:4px 9px; border-radius:8px;'>⏰ {t_date} • {saat_lbl} Teslim</span>"
 
-                badge_html = ""
-                if ev["meta"].get("badge"):
-                    badge_html = f"<span class='badge-span'>{ev['meta']['badge']} {ev['meta']['smart_note']}</span>"
-
-                stats_html = ""
-                if ev["meta"].get("stats"):
-                    stats_html = f"<span style='font-size:11px; color:#64748b; margin-left:8px;'>({ev['meta']['stats']})</span>"
-
-                target_num = self._clean(ev["tel_ogr"]) or self._clean(ev["tel_veli"])
-                links_html = ""
-                if target_num:
-                    msg = self._build_msg_single(ev, day_name, f"{d_str.split('-')[2]}.{d_str.split('-')[1]}")
-                    wa_url = f"https://wa.me/{target_num}?text={urllib.parse.quote(msg)}"
-                    links_html = f"""
-                    <table cellpadding="0" cellspacing="0" style="margin-top: 10px;">
+                    task_rows_html = ""
+                    for idx_line, line in enumerate(ev["meta"]["lines"], 1):
+                        bg_row = "#f8fafc" if idx_line % 2 == 1 else "#ffffff"
+                        task_rows_html += f"""
                         <tr>
-                            <td bgcolor="#16a34a" style="border-radius: 6px; padding: 5px 12px;">
-                                <a href="{wa_url}" style="color: #ffffff; text-decoration: none; font-size: 12px; font-weight: bold;">💬 WhatsApp Raporu</a>
+                            <td bgcolor="{bg_row}" style="padding: 5px 10px; font-size: 13px; color: #1e293b; border-bottom: 1px solid #f1f5f9;">
+                                <b>{idx_line}.</b> {html.escape(line)}
                             </td>
-                            <td width="8">&nbsp;</td>
-                            <td bgcolor="#ffffff" style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 12px;">
-                                <a href="tel:{target_num}" style="color: #334155; text-decoration: none; font-size: 12px; font-weight: bold;">📞 Ara</a>
+                        </tr>
+                        """
+                    if ev["meta"].get("notes"):
+                        notes_joined = " | ".join(ev["meta"]["notes"])
+                        task_rows_html += f"""
+                        <tr>
+                            <td bgcolor="#fffbeb" style="padding: 6px 10px; font-size: 12px; color: #92400e; border-top: 1px solid #fde68a;">
+                                📌 <b>Koç Notu:</b> {html.escape(notes_joined)}
+                            </td>
+                        </tr>
+                        """
+                    body_content = f"""
+                    <table width="100%" cellspacing="0" cellpadding="0" style="margin-top: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                        {task_rows_html}
+                    </table>
+                    """
+                else:
+                    header_badge = f"<span style='background-color:#eff6ff; color:#1d4ed8; font-size:11px; font-weight:bold; padding:4px 9px; border-radius:8px;'>🕒 Saat: {html.escape(ev['saat'])} Randevu</span>"
+                    body_content = f"""
+                    <table width="100%" cellspacing="0" cellpadding="0" bgcolor="#eff6ff" style="margin-top: 8px; border: 1px solid #bfdbfe; border-radius: 6px;">
+                        <tr>
+                            <td style="padding: 8px 12px; font-size: 13px; color: #1e3a8a; font-weight: bold;">
+                                🤝 {html.escape(ev.get('detay', 'Haftalık Koçluk Görüşmesi'))}
                             </td>
                         </tr>
                     </table>
                     """
 
+                badge_html = ""
+                if ev["meta"].get("badge"):
+                    badge_html = f"<span style='background-color:#fef3c7; color:#92400e; font-size:11px; font-weight:bold; padding:3px 8px; border-radius:8px;'>{ev['meta']['badge']} {html.escape(ev['meta'].get('smart_note', ''))}</span>"
+
+                stats_html = ""
+                if ev["meta"].get("stats"):
+                    stats_html = f"<span style='font-size:11px; color:#0f172a; font-weight:bold;'>📊 Son 14 Gün: {html.escape(ev['meta']['stats'])}</span>"
+
+                overdue_cnt = ev["meta"].get("overdue", 0)
+                overdue_html = ""
+                if overdue_cnt > 0:
+                    overdue_html = f"<span style='background-color:#fee2e2; color:#991b1b; font-size:11px; font-weight:bold; padding:2px 7px; border-radius:6px; margin-left:6px;'>🚨 {overdue_cnt} Geciken Ödev</span>"
+
+                # --- 360° AKADEMİK ANALİZ & DERS DAĞILIM KUTUSU (KART İÇİNDE GÖRSEL ÖZET) ---
+                analytics_box_html = ""
+                if include_analytics and an.get("total_all", 0) > 0:
+                    subj_pills = []
+                    for s in an.get("subjects", [])[:5]:
+                        s_color = "#166534" if s["pct"] >= 70 else "#991b1b" if s["late"] > 0 else "#1e3a8a"
+                        subj_pills.append(
+                            f"<b><font color='{s_color}'>{html.escape(s['ders'])}:</font></b> %{s['pct']} ({s['done']}/{s['total']})"
+                        )
+                    subj_summary_line = " &nbsp;|&nbsp; ".join(subj_pills)
+
+                    hi_parts = [f"📈 <b>Genel Başarı:</b> %{an['pct_all']} ({an['done_all']}/{an['total_all']} Görev)"]
+                    if an.get("strongest_subject"):
+                        hi_parts.append(f"🌟 <b>Güçlü:</b> {html.escape(an['strongest_subject'])}")
+                    if an.get("bottleneck_subject"):
+                        hi_parts.append(f"⚠️ <b>Darboğaz:</b> {html.escape(an['bottleneck_subject'])}")
+                    if an.get("latest_exam"):
+                        hi_parts.append(f"📝 <b>Son Deneme:</b> {html.escape(an['latest_exam'])}")
+                    hi_line = " &nbsp;•&nbsp; ".join(hi_parts)
+
+                    late_topics_line = ""
+                    if an.get("late_topics"):
+                        lt_str = ", ".join(an["late_topics"][:3])
+                        late_topics_line = f"<div style='margin-top: 4px; font-size: 11px; color: #991b1b;'>🔎 <b>Öncelikli Telafi Konuları:</b> {html.escape(lt_str)}</div>"
+
+                    advice_line = ""
+                    if an.get("coach_advice"):
+                        advice_line = f"<div style='margin-top: 4px; font-size: 11px; color: #312e81;'>🧠 <b>KoçPilot 360 Önerisi:</b> {html.escape(an['coach_advice'])}</div>"
+
+                    analytics_box_html = f"""
+                    <table width="100%" cellspacing="0" cellpadding="0" bgcolor="#eef2ff" style="margin-top: 8px; border: 1px solid #c7d2fe; border-radius: 6px;">
+                        <tr>
+                            <td style="padding: 8px 12px;">
+                                <div style="font-size: 11px; color: #1e1b4b;">{hi_line}</div>
+                                <div style="margin-top: 4px; font-size: 11px; color: #334155;">📚 <b>Ders Dağılımı:</b> {subj_summary_line}</div>
+                                {late_topics_line}
+                                {advice_line}
+                            </td>
+                        </tr>
+                    </table>
+                    """
+
+                # --- HER DURUMDA ÇIKMASI GARANTİ EDİLEN 6'LI MOBİL KOMUTA BUTONLARI ---
+                target_ogr_num = ogr_clean or veli_clean
+                target_veli_num = veli_clean or ogr_clean
+
+                def _make_wa_url(phone_num: Optional[str], message_text: str) -> str:
+                    enc = urllib.parse.quote(message_text)
+                    if phone_num:
+                        return f"https://wa.me/{phone_num}?text={enc}"
+                    return f"https://api.whatsapp.com/send?text={enc}"
+
+                # 1. Öğrenci Günlük/Haftalık Ödev Programı
+                msg_ogr = self._build_msg_single(ev, day_name, short_date)
+                wa_ogr_url = _make_wa_url(target_ogr_num, msg_ogr)
+                wa_ogr_label = "💬 1. Ödev Programı (Öğr)" if target_ogr_num else "💬 1. Ödev Programı (Seç)"
+
+                # 2. Veli Günlük/Haftalık Ödev Bilgilendirme
+                msg_veli = self._build_parent_msg(ev, day_name, short_date)
+                wa_veli_url = _make_wa_url(target_veli_num, msg_veli)
+                wa_veli_label = "👪 2. Veli Ödev Bilgisi" if target_veli_num else "👪 2. Veli Ödev (Seç)"
+
+                # 3. Telefonla Arama Butonu
+                call_num = ogr_clean or veli_clean
+                call_disp = ogr_disp or veli_disp
+                if call_num:
+                    call_url = f"tel:{call_num}"
+                    call_cell_html = f"""
+                    <td width="34%" bgcolor="#0f172a" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
+                        <a href="{call_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                            <font color="#ffffff">📞 3. Ara ({html.escape(call_disp)})</font>
+                        </a>
+                    </td>
+                    """
+                else:
+                    call_cell_html = f"""
+                    <td width="34%" bgcolor="#475569" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
+                        <span style="color: #ffffff; font-size: 10px; font-weight: bold;">
+                            📵 3. Tel Kayıtsız (WP Seç)
+                        </span>
+                    </td>
+                    """
+
+                # 4. 360° Akademik Analiz Raporu (Öğrenci/Veli)
+                msg_analysis = self._build_academic_analysis_msg(ev, an, day_name, short_date)
+                wa_analysis_url = _make_wa_url(target_ogr_num, msg_analysis)
+
+                # 5. Eksik / Telafi & Darboğaz Eylem Planı
+                msg_recovery = self._build_recovery_plan_msg(ev, an, day_name, short_date)
+                wa_recovery_url = _make_wa_url(target_ogr_num, msg_recovery)
+                recovery_label = f"⚠️ 5. Telafi Planı ({an['late_all']} Eksik)" if an.get("late_all", 0) > 0 else "🌟 5. Başarı & Tebrik Mesajı"
+                recovery_bg = "#d97706" if an.get("late_all", 0) > 0 else "#059669"
+
+                # 6. Veliye Özel Detaylı 360° Gelişim Karnesi
+                msg_parent_exec = self._build_parent_executive_report_msg(ev, an, day_name, short_date)
+                wa_parent_exec_url = _make_wa_url(target_veli_num, msg_parent_exec)
+
                 border_color = ev.get("renk", "#3b82f6")
 
                 html_out += f"""
-                <table class="card-table" style="border-left: 6px solid {border_color};">
+                <div class="student-card">
+                <table width="100%" cellspacing="0" cellpadding="0" bgcolor="#ffffff" style="border: 1px solid #cbd5e1; border-left: 6px solid {border_color}; border-radius: 8px;">
                     <tr>
-                        <td class="card-td">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span class="student-name">{ev['ad']}</span>
-                                <span style="float: right;">{header_badge}</span>
-                            </div>
-                            <div class="student-sub">{contact_str} {stats_html}</div>
-                            <div style="margin-top: 6px;">{badge_html}</div>
+                        <td style="padding: 12px 16px;">
+                            <!-- ÜST SATIR: ÖĞRENCİ ADI VE TESLİM SAATİ -->
+                            <table width="100%" cellspacing="0" cellpadding="0">
+                                <tr>
+                                    <td align="left" valign="middle">
+                                        <span style="font-size: 16px; font-weight: 900; color: #0f172a;">{html.escape(ev['ad'])}</span>
+                                        &nbsp;{grup_badge}
+                                    </td>
+                                    <td align="right" valign="middle">
+                                        {header_badge}
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- İKİNCİ SATIR: TELEFON VE PERFORMANS ÖZETİ -->
+                            <table width="100%" cellspacing="0" cellpadding="0" style="margin-top: 6px;">
+                                <tr>
+                                    <td align="left" valign="middle" style="font-size: 11px; color: #475569;">
+                                        {contact_str}
+                                    </td>
+                                    <td align="right" valign="middle">
+                                        {stats_html} {overdue_html}
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- ÜÇÜNCÜ SATIR: DURUM ROZETİ -->
+                            {f'<div style="margin-top: 6px;">{badge_html}</div>' if badge_html else ''}
+
+                            <!-- DÖRDÜNCÜ SATIR: ÖDEV LİSTESİ / GÖRÜŞME DETAYI -->
                             {body_content}
-                            {links_html}
+
+                            <!-- BEŞİNCİ SATIR: 360° AKADEMİK ANALİZ ÖZET KUTUSU -->
+                            {analytics_box_html}
+
+                            <!-- ALTINCI SATIR: 6'LI MOBİL KOMUTA MERKEZİ BUTONLARI (2 SATIR x 3 BUTON) -->
+                            <div class="btn-bar">
+                            <table width="100%" cellspacing="4" cellpadding="0" style="margin-top: 8px;">
+                                <tr>
+                                    <td width="33%" bgcolor="#16a34a" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
+                                        <a href="{wa_ogr_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                            <font color="#ffffff">{wa_ogr_label}</font>
+                                        </a>
+                                    </td>
+                                    <td width="33%" bgcolor="#2563eb" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
+                                        <a href="{wa_veli_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                            <font color="#ffffff">{wa_veli_label}</font>
+                                        </a>
+                                    </td>
+                                    {call_cell_html}
+                                </tr>
+                                <tr>
+                                    <td width="33%" bgcolor="#7c3aed" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
+                                        <a href="{wa_analysis_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                            <font color="#ffffff">📊 4. 360° Akademik Analiz</font>
+                                        </a>
+                                    </td>
+                                    <td width="33%" bgcolor="{recovery_bg}" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
+                                        <a href="{wa_recovery_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                            <font color="#ffffff">{recovery_label}</font>
+                                        </a>
+                                    </td>
+                                    <td width="34%" bgcolor="#0891b2" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
+                                        <a href="{wa_parent_exec_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                            <font color="#ffffff">🎯 6. Veli Gelişim Karnesi</font>
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            </div>
                         </td>
                     </tr>
                 </table>
+                </div>
                 """
 
         html_out += "</body></html>"
         return html_out
 
-    def _clean(self, t):
+    def _clean(self, t) -> Optional[str]:
+        """Telefon numarasını uluslararası WhatsApp formatına (905xxxxxxxxx) temizler.
+        Boş maskeleri ('(5)' vb.) ve 10 haneden kısa geçersiz girdileri eler."""
         if not t:
             return None
         c = "".join(filter(str.isdigit, str(t)))
+        if len(c) < 10:
+            return None
+        if len(c) == 10 and c.startswith("5"):
+            return "90" + c
+        if len(c) == 11 and c.startswith("05"):
+            return "9" + c
+        if len(c) == 12 and c.startswith("905"):
+            return c
         if c.startswith("0"):
-            c = "9" + c
-        elif len(c) == 10:
-            c = "90" + c
+            return "9" + c
         return c
+
+    def _format_phone(self, t) -> str:
+        """Geçerli telefon numarasını okunaklı '05xx xxx xx xx' biçiminde döndürür."""
+        clean = self._clean(t)
+        if not clean:
+            return ""
+        local = clean[2:] if clean.startswith("90") and len(clean) == 12 else clean
+        if len(local) == 10:
+            return f"0{local[0:3]} {local[3:6]} {local[6:8]} {local[8:10]}"
+        return str(t).strip()
 
     def _open_file(self, path):
         try:

@@ -1,0 +1,131 @@
+{
+  "ui/homework_form.py": {
+    "class": "OdevTakipFormu",
+    "file_sha256": "53e6b12db96cf81fd622947e7d343b4130a1a8e42a0e30d5c5ec58e64e456314",
+    "critical_methods": {
+      "_ders_tab_olustur": {
+        "total_definitions": 1,
+        "active_line": 6160,
+        "effective_ast_sha256": "89108d3d71975523ff94e7f719f3d94889b9a43438bf22337e826a21dcd7d867",
+        "effective_ast_sha256_alt": [
+          "89108d3d71975523ff94e7f719f3d94889b9a43438bf22337e826a21dcd7d867",
+          "1a146a9f8c6c7afe323d89dd90d5d02cc6386ccf900707524e30c5431dbeb0f4"
+        ]
+      },
+      "_kilitle_ve_boya": {
+        "total_definitions": 1,
+        "active_line": 8471,
+        "effective_ast_sha256": "79faace4c6abc26dec59a85860086e0c825c826735eecb676f8a7da764f4b1c2",
+        "effective_ast_sha256_alt": [
+          "79faace4c6abc26dec59a85860086e0c825c826735eecb676f8a7da764f4b1c2",
+          "8c7772e45f1dfbe9be48d25db55e7919fbf3512d89e80d86313083ae1b78340b"
+        ]
+      },
+      "_tik_degisti": {
+        "total_definitions": 1,
+        "active_line": 11217,
+        "effective_ast_sha256": "cb7f932120ffe1019584e396441f4bd258b6c0cc4aa769eeab99644d3e52a75d",
+        "effective_ast_sha256_alt": [
+          "cb7f932120ffe1019584e396441f4bd258b6c0cc4aa769eeab99644d3e52a75d",
+          "d70c947ed43285bf9f9866b6e966a515ddcd417f1aa26fb2b636797aeeb92f68"
+        ]
+      },
+      "_kaydet_kume": {
+        "total_definitions": 1,
+        "active_line": 8573,
+        "effective_ast_sha256": "5212786c4f7ae0538ce1e005b14f9dcba970b6c616c4f77d944ca1be1a179d0d",
+        "effective_ast_sha256_alt": [
+          "5212786c4f7ae0538ce1e005b14f9dcba970b6c616c4f77d944ca1be1a179d0d",
+          "bf2ff386c7fa4c97cdc48e8910be83319309562e7fd13962e98fd625aa3c637e"
+        ]
+      },
+      "_odev_kontrol": {
+        "total_definitions": 2,
+        "active_line": 8880,
+        "effective_ast_sha256": "e15ceda7090467209c7761ffd8365d014ada4420ff9113b9e87ee77e198bab84",
+        "effective_ast_sha256_alt": [
+          "e15ceda7090467209c7761ffd8365d014ada4420ff9113b9e87ee77e198bab84",
+          "65f88cd96cbd1adbe6c590abc33e7b413fa051d2a3839aed8a231e868d154ac0"
+        ]
+      },
+      "_flush_checkbox_queues": {
+        "total_definitions": 1,
+        "active_line": 5932,
+        "effective_ast_sha256": "6094e118a5551c98d43acf8c3b8e9904050c9eec0a49185783a2468cceaceb5b",
+        "effective_ast_sha256_alt": [
+          "6094e118a5551c98d43acf8c3b8e9904050c9eec0a49185783a2468cceaceb5b",
+          "6eb4c7579554d9a74d253f8d1f1555376b454cfba6e28c8f9ad383aa8b263897"
+        ]
+      },
+      "_wizard_transfer_tasks": {
+        "total_definitions": 1,
+        "active_line": 3037,
+        "effective_ast_sha256": "3603c7aee348b59d19c91dbc679715ed9de41389b93e4103a658433219b39858",
+        "effective_ast_sha256_alt": [
+          "3603c7aee348b59d19c91dbc679715ed9de41389b93e4103a658433219b39858",
+          "6484e9f9a63be4f5761c8751b95159cdb469cdf8ea3827d370cc418618e2bdfe"
+        ]
+      }
+    }
+  },
+  "ui/odev_kontrol.py": {
+    "class": "OdevKontrolDialog",
+    "file_sha256": "da0f9c272f528f18dcadf4548b837039371780b9509039df5da2585ab51b095e",
+    "critical_methods": {
+      "_kaydet": {
+        "total_definitions": 1,
+        "active_line": 1830,
+        "effective_ast_sha256": "594371f8d87be1168ed9cb3649a6d386332db8154f731bc5b63ebeb6b5bb2617",
+        "effective_ast_sha256_alt": [
+          "594371f8d87be1168ed9cb3649a6d386332db8154f731bc5b63ebeb6b5bb2617",
+          "a474348ffcc65659c850ac2d8c8267c0031a940e388f04f12e6b81f21029ccc8"
+        ]
+      },
+      "_hesapla_yuzde": {
+        "total_definitions": 2,
+        "active_line": 2617,
+        "effective_ast_sha256": "6735d7232c9c3269698e88bde14cd345ec21bb4a4649a89f1169fd484646ce20",
+        "effective_ast_sha256_alt": [
+          "6735d7232c9c3269698e88bde14cd345ec21bb4a4649a89f1169fd484646ce20",
+          "726eb1ab0c3a25afce41dd4a5441e3701de9e36f4d81a91eae9d0635123b1ee5"
+        ]
+      },
+      "_chk_cell_click": {
+        "total_definitions": 1,
+        "active_line": 3602,
+        "effective_ast_sha256": "a31547e745249728c4eebd57f1b4b1d10c72fbbcc784bd747e4992c4e7e49f40",
+        "effective_ast_sha256_alt": [
+          "a31547e745249728c4eebd57f1b4b1d10c72fbbcc784bd747e4992c4e7e49f40",
+          "ceaf8b3cbf9a7211e52cd7bcc285eabdca58bbe87c1250018e93cc58a9470cdb"
+        ]
+      },
+      "_on_table_item_changed": {
+        "total_definitions": 1,
+        "active_line": 3618,
+        "effective_ast_sha256": "34d657727551cc792f4b75168a435f70e7a51b9a18dd70f06316ce46f73df618",
+        "effective_ast_sha256_alt": [
+          "34d657727551cc792f4b75168a435f70e7a51b9a18dd70f06316ce46f73df618",
+          "d718d887f49e525a7c2cd5569ebad9ccedd16101caf297e0c7e3da7457fcdad6"
+        ]
+      },
+      "_refresh_right_table_styles": {
+        "total_definitions": 1,
+        "active_line": 3563,
+        "effective_ast_sha256": "2aa5dfbea334b717214cec17522579297d7d31d548bb4929f2811de719b119f1",
+        "effective_ast_sha256_alt": [
+          "2aa5dfbea334b717214cec17522579297d7d31d548bb4929f2811de719b119f1",
+          "7322881ad95b5b84b0c9aea73d039884483f7b9b3b9d70253cda40900da04fb3"
+        ]
+      },
+      "_kume_ac_moved": {
+        "total_definitions": 1,
+        "active_line": 2935,
+        "effective_ast_sha256": "8aec2645e23d07f2a40fec021746d5dee892c8b1d74aaac811f4e8a4aadb7cdc",
+        "effective_ast_sha256_alt": [
+          "8aec2645e23d07f2a40fec021746d5dee892c8b1d74aaac811f4e8a4aadb7cdc",
+          "083910bb45af862b5c829936da8df85f3e78454fa35d2939adf96cf8c8c9ea24"
+        ]
+      }
+    }
+  }
+}
