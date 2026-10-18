@@ -1,0 +1,31 @@
+{
+  "version": "V26.9.3",
+  "base": "V26.9.2",
+  "release_status": "QA_PILOT_BLOCKED",
+  "changed_application_paths": [
+    "ui/coach_dialogue_v121.py"
+  ],
+  "added_paths": [
+    "tests/test_v2693_unverifiable_revision.py",
+    "V26_9_3_GUNCELLIK_GUVENLIGI_RAPORU.md",
+    "V26_9_3_KURULUM.txt",
+    "V26_9_3_CHANGE_MANIFEST.json"
+  ],
+  "protected_application_paths_unchanged": [
+    "ui/homework_form.py",
+    "ui/odev_kontrol.py",
+    "db.py",
+    "ui/student_workspace_panel_v21.py",
+    "ui/adaptive_coaching_center_v26.py"
+  ],
+  "previous_sha256": {
+    "ui/coach_dialogue_v121.py": "ba24424a734e33ce6974708882173bca94a8371b9c8be25917ae2cb44006e7dd"
+  },
+  "new_sha256": {
+    "ui/coach_dialogue_v121.py": "dd86b230f7f376a9fc656226406759ef2c7643339e2d15a04eef52f9f2e57fb9",
+    "tests/test_v2693_unverifiable_revision.py": "0b3c03790fc27683ccde25af8396939d569624d8bdafee67aac6e15364cc336b",
+    "V26_9_3_GUNCELLIK_GUVENLIGI_RAPORU.md": "daf135a0a39c7e77bd9390c7471afbf244280c0ec09b6f6baf9001e6f2cae50f",
+    "V26_9_3_KURULUM.txt": "cbed232c2cb160278c4697567c92f2ecd496127a2281be6b021b948543e1c235"
+  },
+  "test_summary": "629 passed, 3 skipped, 0 failed (selected suite); GUI not verified"
+}

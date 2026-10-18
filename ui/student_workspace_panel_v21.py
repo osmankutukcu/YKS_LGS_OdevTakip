@@ -17,6 +17,7 @@ from services.student360_v16.advisor import suggestions
 from services.student360_v16.profile import student_routine_status
 from services.target_analysis_v24.student_target import read_saved_target
 from services.live_student_summary_v3 import read_coach_glance, SQLiteChangeMonitor
+from services.coach_assistant_v1.event_router_v267 import get_coach_router
 from ui.adaptive_coaching_center_v26 import format_lesson_name
 from ui.theme import register_theme_listener
 from ui.theme_tokens_v37 import semantic_palette
@@ -35,6 +36,8 @@ class StudentWorkspacePanelV21(QWidget):
         self._open_adaptive = open_adaptive
         from db import DB_PATH
         self._live_monitor = SQLiteChangeMonitor(DB_PATH)
+        self._coach_router = get_coach_router()
+        self._coach_cursor = self._coach_router.cursor
         self._live_timer = QTimer(self)
         self._live_timer.setInterval(15000)  # local DB checks only, no network
         self._live_timer.timeout.connect(self._live_tick)
@@ -186,6 +189,17 @@ class StudentWorkspacePanelV21(QWidget):
     def _live_tick(self) -> None:
         if not self._is_open or self._student_id is None or not self.isVisible():
             return
+        # Existing 15-second timer also reads scoped, in-process coach hints.
+        # No additional polling timer, popup, DB operation or write is created.
+        # Another student's update must not disturb the selected student.
+        try:
+            check = self._coach_router.check(self._coach_cursor, student_id=self._student_id)
+            self._coach_cursor = check.cursor
+            if check.changed:
+                self.mark_dirty()
+                return
+        except (TypeError, ValueError):
+            pass  # Advisory bus failure does not prevent the original monitor.
         try:
             if self._live_monitor.poll():
                 self.mark_dirty()

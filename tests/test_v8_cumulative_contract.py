@@ -12,7 +12,7 @@ class CumulativeV8Contract(unittest.TestCase):
     def setUp(self):
         self.manifest=json.loads((ROOT/'V8_MANIFEST.json').read_text(encoding='utf-8'))
         self.effective_files=dict(self.manifest['files'])
-        for mname in ('V9_MANIFEST.json','V10_MANIFEST.json','V11_MANIFEST.json','V24_MANIFEST.json'):
+        for mname in ('V9_MANIFEST.json','V10_MANIFEST.json','V11_MANIFEST.json','V24_MANIFEST.json','V26_8_MANIFEST.json'):
             mp=ROOT/mname
             if mp.is_file():
                 mdata=json.loads(mp.read_text(encoding='utf-8'))

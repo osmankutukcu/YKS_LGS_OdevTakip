@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 import db
 from services.adaptive_coaching_v25 import engine
 from ui.adaptive_coaching_center_v26 import format_lesson_name, format_action_title
+from services.coach_assistant_v1.module_events_v268 import publish_saved_coaching_change
 
 
 @contextmanager
@@ -664,6 +665,8 @@ class AdaptiveCoachingDialogV25(QDialog):
                     blank=self.blank.value(), duration_min=self.duration.value(),
                     reason=self.reason.currentText(), note=self.note.toPlainText(),
                     observed_on=date.today())
+            publish_saved_coaching_change('independent_measurement', self.student_id,
+                                         lesson=self.lesson.text(), topic=self.topic.text())
             QMessageBox.information(self, 'Kaydedildi', 'Tanılayıcı gözlem kaydedildi. Eski ödev tikleri değişmedi.')
             self.correct.setValue(0); self.wrong.setValue(0); self.blank.setValue(0)
             self.note.clear()
@@ -677,6 +680,7 @@ class AdaptiveCoachingDialogV25(QDialog):
                 engine.save_blocker(con, self.student_id, self.blocker_reason.currentText(),
                     self.blocker_note.toPlainText(), homework_id=self.blocker_source.currentData(),
                     resolution=self.blocker_resolution.text() or None)
+            publish_saved_coaching_change('coaching_plan', self.student_id)
             QMessageBox.information(self, 'Kaydedildi', 'Tıkanıklık değerlendirmesi ayrı kayda alındı.')
             self.blocker_note.clear(); self.blocker_resolution.clear()
             self.refresh()
@@ -691,6 +695,7 @@ class AdaptiveCoachingDialogV25(QDialog):
         try:
             with _connection() as con:
                 engine.save_preferences(con, self.student_id, self._preferences())
+            publish_saved_coaching_change('student_profile', self.student_id)
             QMessageBox.information(self, 'Kaydedildi', 'Öğrenciye özel tercih ve sınırlar kaydedildi.')
             self.current_plan = None
             self.save_draft.setEnabled(False)
@@ -771,6 +776,7 @@ class AdaptiveCoachingDialogV25(QDialog):
                         unused_minutes=max(0,self.current_plan.get('effective_weekly_minutes',self.current_plan['preferences']['weekly_minutes'])-planned))
             with _connection() as con:
                 draft_id = engine.save_plan(con,self.student_id,plan)
+            publish_saved_coaching_change('coaching_plan', self.student_id)
             QMessageBox.information(self,'Taslak kaydedildi',
                 f'#{draft_id} numaralı taslak kaydedildi. Henüz yeni ödev verilmedi.')
         except Exception as exc:

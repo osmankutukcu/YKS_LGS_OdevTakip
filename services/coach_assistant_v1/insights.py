@@ -11,7 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from html import escape as _html_escape
 
-from ui.adaptive_coaching_center_v26 import format_lesson_name, format_action_title
+from services.coach_assistant_v1.lesson_labels_v260 import format_lesson_name, format_action_title
+from services.coach_assistant_v1.shared_rules_v260 import is_low_accuracy
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,7 @@ def build_student_curiosity_insight(
     coach_priority: str | None = None,
     coach_next_step: str | None = None,
     topics: list[dict] | None = None,
+    evidence_available: bool = True,
 ) -> AssistantInsight:
     """Create a curiosity-driven insight when a student is selected."""
     topics = topics or []
@@ -51,13 +53,27 @@ def build_student_curiosity_insight(
     ]
     low_acc_topics = [
         t for t in topics
-        if t.get("accuracy") is not None and int(t.get("accuracy") or 100) < 55
+        if is_low_accuracy(t.get("accuracy"))
     ]
 
     pretty_prio = ""
     if coach_priority:
         l_badge, t_title = format_action_title(coach_priority)
         pretty_prio = f"{l_badge} › {t_title}" if l_badge else t_title
+
+    # An unreadable evidence source is NOT the same as zero measurements.
+    if not evidence_available:
+        return AssistantInsight(
+            title=f"✨ Koç Asistanı · {student_name} (#{student_id})",
+            badge="⚠️ Veri Doğrulama",
+            curiosity_hook="Kazanım kayıtları şu anda okunamıyor; öğrenme sonucu çıkarılamaz.",
+            body_html=("Ödevlerin genel tamamlanma bilgileri erişilebilir; ancak bağımsız "
+                       "kazanım kanıtı kaynağı okunamadı. Ölçüm yokluğu veya başarı "
+                       "sonucu varsaymadan önce Öğrenme ekranından veri durumunu kontrol edin."),
+            action_text="🧠 Öğrenme Verilerini Kontrol Et",
+            target_key="btnOgrenme", pointer_caption="Kazanım kaynağını doğrulayın",
+            border_color="#f59e0b", duration_ms=6800,
+        )
 
     # Case 1: Student has completed many homeworks, but 0 independent learning measurements
     if completed_hw > 0 and measured_count == 0:
@@ -78,11 +94,11 @@ def build_student_curiosity_insight(
         if pretty_prio:
             lines.append(
                 f"✨ <b>Adaptif Koç'un Keşfi:</b> Okun işaret ettiği <b>🧠 Öğrenme</b> ekranında "
-                f"<span style='color:#7dd3fc;font-weight:700;'>{_html_escape(pretty_prio)}</span> için hazır 5 soruluk mini kazanım analizi sizi bekliyor."
+                f"<span style='color:#7dd3fc;font-weight:700;'>{_html_escape(pretty_prio)}</span> için öğretmen onaylı kısa kazanım ölçümü planlayabilirsiniz."
             )
         else:
             lines.append(
-                "✨ <b>Merak Edenler İçin:</b> Okun gösterdiği <b>🧠 Öğrenme</b> butonunda, biten ödevlerin gerçek kazanım röntgenini görebilirsiniz."
+                "✨ <b>Merak Edenler İçin:</b> Okun gösterdiği <b>🧠 Öğrenme</b> butonunda, mevcut kazanım kayıtlarını ve ölçüm eksiklerini inceleyebilirsiniz."
             )
         if open_hw > 0:
             lines.append(
@@ -103,7 +119,7 @@ def build_student_curiosity_insight(
 
     # Case 2: Low accuracy detected in measured topics
     if low_acc_topics:
-        worst = min(low_acc_topics, key=lambda x: int(x.get("accuracy") or 100))
+        worst = min(low_acc_topics, key=lambda x: float(x.get("accuracy")))
         w_lesson = format_lesson_name(str(worst.get("lesson") or ""))
         w_topic = str(worst.get("topic") or "")
         w_acc = int(worst.get("accuracy") or 0)
@@ -113,7 +129,7 @@ def build_student_curiosity_insight(
         body = (
             f"Öğrencinin geçmiş kayıtlarında <b>{_html_escape(w_lesson)} › {_html_escape(w_topic)}</b> konusu "
             f"çalışılmış görünse de son yoklama doğruluğu <span style='color:#fda4af;font-weight:800;'>%{w_acc}</span>.<br>"
-            f"✨ Okun gösterdiği <b>🧠 Öğrenme</b> ekranında bu konudaki takılma nedenini ve alternatif kaynak önerisini inceleyebilirsiniz."
+            f"✨ Okun gösterdiği <b>🧠 Öğrenme</b> ekranında ilgili konu verilerini inceleyip doğrulama yoklaması planlayabilirsiniz."
         )
         return AssistantInsight(
             title=f"✨ Koç Asistanı · {student_name} (#{student_id})",
@@ -122,7 +138,7 @@ def build_student_curiosity_insight(
             body_html=body,
             action_text="🧠 Darboğaz Analizini Gör",
             target_key="btnOgrenme",
-            pointer_caption=f"✨ Burada: %{w_acc} doğruluklu konunun kök neden analizi",
+            pointer_caption=f"✨ Burada: %{w_acc} doğruluk verisi ve inceleme seçenekleri",
             border_color="#f43f5e",
             duration_ms=7800,
         )
@@ -157,7 +173,7 @@ def build_student_curiosity_insight(
         f"Adaptif Koç bu öğrenci için sıradaki en verimli odak olarak "
         f"<span style='color:#86efac;font-weight:700;'>{_html_escape(pretty_prio)}</span> konusunu işaret ediyor."
         if pretty_prio
-        else "Öğrencinin tüm ödev, anket ve kazanım geçmişi Öğrenci 360° ve Öğrenme panellerinde senkronize durumda."
+        else "Öğrencinin mevcut kayıtları Öğrenci 360° ve Öğrenme panellerinde ayrıca incelenebilir; cihazlar arası eşitlik bu bildirimin kapsamında doğrulanmadı."
     )
     return AssistantInsight(
         title=f"✨ Koç Asistanı · {student_name} (#{student_id})",
@@ -197,7 +213,7 @@ def build_topic_curiosity_insight(
                 body_html=(
                     f"Öğrenci <b>{_html_escape(topic_name)}</b> konusundan daha önce <b>{done_n} kaynağı bitirmiş</b> "
                     f"ancak sistemde bu konuyu gerçekten kavradığına dair henüz bir doğruluk kaydı yok.<br>"
-                    f"✨ Merak ediyorsanız okun gösterdiği <b>🧠 Öğrenme</b> ekranında bu konunun geçmiş izini ve mini yoklama kartını görebilirsiniz."
+                    f"✨ Merak ediyorsanız okun gösterdiği <b>🧠 Öğrenme</b> ekranında konunun kayıtlı geçmişini inceleyebilir, mini yoklama taslağı planlayabilirsiniz."
                 ),
                 action_text="🔬 Konunun Geçmiş İzine Bak",
                 target_key="btnOgrenme",
@@ -207,7 +223,7 @@ def build_topic_curiosity_insight(
             )
 
         # 2. Low accuracy on this topic in prior measurements
-        if acc is not None and int(acc) < 55:
+        if is_low_accuracy(acc):
             acc_i = int(acc)
             return AssistantInsight(
                 title=f"✨ Koç Asistanı · {pretty_ders}",
@@ -215,7 +231,7 @@ def build_topic_curiosity_insight(
                 curiosity_hook=f"İlginç Veri: '{topic_name}' konusunda önceki doğru oranı %{acc_i} kalmış.",
                 body_html=(
                     f"Bu konuda öğrencinin önceki kazanım yoklaması <span style='color:#fda4af;font-weight:800;'>%{acc_i}</span> seviyesinde.<br>"
-                    f"✨ Okun gösterdiği <b>🧠 Öğrenme</b> ekranında öğrencinin bu konuda neden zorlandığına dair koçluk ipuçları yer alıyor."
+                    f"✨ Okun gösterdiği <b>🧠 Öğrenme</b> ekranında bu doğruluk kaydını ve doğrulama seçeneklerini inceleyebilirsiniz."
                 ),
                 action_text="🧠 Zorlanma Nedenini Gör",
                 target_key="btnOgrenme",

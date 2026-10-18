@@ -10,14 +10,22 @@ from __future__ import annotations
 from contextlib import closing
 import sqlite3
 from pathlib import Path
+import time
+from services.coach_assistant_v1.revision_watch_v266 import (
+    get_revision, changed_during_read, known_revision, RevisionWatch,
+)
+from services.coach_assistant_v1.event_router_v267 import (
+    CoachChange, get_coach_router,
+)
 
 from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal, Qt, QTimer, QStandardPaths, QPoint
 from PyQt6.QtGui import QTextCursor, QColor
 from PyQt6.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel,
                              QTextEdit, QLineEdit, QPushButton, QMessageBox,
-                             QToolButton, QMenu, QWidget, QGraphicsDropShadowEffect)
+                             QToolButton, QMenu, QWidget, QGraphicsDropShadowEffect, QComboBox)
 
 from services.coach_assistant_v1.dialogue import read_context
+from services.coach_assistant_v1.shared_rules_v260 import lesson_key
 from services.coach_assistant_v1.conversation_followup import (
     answer_with_memory, next_memory, ConversationMemory,
 )
@@ -29,38 +37,103 @@ class _Signals(QObject):
 
 
 class _QuestionWork(QRunnable):
-    def __init__(self, seq: int, student_id: int, question: str, memory=None, store_path=None):
+    def __init__(self, seq: int, student_id: int, question: str, memory=None, store_path=None, lesson_scope=""):
         super().__init__()
         self.seq = seq
         self.student_id = student_id
         self.question = question
         self.memory = memory
         self.store_path = store_path
+        self.lesson_scope = lesson_scope
         self.signals = _Signals()
+        self.finish_revision = None
 
     def run(self):
         try:
             from db import DB_PATH
+            start_revision = get_revision(DB_PATH)
             uri = DB_PATH.resolve().as_uri() + "?mode=ro"
             with closing(sqlite3.connect(uri, uri=True, timeout=5)) as con:
                 con.execute("PRAGMA query_only=ON")
                 context = read_context(con, self.student_id)
-            result = answer_with_memory(context, self.question, self.memory)
-            # One short supporting note only. Prefer explicitly reviewed local notes;
-            # fall back to the preinstalled V12.5 reference when no local note matches.
-            reviewed_matched = False
+                result = answer_with_memory(context, self.question, self.memory,
+                                            lesson_scope=self.lesson_scope)
+                # V26.1: bounded descriptive group signal on the SAME read-only
+                # connection and existing worker. No new panels, buttons or writes.
+                try:
+                    from services.coach_assistant_v1.cohort_comparison_v261 import enrich_answer as _cohort_enrich
+                    result = _cohort_enrich(
+                        con, context, result, self.question, lesson_scope=self.lesson_scope,
+                        previous_anchor=(self.memory.anchor_question if self.memory
+                                         and self.memory.student_id == self.student_id
+                                         and self.memory.lesson_scope == self.lesson_scope else ''))
+                except (sqlite3.Error, ValueError, TypeError, ImportError, RuntimeError) as cohort_exc:
+                    # An optional academic comparison must NEVER break normal Koça Sor.
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        'V26.1 grup sinyali atlandı: %s', type(cohort_exc).__name__)
+                # V26.2: same compact window, optional read-only longitudinal signal.
+                # It may fail or be inconclusive without affecting core Q&A.
+                try:
+                    from services.coach_assistant_v1.learning_trends_v262 import enrich_answer as _trend_enrich
+                    result = _trend_enrich(
+                        con, context, result, self.question, lesson_scope=self.lesson_scope,
+                        previous_anchor=(self.memory.anchor_question if self.memory
+                                         and self.memory.student_id == self.student_id
+                                         and self.memory.lesson_scope == self.lesson_scope else ''))
+                except Exception as trend_exc:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        'V26.2 gelişim sinyali atlandı: %s', type(trend_exc).__name__)
+                # V26.4: optional cross-module awareness. Reuses actual Student 360°,
+                # Adaptif Koçluk and Akıllı Sihirbaz readers; no new widgets, DB writes
+                # or independent recommendations. Inconclusive sources never block Q&A.
+                try:
+                    from services.coach_assistant_v1.module_bridge_v264 import enrich_answer as _module_enrich
+                    result = _module_enrich(con, context, result, self.question,
+                                            lesson_scope=self.lesson_scope)
+                except (sqlite3.Error, ValueError, KeyError, TypeError, ImportError, RuntimeError) as module_exc:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        'V26.4 ortak modül özeti atlandı: %s', type(module_exc).__name__)
+            # V26.5: unify the already-verified source notes to one short
+            # decision. Does not reread student records or create new windows.
             try:
-                from services.coach_assistant_v1.knowledge_manager_v126 import (
-                    enrich_with_reviewed, ReviewStore,
-                )
-                enriched = enrich_with_reviewed(result, self.question,
-                                                ReviewStore(self.store_path))
-                reviewed_matched = enriched is not result
-                result = enriched
-            except (OSError, ValueError, RuntimeError, ImportError) as review_error:
+                from services.coach_assistant_v1.decision_hub_v265 import coordinate_answer
+                result = coordinate_answer(result, self.question,
+                                           student_id=self.student_id,
+                                           lesson_scope=self.lesson_scope)
+            except (ValueError, TypeError, ImportError) as coordinator_exc:
                 import logging
                 logging.getLogger(__name__).warning(
-                    "Öğretmen rehberleri okunamadı: %s", type(review_error).__name__)
+                    'V26.5 ortak karar sunumu atlandı: %s', type(coordinator_exc).__name__)
+            # Only an EXPLICIT teacher request may check a fixed public URL.
+            # No student/question content is transmitted to that URL; unrelated
+            # homework clicks trigger no networking. Fail-closed offline.
+            try:
+                from services.coach_assistant_v1.public_reference_v265 import enrich_official_reference
+                result = enrich_official_reference(result, self.question)
+            except (ValueError, TypeError, OSError, ImportError, RuntimeError) as reference_exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    'V26.5 resmî kaynak kontrolü atlandı: %s', type(reference_exc).__name__)
+            # One short supporting note only. Prefer explicitly reviewed local notes;
+            # fall back to the preinstalled V12.5 reference when no local note matches.
+            reviewed_matched = result.title in (
+                'Resmî kaynak durum kontrolü', 'Resmî kaynağa şu anda erişilemiyor')
+            if not reviewed_matched:
+                try:
+                    from services.coach_assistant_v1.knowledge_manager_v126 import (
+                        enrich_with_reviewed, ReviewStore,
+                    )
+                    enriched = enrich_with_reviewed(result, self.question,
+                                                    ReviewStore(self.store_path))
+                    reviewed_matched = enriched is not result
+                    result = enriched
+                except (OSError, ValueError, RuntimeError, ImportError) as review_error:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "Öğretmen rehberleri okunamadı: %s", type(review_error).__name__)
             if not reviewed_matched:
                 try:
                     from services.coach_assistant_v1.knowledge_bank_v125 import enrich_answer
@@ -69,7 +142,16 @@ class _QuestionWork(QRunnable):
                     import logging
                     logging.getLogger(__name__).warning(
                         "Koçluk kütüphanesi okunamadı: %s", type(knowledge_exc).__name__)
-            error = None
+            self.finish_revision = get_revision(DB_PATH)
+            if (not known_revision(start_revision)
+                    or not known_revision(self.finish_revision)
+                    or changed_during_read(start_revision, self.finish_revision)):
+                # V26.9.3: cannot prove freshness if filesystem metadata is
+                # unavailable. Reuse the existing bounded retry, not a stale
+                # answer. This does not change any homework write or UI layout.
+                result, error = None, 'coach_revision_changed_v266'
+            else:
+                error = None
         except Exception:
             result, error = None, "Öğrenci verisi şu anda güvenilir şekilde okunamadı. Lütfen tekrar deneyin."
         self.signals.finished.emit(self.seq, self.student_id, result, error)
@@ -94,9 +176,17 @@ class CoachDialogueV121(QFrame):
         self._last_action = None
         self._last_student_id = None
         self._last_asked_text = ""
+        self._last_completed_question = ""
         self._memory = None  # Only transient same-student conversation context.
         self._pending_questions = {}
+        self._last_scope = ""
         self._active_student_id = get_selected_id()
+        # No write hook into the protected homework/check-box path.
+        self._revision_watch = RevisionWatch()
+        self._coach_router = get_coach_router()
+        self._coach_event_cursor = self._coach_router.cursor
+        self._revision_next_check = 0.0
+        self._refresh_waiting = None
         self._recent = RecentQuestions()
         self._custom_positioned = False
         self._is_dragging = False
@@ -112,7 +202,7 @@ class CoachDialogueV121(QFrame):
 
         self.setObjectName("coachDialogueToast")
         self.setFixedWidth(430)
-        self.setFixedHeight(368)
+        self.setFixedHeight(405)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
 
@@ -318,6 +408,19 @@ class CoachDialogueV121(QFrame):
         self.hint.setStyleSheet("font-size: 10px; color: #94a3b8;")
         self.hint.setWordWrap(True)
         body.addWidget(self.hint)
+        scope_line = QHBoxLayout()
+        scope_line.setSpacing(6)
+        scope_label = QLabel("Analiz kapsamı:")
+        scope_line.addWidget(scope_label)
+        self.scope_select = QComboBox(self)
+        self.scope_select.setObjectName('coachDialogueScopeV260')
+        self.scope_select.setToolTip('Seçili ders veya öğrencinin tüm derslerinde analiz yapın')
+        self.scope_select.addItem('Tüm dersler', '')
+        self.scope_select.addItem('Açık ders', '__selected__')
+        self.scope_select.setCurrentIndex(1)
+        self.scope_select.currentIndexChanged.connect(self._on_scope_changed)
+        scope_line.addWidget(self.scope_select, 1)
+        body.addLayout(scope_line)
 
         self.history = QTextEdit(self)
         self.history.setObjectName("coachDialogueHistory")
@@ -326,7 +429,7 @@ class CoachDialogueV121(QFrame):
 
         shortcuts = QHBoxLayout()
         shortcuts.setSpacing(5)
-        for title, question in (("Önceliğim?", "En önemli gizli sorun ne?"),
+        for title, question in (("Önceliğim?", "Öğrencinin öncelikli akademik ihtiyacı ne?"),
                                 ("Ödev–öğrenme", "Ödevler ile öğrenme kanıtı tutarlı mı?"),
                                 ("Hangi konu?", "Hangi konuda zorlanıyor?")):
             btn = QPushButton(title, self)
@@ -451,18 +554,26 @@ class CoachDialogueV121(QFrame):
         super().hideEvent(event)
 
     def _sync_student(self):
+        self._refresh_scope_label()
         try:
             sid = self.get_selected_id()
         except Exception:
             sid = None
         if sid == self._active_student_id:
+            self._check_local_revision(sid)
             return
         self._active_student_id = sid
+        self._revision_watch.reset()
+        self._coach_event_cursor = self._coach_router.cursor
+        self._revision_next_check = 0.0
+        self._refresh_waiting = None
         self._seq += 1  # Cancel any outstanding answer's right to appear.
         self._last_action = None
         self._last_student_id = None
         self._last_asked_text = ""
+        self._last_completed_question = ""
         self._memory = None
+        self._last_scope = ""
         self._pending_questions.clear()
         self._recent = RecentQuestions()  # Avoid a previous student's free-text queries.
         self.why_button.setEnabled(False)
@@ -471,6 +582,66 @@ class CoachDialogueV121(QFrame):
         self.question.clear()
         self.history.clear()  # Never display the previous student's answer.
         self._log("Koç Asistanı: Öğrenci değişti. Yeni öğrencinin verileri için yeniden sorabilirsiniz.\n")
+
+    def _check_local_revision(self, sid):
+        """No new popup; coalesce DB/WAL changes while the existing card is open.
+
+        Automatic re-evaluation occurs only for a previously answered question,
+        after file quiet time, with the same student and subject selected. Never
+        runs while teacher is typing, nor on protected checkbox event handlers.
+        """
+        if not self.isVisible() or type(sid) is not int or sid <= 0:
+            return
+        now = time.monotonic()
+        if now >= self._revision_next_check:
+            self._revision_next_check = now + 3.0
+            try:
+                from db import DB_PATH
+                observed_revision = get_revision(DB_PATH)
+                changed = self._revision_watch.observe(observed_revision)
+            except (ImportError, OSError, ValueError, TypeError):
+                changed = False
+            if changed:
+                # File/WAL stamps cannot reveal which student changed. Publish
+                # ONLY an honest global hint, never an invented course scope.
+                try:
+                    self._coach_router.publish(CoachChange(
+                        'database_unknown', revision=repr(observed_revision)[:160]))
+                except (ValueError, TypeError):
+                    pass  # Optional hint cannot break normal Koça Sor.
+        # Scope-aware, in-memory hints from cooperating coaching readers can
+        # be consumed without callbacks, new UI timers or database writes.
+        try:
+            check = self._coach_router.check(
+                self._coach_event_cursor, student_id=sid,
+                lesson=self._scope_for_question())
+            self._coach_event_cursor = check.cursor
+            if check.changed:
+                self._last_action = None
+                self.open_button.setEnabled(False)
+                self._memory = None  # No old-context follow-up recommendations.
+                if (self._last_student_id == sid and self._last_completed_question and
+                        self._last_scope == self._scope_for_question()):
+                    self._refresh_waiting = (sid, self._last_scope, self._last_completed_question)
+                    self.hint.setText('Kayıtlar değişti · Koçluk yanıtı güncellenecek')
+        except (ValueError, TypeError):
+            pass
+        waiting = self._refresh_waiting
+        if not waiting:
+            return
+        if (waiting[0] != sid or waiting[1] != self._scope_for_question()):
+            self._refresh_waiting = None
+            return
+        # Never disrupt text entry or force extra work while a question runs.
+        if self._outstanding or self.question.hasFocus():
+            return
+        self._refresh_waiting = None
+        self.ask(waiting[2], _refresh=True)
+
+    def _retry_changed_read(self, student_id, scope, question):
+        if (self.isVisible() and student_id == self.get_selected_id() and
+                scope == self._scope_for_question()):
+            self.ask(question, _refresh=True, _attempt=1)
 
     def _log(self, message: str):
         self.history.moveCursor(QTextCursor.MoveOperation.End)
@@ -542,14 +713,56 @@ class CoachDialogueV121(QFrame):
         if self._compact:
             self.setFixedHeight(38)
         else:
-            self.setFixedHeight(368)
+            self.setFixedHeight(405)
         self.reposition()
         self.raise_()
+
+    def _selected_course(self) -> str:
+        """Read-only source of truth: the original tab's stored course key."""
+        try:
+            tabs = getattr(self.form, 'tabs', None)
+            if tabs is None or tabs.currentIndex() < 0:
+                return ''
+            data = tabs.tabBar().tabData(tabs.currentIndex())
+            if not isinstance(data, dict) or not isinstance(data.get('key'), str):
+                return ''
+            key = data['key'].strip()
+            allowed = getattr(self.form, '_ders_tablolari', {}) or {}
+            return key if any(lesson_key(x) == lesson_key(key) for x in allowed) else ''
+        except (RuntimeError, AttributeError, ValueError):
+            return ''
+
+    def _scope_for_question(self) -> str:
+        if self.scope_select.currentData() != '__selected__':
+            return ''
+        return self._selected_course()
+
+    def _refresh_scope_label(self) -> None:
+        selected = self._selected_course()
+        label = 'Seçili ders: ' + selected if selected else 'Açık ders seçilmedi'
+        if self.scope_select.itemText(1) != label:
+            self.scope_select.setItemText(1, label)
+
+    def _on_scope_changed(self, *_):
+        self._seq += 1  # Invalidate any prior-scope pending answer.
+        self._memory = None
+        self._pending_questions.clear()
+        self.why_button.setEnabled(False)
+        self.next_button.setEnabled(False)
+        self.open_button.setEnabled(False)
+        self._last_action = None
+        self.hint.setText('Kapsam değişti. Yeni ders için yeniden soru sorun.')
+
+    def show_notification_context(self, insight) -> None:
+        """Pass only a hint; the eventual answer rereads fresh student data."""
+        self._sync_student()
+        self.hint.setText('Koç Asistanından: ' + str(insight.curiosity_hook or '')[:170])
+        self.question.setPlaceholderText('Uyarı hakkında bir soru sorun (güncel veriler okunur)')
 
     def submit(self):
         self.ask(self.question.text())
 
-    def ask(self, question: str):
+    def ask(self, question: str, *, _refresh: bool = False, _attempt: int = 0):
         question = str(question or "").strip()[:600]
         if not question:
             return
@@ -558,22 +771,28 @@ class CoachDialogueV121(QFrame):
         if type(sid) is not int or sid <= 0:
             QMessageBox.information(self, "Öğrenci seçin", "Önce ödev takip formundan bir öğrenci seçin.")
             return
-        self._recent.add(question)
+        if not _refresh:
+            self._recent.add(question)
+            self.question.clear()
         self._last_asked_text = question
-        self.question.clear()
         self._seq += 1
         seq = self._seq
         self._last_action = None
         self.open_button.setEnabled(False)
-        self._log(f"Öğretmen: {question}\nKoç Asistanı: Güncel yerel kayıtlar inceleniyor...\n")
-        self._pending_questions[seq] = question
-        task = _QuestionWork(seq, sid, question, self._memory, self._knowledge_store_path)
+        if not _refresh:
+            self._log(f"Öğretmen: {question}\nKoç Asistanı: Güncel yerel kayıtlar inceleniyor...\n")
+        scope = self._scope_for_question()
+        if self.scope_select.currentData() == '__selected__' and not scope:
+            self._log('Koç Asistanı: Seçili ders bulunamadı. "Tüm dersler" kapsamına geçin veya ders sekmesini seçin.\n')
+            return
+        self._pending_questions[seq] = (question, scope, _attempt)
+        task = _QuestionWork(seq, sid, question, self._memory, self._knowledge_store_path, scope)
         self._outstanding[seq] = task
         task.signals.finished.connect(self._received)
         QThreadPool.globalInstance().start(task)
 
     def _received(self, seq: int, sid: int, answer, error):
-        self._outstanding.pop(seq, None)
+        task = self._outstanding.pop(seq, None)
         submitted = self._pending_questions.pop(seq, None)
         self._sync_student()
         if not self.isVisible() or seq != self._seq:
@@ -581,20 +800,49 @@ class CoachDialogueV121(QFrame):
         if self.get_selected_id() != sid:
             self._log("Koç Asistanı: Öğrenci değiştiği için eski öğrenciye ait sonuç gösterilmedi.\n")
             return
+        if not error and task is not None:
+            try:
+                from db import DB_PATH
+                current_revision = get_revision(DB_PATH)
+                if (not known_revision(task.finish_revision)
+                        or not known_revision(current_revision)
+                        or changed_during_read(task.finish_revision, current_revision)):
+                    error = 'coach_revision_changed_v266'
+            except (ImportError, OSError, ValueError, TypeError):
+                # A failed metadata check cannot certify a current answer.
+                error = 'coach_revision_changed_v266'
+        if error == 'coach_revision_changed_v266':
+            if submitted and submitted[2] == 0:
+                question, scope, _attempt = submitted
+                self.hint.setText('Veri güncellendi · analiz sessizce tekrar deneniyor')
+                QTimer.singleShot(900, lambda sid=sid, scope=scope, q=question:
+                                  self._retry_changed_read(sid, scope, q))
+            else:
+                self._last_action = None
+                self.open_button.setEnabled(False)
+                self.hint.setText('Veriler değişiyor; güvenilir sonuç için biraz sonra tekrar deneyin')
+            return
         if error:
             self._log("Koç Asistanı: " + error + "\n")
             return
         # Memory holds only a question anchor; it never retains stale student metrics.
         if submitted:
+            sent_question, sent_scope, _attempt = submitted
+            if sent_scope != self._scope_for_question():
+                return  # Tab changed while worker was in flight; do not show stale scope.
             self._memory = next_memory(
-                sid, submitted, self._memory
+                sid, sent_question, self._memory, lesson_scope=sent_scope
             )
         self.why_button.setEnabled(bool(self._memory))
         self.next_button.setEnabled(bool(self._memory))
         self._log(f"Koç Asistanı — {answer.title}:\n{answer.message}")
         if answer.evidence:
             self._log("Dayanaklar: " + " | ".join(answer.evidence) + "\n")
+        self._last_completed_question = submitted[0] if submitted else ''
+        if task is not None and self._revision_watch.baseline is None:
+            self._revision_watch.reset(task.finish_revision)
         self._last_action = answer.action_target
+        self._last_scope = self._scope_for_question()
         self._last_student_id = sid
         self.open_button.setEnabled(bool(self._last_action))
         if self._last_action == "btnOgrenme":
@@ -607,7 +855,7 @@ class CoachDialogueV121(QFrame):
             self.caption.setText("💬 Yanıt hazır · Genişleterek okuyun")
 
     def _open_related(self):
-        if self.get_selected_id() != self._last_student_id:
+        if self.get_selected_id() != self._last_student_id or self._last_scope != self._scope_for_question():
             QMessageBox.information(self, "Öğrenci değişti", "Önce seçili öğrenci için tekrar sorgulayın.")
             return
         if self._last_action == "btnOgrenme" and callable(self.open_learning):

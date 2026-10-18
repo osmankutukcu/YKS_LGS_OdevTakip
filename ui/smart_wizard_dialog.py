@@ -11,6 +11,7 @@ from ui.theme import register_theme_listener, readable_text
 from ui.theme_tokens_v37 import semantic_palette
 from ui.theme_special_v42 import legible_accent
 import db
+from services.coach_assistant_v1.event_router_v267 import get_coach_router
 import random
 import json
 from html import escape as html_escape
@@ -53,6 +54,14 @@ class SmartWizardDialog(QDialog):
         self._source_thread = None
 
         self._build_ui()
+        # Passive freshness warning: do not regenerate a teacher-edited draft
+        # or change a selected task behind the teacher's back.
+        self._coach_router = get_coach_router()
+        self._coach_cursor = self._coach_router.cursor
+        self._coach_watch_timer = QTimer(self)
+        self._coach_watch_timer.setInterval(15000)
+        self._coach_watch_timer.timeout.connect(self._check_coach_freshness)
+        self._coach_watch_timer.start()
         self._load_students()
         self._on_theme_changed()
         register_theme_listener(self)
@@ -343,6 +352,7 @@ class SmartWizardDialog(QDialog):
             event.ignore()
             QMessageBox.information(self, "Kaynak Kontrolü", "Bağlantı kontrolü bitince pencere kapatılabilir.")
             return
+        self._coach_watch_timer.stop()
         super().closeEvent(event)
 
     def _official_finished(self):
@@ -717,10 +727,26 @@ class SmartWizardDialog(QDialog):
         if self.ogrenci_id is not None:
             self._run_analysis()
 
+    def _check_coach_freshness(self):
+        """Only label cached reports stale; never overwrite selected tasks."""
+        oid = self._get_current_oid()
+        if not self.isVisible() or type(oid) is not int or oid <= 0:
+            return
+        try:
+            check = self._coach_router.check(self._coach_cursor, student_id=oid)
+            self._coach_cursor = check.cursor
+            if check.changed:
+                self.lblProfileBadge.setText(
+                    '⚠️ Koçluk kaydı değişti. Mevcut öneriler eski olabilir; Yeniden İncele ile doğrulayın.')
+        except (TypeError, ValueError):
+            pass
+
     def _run_analysis(self):
         oid = self._get_current_oid()
         if not oid:
             return
+        # Events during the read remain visible on the next passive check.
+        self._coach_cursor = self._coach_router.cursor
         # Independent read-only brief remains available if the legacy suggestion
         # generator fails; it never writes assignments or student records.
         self._run_evidence_brief(oid)

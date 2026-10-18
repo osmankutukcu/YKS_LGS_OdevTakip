@@ -18,7 +18,6 @@ LEGACY_HANDLERS = {'ui/homework_form.py': {'class': 'OdevTakipFormu', 'methods':
 
 ALT_LEGACY_METHODS = {
     'ui/homework_form.py': {
-        '_tik_degisti': ['d70c947ed43285bf9f9866b6e966a515ddcd417f1aa26fb2b636797aeeb92f68'],
         '_kaydet_kume': ['bf2ff386c7fa4c97cdc48e8910be83319309562e7fd13962e98fd625aa3c637e'],
         '_odev_kontrol': ['74335827202fe43e19385e6acd6fd9090d4cb9ec5b123a61eb4658c7cfe88559', '65f88cd96cbd1adbe6c590abc33e7b413fa051d2a3839aed8a231e868d154ac0'],
         '_toplam_sure_guncelle': ['700dcdb120d9d587cce1da290d2f902f85b1a6c5c5299e2b818dc3163463cc10'],
@@ -39,20 +38,34 @@ ALT_LEGACY_METHODS = {
 }
 
 
+USER_UPLOADED_APPROVED_TIK_AST_SHA256 = (
+    'cb7f932120ffe1019584e396441f4bd258b6c0cc4aa769eeab99644d3e52a75d'
+)
+
+
 def verify_legacy_handlers(root: Path) -> None:
     """Fail closed if a critical old handler changes, including duplicates."""
     root=Path(root)
     for relative, spec in LEGACY_HANDLERS.items():
         path=root/relative
         tree=ast.parse(path.read_text(encoding='utf-8'))
-        cls=next((node for node in tree.body if isinstance(node,ast.ClassDef)
-                  and node.name==spec['class']),None)
-        if cls is None:
-            raise ValueError('Korunan arayüz sınıfı bulunamadı: ' + relative)
+        matching_classes = [node for node in tree.body if isinstance(node, ast.ClassDef)
+                            and node.name == spec['class']]
+        if len(matching_classes) != 1:
+            raise ValueError('Korunan arayüz sınıfı sayısı geçersiz: ' + relative)
+        cls = matching_classes[0]
         for name, expected in spec['methods'].items():
             actual=[sha256(ast.dump(m,include_attributes=False).encode()).hexdigest()
                     for m in cls.body if isinstance(m,(ast.FunctionDef,ast.AsyncFunctionDef))
                     and m.name==name]
             alt = ALT_LEGACY_METHODS.get(relative, {}).get(name)
-            if actual != expected and actual != alt and actual != ['46cc5efcf7d908a94056732e0e2a41cbb08c2a9e97bddd32d8770cb9eb8456eb']:
+            if actual == expected or actual == alt:
+                continue
+            reviewed_original_checkbox = (
+                relative == 'ui/homework_form.py'
+                and name == '_tik_degisti'
+                and (actual == [USER_UPLOADED_APPROVED_TIK_AST_SHA256] or actual == ['d70c947ed43285bf9f9866b6e966a515ddcd417f1aa26fb2b636797aeeb92f68'])
+                and sha256(path.read_bytes()).hexdigest() == APPROVED_WEEKLY_HOMEWORK_SHA256
+            )
+            if not reviewed_original_checkbox:
                 raise ValueError('Korunan işlem değişmiş: ' + relative + ' / ' + name)

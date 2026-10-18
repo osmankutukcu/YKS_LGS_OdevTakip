@@ -7,7 +7,11 @@ consent-aware connector; student data must not be sent to public search endpoint
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from services.coach_assistant_v1.shared_rules_v260 import (
+    lesson_key, scoped_topics, question_lesson, is_low_accuracy,
+    MIN_RELIABLE_ATTEMPTS,
+)
 import sqlite3
 import unicodedata
 
@@ -35,6 +39,7 @@ class CoachContext:
     basis: str = ""
     as_of: str = ""
     topics: tuple[CoachTopic, ...] = field(default_factory=tuple)
+    unavailable_sources: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -62,14 +67,15 @@ def read_context(con: sqlite3.Connection, student_id: int) -> CoachContext:
         # Coach / topic reader failure must be visible as missing evidence, never invented.
         coach = None
         topics = []
+        unavailable = []
         try:
             coach = read_coach_glance(con, student_id)
-        except (sqlite3.Error, ValueError, KeyError):
-            coach = None
+        except (sqlite3.Error, ValueError, KeyError, TypeError):
+            unavailable.append('Koçluk özeti okunamadı')
         try:
             topics = engine.student_topics(con, student_id)
-        except (sqlite3.Error, ValueError, KeyError):
-            topics = []
+        except (sqlite3.Error, ValueError, KeyError, TypeError):
+            unavailable.append('Konu kayıtları okunamadı')
     finally:
         con.row_factory = prev
     prepared = []
@@ -99,6 +105,7 @@ def read_context(con: sqlite3.Connection, student_id: int) -> CoachContext:
         basis=str(coach.basis)[:180] if coach else "",
         as_of=str(coach.as_of)[:30] if coach else "",
         topics=tuple(prepared),
+        unavailable_sources=tuple(unavailable),
     )
 
 
@@ -108,7 +115,74 @@ def _search_fold(value: str) -> str:
     return "".join(ch for ch in source if unicodedata.category(ch) != "Mn")
 
 
-def answer_question(ctx: CoachContext, question: str) -> CoachAnswer:
+def _academic_priority(ctx: CoachContext, topics, lesson: str, coverage: tuple[str, ...], *,
+                       is_scoped: bool, struggling, no_evidence) -> CoachAnswer:
+    """A conservative, explainable academic need based only on recorded evidence.
+
+    Priorities follow measured low accuracy > completed work missing verification >
+    insufficient response sample > no established priority. Counts outside the
+    course are explicitly marked as student-wide. There is NO diagnostic inference.
+    """
+    course = lesson or 'tüm dersler'
+    if 'Konu kayıtları okunamadı' in ctx.unavailable_sources:
+        return CoachAnswer('Öncelik henüz güvenle belirlenemiyor',
+                           f'{course} konu kayıtları okunamadığı için akademik ihtiyaç sıralayamıyorum. '
+                           'Önce veri erişimini doğrulayın; veri yokmuş gibi karar vermeyin.',
+                           coverage, 'btnOgrenme')
+    if struggling:
+        t = struggling[0]
+        return CoachAnswer(
+            'Öncelikli akademik ihtiyaç: doğrulama ve telafi',
+            f'{t.lesson} / {t.name}: kaydedilmiş {t.attempts} yanıtta %{t.accuracy:g} doğruluk var. '
+            'Bu nedenle ilk öncelik, hata türlerini öğretmenle incelemek ve başka bir gün '
+            'bağımsız kısa yoklamayla sonucu doğrulamaktır. Sonuca göre konu telafisi planlanabilir. '
+            'Bu sonuç tek başına kalıcı öğrenme eksikliği kanıtı değildir.',
+            (f'Konu: {t.lesson} / {t.name}',
+             f'Soru yanıtı: {t.attempts}; kayıtlı ölçüm: {t.observations}; doğruluk: %{t.accuracy:g}',
+             f'İşaretleme kuralı: en az {MIN_RELIABLE_ATTEMPTS} yanıt, %{55:g} altı doğruluk',
+             *coverage), 'btnOgrenme')
+    if no_evidence:
+        t = sorted(no_evidence, key=lambda x: (-x.done, x.lesson, x.name))[0]
+        return CoachAnswer(
+            'Öncelikli akademik ihtiyaç: öğrenmeyi ölçme',
+            f'{t.lesson} / {t.name} konusunda {t.done} tamamlanmış çalışma görünmesine rağmen '
+            'kayıtlı bağımsız konu ölçümü bulunmuyor. İlk iş kısa, farklı güçlüklerde '
+            'sorulardan oluşan öğretmen onaylı yoklamayla öğrenmeyi ölçmek olmalı. '
+            'Ödev tamamlamak tek başına konuyu öğrendiğini veya öğrenemediğini göstermez.',
+            (f'Konu: {t.lesson} / {t.name}; tamamlanan çalışma: {t.done}; ölçüm: 0',
+             *coverage), 'btnOgrenme')
+    partial = sorted((t for t in topics if t.attempts > 0 and
+                      (t.attempts < MIN_RELIABLE_ATTEMPTS or t.accuracy is None)),
+                     key=lambda x: (-x.attempts, x.lesson, x.name))
+    if partial:
+        t = partial[0]
+        return CoachAnswer(
+            'Öncelikli akademik ihtiyaç: yeterli örnek toplama',
+            f'{t.lesson} / {t.name}: {t.attempts} yanıt kaydı var; bu miktar mevcut '
+            f'basit eşik olan {MIN_RELIABLE_ATTEMPTS} yanıtın altında veya doğruluk kaydı eksik. '
+            'Farklı günlerden kısa yoklamalarla daha karşılaştırılabilir veri oluşturun.',
+            (f'Konu: {t.lesson} / {t.name}; yanıt: {t.attempts}', *coverage), 'btnOgrenme')
+    if is_scoped:
+        return CoachAnswer(
+            'Bu ders için doğrulanmış kritik ihtiyaç yok',
+            f'{course} kayıtlarında mevcut ölçüm eşiğine göre açıkça düşük doğruluk '
+            'veya tamamlanan ödevde ölçüm boşluğu bulunamadı. Bu, eksik olmadığı anlamına '
+            'gelmez. Farklı günlerdeki kazanım sonuçlarını ve öğretmen gözlemlerini karşılaştırın.',
+            coverage, 'btnOgrenme')
+    if ctx.priority:
+        return CoachAnswer('Öğrencinin genel koçluk önceliği',
+                           f'Adaptif Koç kaydında öncelik: {ctx.priority}. '
+                           f'Önerilen sonraki adım: {ctx.next_step or "Öğretmen değerlendirmesi gerekli."} '
+                           'Bu genel öğrenci önerisi, belirli bir dersin ölçülmüş sonucu değildir.',
+                           (f'Adaptif Koç dayanağı: {ctx.basis or "Belirtilmemiş"}', *coverage),
+                           'btnOgrenme')
+    return CoachAnswer('Akademik öncelik için ek kanıt gerekli',
+                       'Mevcut öğrenci kayıtları tek bir akademik ihtiyacı güvenilir '
+                       'şekilde öne çıkarmıyor. Önce ders ve konu seçerek ölçümleri kontrol edin.',
+                       coverage, 'btnOgrenme')
+
+
+def answer_question(ctx: CoachContext, question: str, *, lesson_scope: str = "") -> CoachAnswer:
     """Bounded factual answers; avoids clinical labels, hallucinated metrics and writes."""
     if type(ctx.student_id) is not int or ctx.student_id <= 0:
         raise ValueError("Geçersiz öğrenci kapsamı")
@@ -118,11 +192,51 @@ def answer_question(ctx: CoachContext, question: str) -> CoachAnswer:
     if not q:
         return CoachAnswer("Ne öğrenmek istersiniz?", "Örneğin 'Bu öğrencinin gizli öğrenme açığı ne?' diye sorabilirsiniz.", ())
 
-    measured = [t for t in ctx.topics if t.attempts >= 5 and t.accuracy is not None]
-    struggling = sorted((t for t in measured if t.accuracy < 60), key=lambda t: (t.accuracy, -t.attempts))
-    no_evidence = [t for t in ctx.topics if t.done > 0 and t.observations == 0]
-    coverage = (f"Kontrol: {ctx.completed_homework} tamamlanmış, {ctx.open_homework} açık kayıt",
-                f"Kazanım kaydı: {ctx.measured_count}; yeterli örnekli konu: {len(measured)}")
+    # The selected course and a course named in the question must not silently
+    # contaminate each other. Homework counters are student-wide, NOT course-wide.
+    mentioned, ambiguous = question_lesson(ctx.topics, question)
+    selected = lesson_key(lesson_scope)
+    if selected and mentioned and mentioned != selected:
+        return CoachAnswer('Ders kapsamı uyuşmuyor',
+                           'Soru başka bir derse ait görünüyor. Koça Sor içinde "Tüm dersler" kapsamını seçip tekrar sorun.',
+                           (f'Seçili ders: {lesson_scope}',), None)
+    if not selected and ambiguous:
+        return CoachAnswer('Ders adı belirsiz',
+                           'Birden fazla düzeyde aynı ders bulundu. TYT, AYT veya LGS düzeyini belirterek tekrar sorun.',
+                           ('Kaynak: seçili öğrencinin kayıtlı ders adları',), None)
+    effective = selected or mentioned or ''
+    is_scoped = bool(effective)
+    topics = scoped_topics(ctx.topics, effective) if is_scoped else ctx.topics
+    # Coach priority and next-step are general; never claim they are scoped.
+    priority = ctx.priority if not is_scoped else ''
+    next_step = ctx.next_step if not is_scoped else ''
+    basis = ctx.basis if not is_scoped else ''
+    measured = [t for t in topics if t.attempts >= MIN_RELIABLE_ATTEMPTS and t.accuracy is not None]
+    struggling = sorted((t for t in measured if is_low_accuracy(t.accuracy, attempts=t.attempts, reliable_only=True)),
+                        key=lambda t: (t.accuracy, -t.attempts, t.lesson, t.name))
+    no_evidence = [t for t in topics if t.done > 0 and t.observations == 0]
+    coverage = (f"Öğrenci geneli: {ctx.completed_homework} tamamlanmış, {ctx.open_homework} açık ödev",
+                (f"Öğrenci genelinde kazanım kanıtı: {ctx.measured_count}"
+                 if "Koçluk özeti okunamadı" not in ctx.unavailable_sources
+                 else "Öğrenci genelinde kazanım kanıtı: okunamadı"),
+                f"{('Seçili derste' if selected else 'Sorulan derste') if is_scoped else 'Tüm derslerde'} "
+                f"yeterli örnekli konu: {len(measured)}")
+    if is_scoped:
+        coverage += (f'Ders filtresi: {lesson_scope if selected else effective}; genel ödev sayıları bu filtreye ait değildir',)
+    if ctx.unavailable_sources:
+        coverage += tuple('Veri eksikliği: ' + x for x in ctx.unavailable_sources)
+    if is_scoped and not topics and 'Konu kayıtları okunamadı' not in ctx.unavailable_sources:
+        return CoachAnswer('Seçili ders için yeterli kayıt bulunamadı',
+                           'Bu derse ait konu kanıtı bulunamadı veya henüz okunamadı. Bu durum başarı veya başarısızlık göstermez.',
+                           coverage, 'btnOgrenme')
+    # Explicit academic-priority intent must precede the generic evidence and
+    # keyword branches. Only scoped topic observations support a course priority.
+    if _has('öncelik', 'oncelik', 'akademik ihtiyaç', 'akademik ihtiyac', 'ilk neye odaklan',
+            'ilk hangi', 'en önemli ihtiyaç', 'en onemli ihtiyac', 'en önemli sorun',
+            'en onemli sorun', 'ilk adım ne', 'ilk adim ne'):
+        return _academic_priority(ctx, topics, lesson_scope if selected else effective, coverage,
+                                  is_scoped=is_scoped, struggling=struggling,
+                                  no_evidence=no_evidence)
     if _has("internet", "online", "kaynak", "güncel bilgi", "meb", "ösym"):
         return CoachAnswer(
             "Güncel kaynak doğrulaması gerekli",
@@ -131,22 +245,29 @@ def answer_question(ctx: CoachContext, question: str) -> CoachAnswer:
             "Şu anda yeni kaynak bulunduğunu iddia edemem.",
             ("Kaynak: yalnızca yerel SQLite kayıtları",), None,
         )
+    if _has('ödev', 'odev') and _has('öğrenme', 'ogrenme', 'kanıt', 'kanit', 'tutarlı', 'tutarli'):
+        msg = (f"Öğrenci genelinde {ctx.completed_homework} tamamlanmış ve {ctx.open_homework} açık ödev var. "
+               + ("Koçluk özeti okunamadı; kanıt sayısı bilinmiyor. " if 'Koçluk özeti okunamadı' in ctx.unavailable_sources else
+                  "Henüz bağımsız kazanım kanıtı kaydı yok. " if ctx.measured_count == 0 else
+                  f"Kayıtlarda {ctx.measured_count} kazanım kanıtı var. ")
+               + "Ödev tamamlanması tek başına öğrenmeyi doğrulamaz.")
+        return CoachAnswer('Ödev–öğrenme karşılaştırması', msg, coverage, 'btnKontrol')
     if _has("neden", "kanıt", "dayanak", "dayan", "hangi veri", "neye göre", "güven", "nasıl bildin"):
-        if ctx.priority:
+        if priority:
             return CoachAnswer(
                 "Önerinin dayanağı",
-                f"Mevcut Adaptif Koç önceliği: {ctx.priority}. Önerilen sonraki adım: {ctx.next_step or 'Öğretmen değerlendirmesi gerekli.'} "
+                f"Mevcut Adaptif Koç önceliği: {priority}. Önerilen sonraki adım: {next_step or 'Öğretmen değerlendirmesi gerekli.'} "
                 "Bu bir otomatik teşhis değildir.",
-                (f"Adaptif Koç dayanağı: {ctx.basis or 'Ayrıntılı kaynak belirtilmemiş'}",
+                (f"Adaptif Koç dayanağı: {basis or 'Ayrıntılı kaynak belirtilmemiş'}",
                  f"Ölçüm referans tarihi: {ctx.as_of or 'Belirtilmemiş'}", *coverage),
                 "btnOgrenme",
             )
         return CoachAnswer("Dayanak yeterli değil", "Koçluk önceliği için doğrulanmış ayrıntılı veri bulunamadı. Önce Öğrenme ekranını kontrol edin.", coverage, "btnOgrenme")
     if _has("hafta", "program", "plan", "nasıl çalış"):
-        priority = ctx.next_step or ("Önce bağımsız öğrenme ölçümü planlayın." if no_evidence else "Güncel deneme ve konu sonuçlarını karşılaştırın.")
+        priority_text = next_step or ("Önce bağımsız öğrenme ölçümü planlayın." if no_evidence else "Güncel deneme ve konu sonuçlarını karşılaştırın.")
         return CoachAnswer(
             "Onay bekleyen plan fikri",
-            f"{priority} Mevcut {ctx.open_homework} açık ödevi hesaba katıp yeni görevleri aşırı yük oluşturmayacak şekilde planlayın. "
+            f"{priority_text} Öğrencinin genelinde {ctx.open_homework} açık ödevi hesaba katıp yeni görevleri aşırı yük oluşturmayacak şekilde planlayın. "
             "Bu bir taslaktır; ödev veya program kaydı yapılmadı.",
             coverage, "btnOgrenme",
         )
@@ -171,11 +292,11 @@ def answer_question(ctx: CoachContext, question: str) -> CoachAnswer:
     if _has("ödev", "biten", "tamam", "bekleyen", "gecik"):
         msg = (f"Kontrol kayıtlarında {ctx.completed_homework} tamamlanmış ve {ctx.open_homework} açık ödev var. "
                f"Öğrenci 360°'nin teslim tarihi değerlendirmesinde {ctx.overdue_homework} gecikmiş kayıt bulunuyor. ")
-        msg += ("Tamamlanan ödevleri doğrulayan bağımsız kazanım kaydı henüz yok." if ctx.measured_count == 0 else
+        msg += ("Koçluk özeti okunamadığı için bağımsız kanıt durumu bilinmiyor." if "Koçluk özeti okunamadı" in ctx.unavailable_sources else "Tamamlanan ödevleri doğrulayan bağımsız kazanım kaydı henüz yok." if ctx.measured_count == 0 else
                 f"Ayrıca {ctx.measured_count} kazanım kanıtı var; ödev bitmesi öğrenme kanıtı sayılmaz.")
         return CoachAnswer("Ödev–öğrenme karşılaştırması", msg, coverage, "btnKontrol")
     # Most valuable *invisible* insight: disagreement between completion and evidence.
-    if ctx.completed_homework > 0 and ctx.measured_count == 0:
+    if ctx.completed_homework > 0 and ctx.measured_count == 0 and not ctx.unavailable_sources:
         return CoachAnswer(
             "Gizli takip ihtiyacı: kanıt boşluğu",
             f"{ctx.completed_homework} tamamlanmış ödev bulunuyor, ancak kayıtlı bağımsız öğrenme ölçümü yok. "
@@ -195,6 +316,6 @@ def answer_question(ctx: CoachContext, question: str) -> CoachAnswer:
         return CoachAnswer("İş yükü birikimi", f"{ctx.open_homework} açık ödev var. Sonraki görevleri eklemeden mevcut iş yükünü öğretmenle değerlendirin.", coverage, "btnKontrol")
     return CoachAnswer(
         "İncelenecek ilk adım",
-        ctx.next_step or "Mevcut ölçümleri ve öğrencinin çalışma planını karşılaştırın. Kayıtlar tek başına kesin öğrenci sınıflandırması sağlamaz.",
-        (f"Adaptif Koç önceliği: {ctx.priority or 'Belirlenemedi'}", *coverage), "btnOgrenme",
+        next_step or "Mevcut ölçümleri ve öğrencinin çalışma planını karşılaştırın. Kayıtlar tek başına kesin öğrenci sınıflandırması sağlamaz.",
+        (f"Adaptif Koç önceliği: {priority or 'Seçili ders için doğrulanmadı'}", *coverage), "btnOgrenme",
     )

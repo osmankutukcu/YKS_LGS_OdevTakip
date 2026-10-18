@@ -11,6 +11,9 @@ from dataclasses import dataclass
 from services.coach_assistant_v1.dialogue import (
     CoachAnswer, CoachContext, answer_question, _search_fold,
 )
+from services.coach_assistant_v1.shared_rules_v260 import (
+    scoped_topics, lesson_key, is_low_accuracy, MIN_RELIABLE_ATTEMPTS,
+)
 
 
 @dataclass(frozen=True)
@@ -19,17 +22,12 @@ class ConversationMemory:
     anchor_question: str  # Last independent question, not a chain of stale responses
     last_mode: str = ""
     other_index: int = 0
+    lesson_scope: str = ""
 
 
 def _intent(question: str) -> str | None:
     q = _search_fold(str(question or '').strip()[:600]).rstrip(' ?!.')
     if not q:
-        return None
-    # A new explicit question must take precedence over the previous topic.
-    if any(token in q for token in (
-        'internetten', 'meb ', 'osym ', 'anket', 'deneme', 'yeni ogrenci',
-        'hangi konuda', 'hangi konu', 'odevler', 'tum odev',
-    )):
         return None
     if q in ('neden', 'neden?', 'neden boyle', 'neden boyle?', 'niye',
              'neye gore', 'nasil bildin', 'hangi kanit', 'kaniti ne',
@@ -48,6 +46,12 @@ def _intent(question: str) -> str | None:
         return 'detail'
     if q in ('bunu uygula', 'odev ver', 'otomatik odev ver', 'hemen uygula'):
         return 'action'
+    # Do not absorb genuine independent questions into a previous response.
+    if any(token in q for token in (
+        'internetten', 'meb ', 'osym ', 'anket', 'deneme', 'yeni ogrenci',
+        'hangi konuda', 'hangi konu', 'odevler', 'tum odev',
+    )):
+        return None
     return None
 
 
@@ -56,8 +60,8 @@ def is_followup(question: str) -> bool:
 
 
 def _measured_topics(ctx: CoachContext):
-    return sorted((t for t in ctx.topics if t.attempts >= 5 and t.accuracy is not None
-                   and t.accuracy < 60), key=lambda t: (t.accuracy, -t.attempts, t.lesson, t.name))
+    return sorted((t for t in ctx.topics if is_low_accuracy(t.accuracy, attempts=t.attempts, reliable_only=True)),
+                  key=lambda t: (t.accuracy, -t.attempts, t.lesson, t.name))
 
 
 def _gap_topics(ctx: CoachContext):
@@ -65,14 +69,20 @@ def _gap_topics(ctx: CoachContext):
 
 
 def answer_with_memory(ctx: CoachContext, question: str,
-                       memory: ConversationMemory | None = None) -> CoachAnswer:
+                       memory: ConversationMemory | None = None, *,
+                       lesson_scope: str = "") -> CoachAnswer:
     """Return live evidence, never copy the previous student's answer or stale counts."""
     if type(ctx.student_id) is not int or ctx.student_id <= 0:
         raise ValueError('Geçersiz öğrenci kimliği')
     intent = _intent(question)
-    if memory is None or memory.student_id != ctx.student_id or intent is None:
-        return answer_question(ctx, question)
-    previous = answer_question(ctx, memory.anchor_question)
+    if (memory is None or memory.student_id != ctx.student_id or intent is None
+            or lesson_key(memory.lesson_scope) != lesson_key(lesson_scope)):
+        return answer_question(ctx, question, lesson_scope=lesson_scope)
+    previous = answer_question(ctx, memory.anchor_question, lesson_scope=lesson_scope)
+    if lesson_scope:
+        from dataclasses import replace
+        ctx = replace(ctx, topics=scoped_topics(ctx.topics, lesson_scope),
+                      priority='', next_step='', basis='')
     if intent in ('why', 'detail', 'action') and memory.other_index:
         previous = _other_answer(ctx, memory.other_index)
     elif intent in ('why', 'detail', 'action') and memory.last_mode == 'next':
@@ -103,7 +113,7 @@ def answer_with_memory(ctx: CoachContext, question: str,
         return _other_answer(ctx, memory.other_index + 1)
     if intent == 'next':
         return _next_answer(ctx, memory.anchor_question)
-    return answer_question(ctx, question)
+    return answer_question(ctx, question, lesson_scope=lesson_scope)
 
 
 def _other_answer(ctx: CoachContext, index: int) -> CoachAnswer:
@@ -151,19 +161,23 @@ def _next_answer(ctx: CoachContext, anchor: str) -> CoachAnswer:
         'Bu hafta için değerlendirilecek ilk adım',
         task + ' Bu öneri bir taslaktır; öğrenciye ödev atanmadı ve plan kaydedilmedi.',
         (f'Güncel açık ödev kaydı: {ctx.open_homework}',
-         f'Güncel bağımsız kanıt: {ctx.measured_count}',
+         f'Öğrenci genelinde bağımsız kanıt: {ctx.measured_count}',
          f'Adaptif Koç dayanağı: {ctx.basis or "Belirtilmemiş"}'),
         'btnOgrenme',
     )
 
 
 def next_memory(student_id: int, question: str,
-                previous: ConversationMemory | None = None) -> ConversationMemory:
+                previous: ConversationMemory | None = None, *,
+                lesson_scope: str = "") -> ConversationMemory:
     """Remember only a same-student anchor question, never an old answer or metrics."""
     if type(student_id) is not int or student_id <= 0:
         raise ValueError('Geçersiz öğrenci kimliği')
     intent = _intent(question)
-    if previous is not None and previous.student_id == student_id and intent:
+    if (previous is not None and previous.student_id == student_id and intent
+            and lesson_key(previous.lesson_scope) == lesson_key(lesson_scope)):
         return ConversationMemory(student_id, previous.anchor_question, intent,
-                                  previous.other_index + 1 if intent == 'another' else previous.other_index)
-    return ConversationMemory(student_id, str(question or '').strip()[:600])
+                                  previous.other_index + 1 if intent == 'another' else previous.other_index,
+                                  lesson_scope)
+    return ConversationMemory(student_id, str(question or '').strip()[:600],
+                              lesson_scope=lesson_scope)

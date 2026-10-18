@@ -1,0 +1,11 @@
+{
+  "version": "V26.8",
+  "purpose": "V26.8 approved integration delta, preserved through V26.9.2",
+  "previous_source_sha256": {
+    "ui/student_workspace_panel_v21.py": "89bbbc6ef0ed74b4f068a6644a7d0e9b5cc900368178d3ad68a9daf05ac260a2"
+  },
+  "files": {
+    "ui/student_workspace_panel_v21.py": "d98b2403e7f7ee147e1e7a6b6a1098117efaad0fc466eeafac44314678eff432"
+  },
+  "source_review": "V26.7 -> V26.8, adds scoped in-process coach event router to existing 15-sec Student 360 refresh; original homework and control write paths unchanged"
+}

@@ -26,15 +26,16 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtWidgets import (
     QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QWidget,
-    QGraphicsDropShadowEffect, QMenu, QApplication, QLineEdit, QTextEdit, QPlainTextEdit
+    QGraphicsDropShadowEffect, QMenu, QApplication, QLineEdit, QTextEdit, QPlainTextEdit, QAbstractItemView
 )
 from PyQt6.QtGui import (
     QColor, QPainter, QPen, QBrush, QPainterPath, QFont, QFontMetrics, QPolygonF
 )
 
 from services.coach_assistant_v1.proactive_policy import (
-    ProactiveGate, signal_key, severity, database_stamp, VALID_MODES
+    ProactiveGate, database_stamp, VALID_MODES
 )
+from services.coach_assistant_v1.attention_v263 import attention_decision
 from services.coach_assistant_v1 import (
     AssistantInsight,
     build_student_curiosity_insight,
@@ -241,6 +242,7 @@ class SmartCoachSecretaryToast(QFrame):
         self._open_adaptive = open_adaptive
         self._pointer_overlay = pointer_overlay
         self._primary_callback = None
+        self._detail_callback = None
         self._border_color = QColor("#38bdf8")
         self._hovered = False
 
@@ -334,6 +336,12 @@ class SmartCoachSecretaryToast(QFrame):
         """)
         self.btn_action.clicked.connect(self._run_primary_action)
         bot.addWidget(self.btn_action)
+        self.btn_detail = QPushButton('💬 Koça Sor')
+        self.btn_detail.setToolTip('Bu uyarıdan ayrıntılı soru-cevap ekranına geç')
+        self.btn_detail.setFixedHeight(27)
+        self.btn_detail.clicked.connect(self._run_detail_action)
+        self.btn_detail.hide()
+        bot.addWidget(self.btn_detail)
         bot.addStretch(1)
         self.lbl_hint = QLabel("💧 Yarı şeffaf · Otomatik kapanır")
         self.lbl_hint.setStyleSheet("color: #94a3b8; font-size: 10px;")
@@ -373,6 +381,12 @@ class SmartCoachSecretaryToast(QFrame):
 
     def _run_primary_action(self) -> None:
         cb = self._primary_callback
+        self.hide_with_overlay()
+        if callable(cb):
+            cb()
+
+    def _run_detail_action(self) -> None:
+        cb = self._detail_callback
         self.hide_with_overlay()
         if callable(cb):
             cb()
@@ -418,6 +432,7 @@ class SmartCoachSecretaryToast(QFrame):
         body_html: str,
         action_text: str | None = None,
         action_cb=None,
+        detail_cb=None,
         duration_ms: int = 7200,
         border_color: str = "#38bdf8",
         target_widget: QWidget | None = None,
@@ -429,6 +444,8 @@ class SmartCoachSecretaryToast(QFrame):
         self.lbl_workflow.setText(workflow_html)
         self.lbl_body.setText(body_html)
         self._primary_callback = action_cb
+        self._detail_callback = detail_cb
+        self.btn_detail.setVisible(callable(detail_cb))
         if action_text and callable(action_cb):
             self.btn_action.setText(action_text)
             self.btn_action.show()
@@ -525,6 +542,7 @@ class SmartCoachSecretaryController(QObject):
         self._brief_jobs = {}
         self._db_stamp = None
         self._last_direct_input = 0.0
+        self._pending_context: dict[str, object] = {}
         self._poll_timer = QTimer(self)
         self._poll_timer.setInterval(45000)
         self._poll_timer.timeout.connect(self._poll_for_updates)
@@ -546,6 +564,7 @@ class SmartCoachSecretaryController(QObject):
         self.toggle_button.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.toggle_button.customContextMenuRequested.connect(self._show_assistant_menu)
         self._update_toggle_button_style()
+        self._refresh_assistant_tooltip()
         bottom_bar.addWidget(self.toggle_button)
 
         # "💬 Koça Sor" interactive coaching question button (V12.1)
@@ -561,14 +580,14 @@ class SmartCoachSecretaryController(QObject):
             QPushButton:hover { background: #dcfce7; border-color: #22c55e; 
                 color: #15191E;}
         """)
-        self.ask_button.clicked.connect(self.open_dialogue)
+        self.ask_button.clicked.connect(lambda _checked=False: self.open_dialogue())
         bottom_bar.addWidget(self.ask_button)
         self._dialogue = None
 
         form.installEventFilter(self)
         QTimer.singleShot(450, self._ensure_table_hooks)
 
-    def open_dialogue(self) -> None:
+    def open_dialogue(self, insight=None) -> None:
         """Toggle or display the interactive Koça Sor in-app toast card."""
         from ui.coach_dialogue_v121 import CoachDialogueV121
         if self._dialogue is None:
@@ -578,6 +597,14 @@ class SmartCoachSecretaryController(QObject):
                 open_learning=self._open_adaptive,
                 open_control=self._open_control,
             )
+        if insight is not None:
+            self.toast.hide_with_overlay()
+            if getattr(self._dialogue, '_compact', False):
+                self._dialogue._toggle_compact()
+            self._dialogue.show_notification_context(insight)
+            self._dialogue.show()
+            self._dialogue.raise_()
+            return
         if self._dialogue.isVisible():
             if getattr(self._dialogue, "_compact", False):
                 self._dialogue._toggle_compact()
@@ -597,6 +624,7 @@ class SmartCoachSecretaryController(QObject):
         self._enabled = bool(enabled)
         self._settings.setValue(SETTINGS_KEY_ENABLED, "1" if self._enabled else "0")
         self._update_toggle_button_style()
+        self._refresh_assistant_tooltip()
         if not self._enabled:
             self.toast.hide_with_overlay()
         elif show_feedback:
@@ -621,7 +649,9 @@ class SmartCoachSecretaryController(QObject):
 
     def _update_toggle_button_style(self) -> None:
         if self._enabled:
-            self.toggle_button.setText("✨ Koç Asistanı: Açık")
+            count = len(self._inbox) if hasattr(self, "_inbox") else 0
+            suffix = f" ({count})" if count else ""
+            self.toggle_button.setText(f"✨ Koç Asistanı: Açık{suffix}")
             self.toggle_button.setToolTip(
                 "Koç Asistanı aktif: Öğrencinin verilerindeki ilginç detayları yarı şeffaf toast ve oklarla gösterir.\n"
                 "Kapatmak için tıklayın; bildirim sıklığı ve geçmiş öneriler için sağ tıklayın."
@@ -648,6 +678,19 @@ class SmartCoachSecretaryController(QObject):
                 QPushButton:hover { background: #f1f5f9; color: #334155; }
             """)
 
+    def _refresh_assistant_tooltip(self) -> None:
+        """Expose inbox availability without opening a new UI element."""
+        if not hasattr(self, 'toggle_button'):
+            return
+        count = len(self._inbox)
+        original = str(self.toggle_button.toolTip()).split("\n📌", 1)[0]
+        self.toggle_button.setToolTip(original + (f"\n📌 {count} öneri: sağ tıklayarak inceleyin." if count else ""))
+        if self._enabled:
+            suffix = f" ({count})" if count else ""
+            self.toggle_button.setText(f"✨ Koç Asistanı: Açık{suffix}")
+        else:
+            self.toggle_button.setText("🔕 Koç Asistanı: Kapalı")
+
     def _show_assistant_menu(self, pos) -> None:
         menu = QMenu(self.toggle_button)
         menu.addSection("Bildirim sıklığı")
@@ -664,10 +707,10 @@ class SmartCoachSecretaryController(QObject):
         menu.addSection("Seçili öğrencinin son önerileri")
         if not self._inbox:
             menu.addAction("Yeni öneri yok").setEnabled(False)
-        for insight, source, _ in reversed(self._inbox):
+        for insight, source, key in reversed(self._inbox):
             title = str(insight.curiosity_hook).replace("\n", " ")[:95]
             action = menu.addAction(("• " + title)[:100])
-            action.triggered.connect(lambda checked=False, entry=insight: self._present_insight(entry, manual=True))
+            action.triggered.connect(lambda checked=False, entry=insight, src=source, saved=key: self._present_insight(entry, manual=True, source=src, key_override=saved))
         menu.exec(self.toggle_button.mapToGlobal(pos))
 
     def _set_proactive_mode(self, mode: str) -> None:
@@ -675,14 +718,22 @@ class SmartCoachSecretaryController(QObject):
             return
         self._proactive_mode = mode
         self._settings.setValue("smart_coach_proactive_mode", mode)
+        self._update_toggle_button_style()
+        self._refresh_assistant_tooltip()
 
     def _can_interrupt(self) -> bool:
         if not self.form.isVisible() or not self.form.isActiveWindow():
             return False
+        if time.monotonic() - self._last_direct_input < 8.0:
+            return False
+        if self.toast.isVisible():
+            return False
+        if self._dialogue is not None and self._dialogue.isVisible():
+            return False
         if QApplication.activeModalWidget() is not None:
             return False
         focus = QApplication.focusWidget()
-        if isinstance(focus, (QLineEdit, QTextEdit, QPlainTextEdit)):
+        if isinstance(focus, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractItemView)):
             return False
         return True
 
@@ -719,19 +770,32 @@ class SmartCoachSecretaryController(QObject):
         *,
         manual: bool = False,
         source: str = "student",
+        lesson: str = "",
+        topic_name: str = "",
+        key_override: str | None = None,
     ) -> None:
         sid = self._current_sid
         if not self._enabled or type(sid) is not int or sid <= 0:
             return
-        key = signal_key(insight.badge, insight.curiosity_hook)
+        context = dict(self._pending_context) if source == "student" else {}
+        decision = attention_decision(insight, source=source, lesson=lesson, topic_name=topic_name, **context)
+        key = key_override or decision.key
         if key not in self._inbox_keys:
             self._inbox.append((insight, source, key))
-            self._inbox_keys = {k for _, _, k in self._inbox}
+        else:
+            # Keep the newest evidence for the same academic signal without
+            # multiplying identical alerts in the teacher's inbox.
+            self._inbox = deque((e for e in self._inbox if e[2] != key), maxlen=8)
+            self._inbox.append((insight, source, key))
+        self._inbox_keys = {k for _, _, k in self._inbox}
+        self._refresh_assistant_tooltip()
         if not manual:
+            if not decision.auto_eligible:
+                return
             verdict = self._proactive.decide(
                 student_id=sid,
                 key=key,
-                priority=severity(insight.badge),
+                priority=decision.priority,
                 mode=self._proactive_mode,
                 interruptible=self._can_interrupt(),
             )
@@ -743,14 +807,15 @@ class SmartCoachSecretaryController(QObject):
         self.toast.show_toast(
             title=insight.title,
             step_badge=insight.badge,
-            workflow_html=insight.curiosity_hook,
-            body_html=insight.body_html,
+            workflow_html=(decision.brief_hook or insight.curiosity_hook) if not manual else insight.curiosity_hook,
+            body_html=(decision.brief_body or insight.body_html) if not manual else insight.body_html,
             action_text=insight.action_text,
             action_cb=action_cb,
             duration_ms=insight.duration_ms,
             border_color=insight.border_color,
             target_widget=target_w,
             pointer_caption=insight.pointer_caption,
+            detail_cb=lambda item=insight: self.open_dialogue(item),
         )
 
     def _poll_for_updates(self) -> None:
@@ -808,12 +873,25 @@ class SmartCoachSecretaryController(QObject):
             completed_hw=self._completed_hw_count,
             overdue_hw=int(s.homework_overdue or 0),
             measured_count=self._measured_count,
+            evidence_available=coach is not None,
             coach_priority=coach.priority if coach is not None else None,
             coach_next_step=coach.next_step if coach is not None else None,
             topics=topics or [],
         )
-        # Student briefing is the primary requested guidance: always show directly
-        self._present_insight(insight, manual=True, source="student")
+        self._pending_context = {
+            "topics": tuple(topics or ()),
+            "overdue_hw": int(s.homework_overdue or 0),
+            "open_hw": self._open_hw_count,
+            "completed_hw": self._completed_hw_count,
+        }
+        try:
+            # Golden Balance:
+            # In quiet mode: keep silent (inbox only, manual=False).
+            # In balanced or active mode: greet teacher with primary student briefing (manual=True).
+            auto_show = (self._proactive_mode != "quiet")
+            self._present_insight(insight, manual=auto_show, source="student")
+        finally:
+            self._pending_context.clear()
 
     def eventFilter(self, obj, event):
         if obj is self.form:
@@ -844,6 +922,8 @@ class SmartCoachSecretaryController(QObject):
             self._read_serial += 1
             self._inbox.clear()
             self._inbox_keys.clear()
+            self._pending_context.clear()
+            self._refresh_assistant_tooltip()
             self.toast.hide_with_overlay()
             return
         if sid == self._current_sid and not force:
@@ -852,6 +932,8 @@ class SmartCoachSecretaryController(QObject):
         self._read_serial += 1
         self._inbox.clear()
         self._inbox_keys.clear()
+        self._pending_context.clear()
+        self._refresh_assistant_tooltip()
         self._db_stamp = None
         self.toast.hide_with_overlay()
         self._suppress_checkbox_toast = True
@@ -884,6 +966,7 @@ class SmartCoachSecretaryController(QObject):
         except Exception:
             return
 
+        self._last_direct_input = time.monotonic()
         meta = self._topic_meta.get((str(ders or "").strip().casefold(), topic_name.casefold()))
         verilen_tbl = getattr(self.form, "verilen", None)
         draft_rows = verilen_tbl.rowCount() if verilen_tbl is not None else 0
@@ -900,7 +983,7 @@ class SmartCoachSecretaryController(QObject):
                 if self._over_notified_for_sid == self._current_sid:
                     return
                 self._over_notified_for_sid = self._current_sid
-            self._present_insight(insight, manual=True, source="checkbox")
+            self._present_insight(insight, manual=False, source="checkbox", lesson=ders, topic_name=topic_name)
 
 
 # Clean aliases for modular imports
