@@ -6,6 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import urlencode, urlsplit, parse_qs
 from datetime import date, timedelta
+from contextlib import closing
 import sqlite3
 import unittest
 import fitz
@@ -192,9 +193,10 @@ class FeedbackTests(unittest.TestCase):
 
     def test_no_academic_db_changes_or_user_notes(self):
         academic=Path(self.temp.name)/'academic.sqlite'
-        with sqlite3.connect(academic) as db:
+        with closing(sqlite3.connect(academic)) as db:
             db.execute('CREATE TABLE odev (id INTEGER PRIMARY KEY, completed INTEGER)')
             db.execute('INSERT INTO odev VALUES (1,0)')
+            db.commit()
         before=hashlib.sha256(academic.read_bytes()).hexdigest()
         token=self.form_token()
         self.call(method='POST',params={'status':'completed_claim','reason':'other','csrf':token})

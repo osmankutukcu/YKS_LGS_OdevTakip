@@ -25,25 +25,34 @@ def export(sched, target):
             parent_message=lambda e,*x:'Sayın veli '+e['ad'])
 
 class SmartPDFTests(unittest.TestCase):
+    def _safe_cleanup(self, td):
+        import gc
+        gc.collect()
+        try:
+            td.cleanup()
+        except OSError:
+            pass
+
     def test_separate_mobile_pdf_actions_and_navigation(self):
         sched={day:[] for day in DAYS}
         sched['Pazartesi']=[ev(1,'Ayşe Yılmaz')]
         sched['Salı']=[ev(2,'Ali Karaca','Görüşme')]
-        with TemporaryDirectory() as t:
-            pdf=Path(t)/'new.pdf'
-            result=export(sched,pdf)
-            with fitz.open(pdf) as doc:
-                uris=[ln['uri'] for page in doc for ln in page.get_links() if ln.get('uri')]
-                goto=sum(ln['kind']==fitz.LINK_GOTO for page in doc for ln in page.get_links())
-                text='\n'.join(p.get_text() for p in doc)
-                self.assertIn('AKILLI MOBİL PDF ASİSTANI',text)
-                self.assertIn('ÖĞRENCİ HIZLI ERİŞİM',text)
-                self.assertIn('Ayşe Yılmaz',text)
-                self.assertTrue(any(x.startswith('https://wa.me/') for x in uris))
-                self.assertTrue(any(x.startswith('tel:+') for x in uris))
-                self.assertTrue(any(x.startswith('https://calendar.google.com/') for x in uris))
-                self.assertEqual(len(uris),result['external_links'])
-                self.assertGreaterEqual(goto,7+2)
+        t=TemporaryDirectory()
+        self.addCleanup(self._safe_cleanup, t)
+        pdf=Path(t.name)/'new.pdf'
+        result=export(sched,pdf)
+        with fitz.open(pdf) as doc:
+            uris=[ln['uri'] for page in doc for ln in page.get_links() if ln.get('uri')]
+            goto=sum(ln['kind']==fitz.LINK_GOTO for page in doc for ln in page.get_links())
+            text='\n'.join(p.get_text() for p in doc)
+            self.assertIn('AKILLI MOBİL PDF ASİSTANI',text)
+            self.assertIn('ÖĞRENCİ HIZLI ERİŞİM',text)
+            self.assertIn('Ayşe Yılmaz',text)
+            self.assertTrue(any(x.startswith('https://wa.me/') for x in uris))
+            self.assertTrue(any(x.startswith('tel:+') for x in uris))
+            self.assertTrue(any(x.startswith('https://calendar.google.com/') for x in uris))
+            self.assertEqual(len(uris),result['external_links'])
+            self.assertGreaterEqual(goto,7+2)
 
     def test_same_name_distinct_id_preserves_separate_index(self):
         sched={day:[] for day in DAYS}
@@ -52,12 +61,13 @@ class SmartPDFTests(unittest.TestCase):
         self.assertEqual(s['student_count'],2)
         self.assertEqual(len(set(x['key'] for x in s['students'])),2)
         self.assertIn('No 11', '\n'.join(x['display_name'] for x in s['students']))
-        with TemporaryDirectory() as td:
-            path=Path(td)/'a.pdf'; export(sched,path)
-            with fitz.open(path) as doc:
-                all_text='\n'.join(p.get_text() for p in doc)
-                self.assertIn('No 11',all_text)
-                self.assertIn('No 22',all_text)
+        td=TemporaryDirectory()
+        self.addCleanup(self._safe_cleanup, td)
+        path=Path(td.name)/'a.pdf'; export(sched,path)
+        with fitz.open(path) as doc:
+            all_text='\n'.join(p.get_text() for p in doc)
+            self.assertIn('No 11',all_text)
+            self.assertIn('No 22',all_text)
 
     def test_conflicting_contact_is_not_linked_to_wrong_recipient(self):
         sched={day:[] for day in DAYS}
@@ -66,11 +76,12 @@ class SmartPDFTests(unittest.TestCase):
         s=build_pocket_snapshot(sched,WEEK)
         self.assertEqual(s['student_count'],1)
         self.assertTrue(s['students'][0]['contact_conflict'])
-        with TemporaryDirectory() as t:
-            target=Path(t)/'a.pdf'; export(sched,target)
-            with fitz.open(target) as doc:
-                all_links=[x['uri'] for p in doc for x in p.get_links() if x.get('uri')]
-                self.assertFalse(any(x.startswith('https://wa.me/') or x.startswith('tel:') for x in all_links))
+        t=TemporaryDirectory()
+        self.addCleanup(self._safe_cleanup, t)
+        target=Path(t.name)/'a.pdf'; export(sched,target)
+        with fitz.open(target) as doc:
+            all_links=[x['uri'] for p in doc for x in p.get_links() if x.get('uri')]
+            self.assertFalse(any(x.startswith('https://wa.me/') or x.startswith('tel:') for x in all_links))
 
     def test_calendar_never_contains_student_pii(self):
         url=calendar_meeting_url('2026-10-20','15:30')
@@ -83,13 +94,14 @@ class SmartPDFTests(unittest.TestCase):
         sched={day:[] for day in DAYS}
         for i in range(85):
             sched[DAYS[i%7]].append(ev(i+1,f'Öğrenci {i+1:03d}',phone='',lines=['Fizik - Hareket']*20))
-        with TemporaryDirectory() as t:
-            target=Path(t)/'a.pdf'; result=export(sched,target)
-            with fitz.open(target) as doc:
-                text='\n'.join(pg.get_text() for pg in doc)
-                self.assertEqual(result['students'],85)
-                self.assertIn('Öğrenci 085',text)
-                self.assertGreater(len(doc),20)
+        t=TemporaryDirectory()
+        self.addCleanup(self._safe_cleanup, t)
+        target=Path(t.name)/'a.pdf'; result=export(sched,target)
+        with fitz.open(target) as doc:
+            text='\n'.join(pg.get_text() for pg in doc)
+            self.assertEqual(result['students'],85)
+            self.assertIn('Öğrenci 085',text)
+            self.assertGreater(len(doc),20)
 
     def test_missing_student_id_keeps_separate_entries(self):
         sched={day:[] for day in DAYS}

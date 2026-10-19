@@ -7,6 +7,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit, parse_qs
 from copy import deepcopy
+from contextlib import closing
+import gc
 import sqlite3
 import hashlib
 import unittest
@@ -40,6 +42,13 @@ def render(schedule, days=DAYS, academic_context=None):
 
 
 class V3549OfflinePackTests(unittest.TestCase):
+    def _safe_cleanup(self, tmp):
+        gc.collect()
+        try:
+            tmp.cleanup()
+        except OSError:
+            pass
+
     def test_separate_student_parent_and_distinct_messages(self):
         e1=event(details=['Fizik - Hareket','Matematik - Polinomlar'])
         e2=event(typ='Görüşme')
@@ -76,7 +85,7 @@ class V3549OfflinePackTests(unittest.TestCase):
             'source_state':'PARTIAL','student_count':2,'verified_count':2}
         before=deepcopy(schedule)
         tmp,pdf,ret=render(schedule,academic_context=context)
-        self.addCleanup(tmp.cleanup)
+        self.addCleanup(self._safe_cleanup, tmp)
         self.assertEqual(schedule,before)
         with fitz.open(pdf) as doc:
             uris=[l['uri'] for p in doc for l in p.get_links() if l.get('uri')]
@@ -98,9 +107,9 @@ class V3549OfflinePackTests(unittest.TestCase):
         schedule['Pazartesi']=[event(details=lines)]
         ctx={'source_state':'LOCAL_VERIFIED','student_count':1,'verified_count':1,
              'student_cards':{'1':{'verified':True,'contact_allowed':True,
-                                      'homework':{'total':130,'completed':0,'overdue':0}}}}
+                                       'homework':{'total':130,'completed':0,'overdue':0}}}}
         tmp,pdf,_=render(schedule,academic_context=ctx)
-        self.addCleanup(tmp.cleanup)
+        self.addCleanup(self._safe_cleanup, tmp)
         with fitz.open(pdf) as doc:
             links=[l['uri'] for pg in doc for l in pg.get_links() if l.get('uri','').startswith('https://wa.me/')]
             payloads=[parse_qs(urlsplit(u).query).get('text',[''])[0] for u in links]
@@ -118,9 +127,16 @@ class V3549OfflinePackTests(unittest.TestCase):
 
 
 class RangeTests(unittest.TestCase):
+    def _safe_cleanup(self, td):
+        gc.collect()
+        try:
+            td.cleanup()
+        except OSError:
+            pass
+
     def make_db(self, where):
         path=Path(where)/'synthetic.db'
-        with sqlite3.connect(path) as db:
+        with closing(sqlite3.connect(path)) as db:
             db.executescript('''
                 CREATE TABLE ogrenci (id INTEGER PRIMARY KEY, ad TEXT,soyad TEXT,
                     ogr_tel TEXT,veli_tel1 TEXT,kocluk_gunu TEXT,kocluk_saati TEXT,
@@ -136,45 +152,49 @@ class RangeTests(unittest.TestCase):
                 INSERT INTO odev_kume VALUES (5,1,'2026-10-29',NULL);
                 INSERT INTO odev VALUES (10,5,'Fizik','Kitap','Basınç');
             ''')
+            db.commit()
         return path
 
     def test_10_14_days_repeat_monday_distinct_date_and_out_of_7_due(self):
-        with TemporaryDirectory() as td:
-            p=self.make_db(td)
-            before=hashlib.sha256(p.read_bytes()).hexdigest()
-            for length in (10,14):
-                with self.subTest(length=length):
-                    schedule,days=fetch_mobile_pdf_schedule_range(p,group_filter='YKS',
-                                                 days_count=length,today=DAY0)
-                    self.assertEqual(len(days),length)
-                    self.assertEqual(len(schedule),length)
-                    self.assertEqual(len([k for k in schedule if k.startswith('Pazartesi')]),2)
-                    self.assertEqual(sum(ev['tip']=='Görüşme' for evs in schedule.values() for ev in evs),2)
-                    self.assertEqual(sum(ev['tip']=='Teslim' for evs in schedule.values() for ev in evs),
-                                    1 if length==14 else 0)
-                    self.assertFalse(any(ev['oid']==2 for evs in schedule.values() for ev in evs))
-            self.assertEqual(before,hashlib.sha256(p.read_bytes()).hexdigest())
+        td=TemporaryDirectory()
+        self.addCleanup(self._safe_cleanup, td)
+        p=self.make_db(td.name)
+        before=hashlib.sha256(p.read_bytes()).hexdigest()
+        for length in (10,14):
+            with self.subTest(length=length):
+                schedule,days=fetch_mobile_pdf_schedule_range(p,group_filter='YKS',
+                                             days_count=length,today=DAY0)
+                self.assertEqual(len(days),length)
+                self.assertEqual(len(schedule),length)
+                self.assertEqual(len([k for k in schedule if k.startswith('Pazartesi')]),2)
+                self.assertEqual(sum(ev['tip']=='Görüşme' for evs in schedule.values() for ev in evs),2)
+                self.assertEqual(sum(ev['tip']=='Teslim' for evs in schedule.values() for ev in evs),
+                                1 if length==14 else 0)
+                self.assertFalse(any(ev['oid']==2 for evs in schedule.values() for ev in evs))
+        self.assertEqual(before,hashlib.sha256(p.read_bytes()).hexdigest())
 
     def test_period_rejects_unsafe_inputs(self):
-        with TemporaryDirectory() as td:
-            p=self.make_db(td)
-            for arg in (0,15,True,'14'):
-                with self.subTest(value=arg),self.assertRaises(ValueError):
-                    fetch_mobile_pdf_schedule_range(p,days_count=arg,today=DAY0)
+        td=TemporaryDirectory()
+        self.addCleanup(self._safe_cleanup, td)
+        p=self.make_db(td.name)
+        for arg in (0,15,True,'14'):
+            with self.subTest(value=arg),self.assertRaises(ValueError):
+                fetch_mobile_pdf_schedule_range(p,days_count=arg,today=DAY0)
 
     def test_extended_period_pdf_message_dates(self):
-        with TemporaryDirectory() as td:
-            db=self.make_db(td)
-            schedule,days=fetch_mobile_pdf_schedule_range(db,group_filter='YKS',
-                                days_count=14,today=DAY0)
-            tmp,pdf,_=render(schedule,days)
-            self.addCleanup(tmp.cleanup)
-            with fitz.open(pdf) as doc:
-                text='\n'.join(p.get_text() for p in doc)
-                self.assertIn('2026-10-29',text)
-                self.assertIn('Basınç',text)
-                self.assertIn('Görüşme',text)
-                links=[l['uri'] for page in doc for l in page.get_links() if l.get('uri')]
-                self.assertTrue(any(u.startswith('https://wa.me/') for u in links))
+        td=TemporaryDirectory()
+        self.addCleanup(self._safe_cleanup, td)
+        db=self.make_db(td.name)
+        schedule,days=fetch_mobile_pdf_schedule_range(db,group_filter='YKS',
+                            days_count=14,today=DAY0)
+        tmp,pdf,_=render(schedule,days)
+        self.addCleanup(self._safe_cleanup, tmp)
+        with fitz.open(pdf) as doc:
+            text='\n'.join(p.get_text() for p in doc)
+            self.assertIn('2026-10-29',text)
+            self.assertIn('Basınç',text)
+            self.assertIn('Görüşme',text)
+            links=[l['uri'] for page in doc for l in page.get_links() if l.get('uri')]
+            self.assertTrue(any(u.startswith('https://wa.me/') for u in links))
 
 if __name__=='__main__': unittest.main()
