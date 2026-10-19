@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from contextlib import closing
+import gc
 import hashlib
 import sqlite3
 import unittest
@@ -29,18 +31,26 @@ def entry(sid, name='Öğrenci', phone='05551234567'):
 class V3546BridgeTests(unittest.TestCase):
     def setUp(self):
         self.tmp=TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(self._safe_cleanup)
         self.dbfile=Path(self.tmp.name)/'students.db'
         src=db()
-        with sqlite3.connect(self.dbfile) as target:
+        with closing(sqlite3.connect(self.dbfile)) as target:
             src.backup(target)
-        with sqlite3.connect(self.dbfile) as actual:
+        with closing(sqlite3.connect(self.dbfile)) as actual:
             actual.execute('ALTER TABLE ogrenci ADD COLUMN ogr_tel TEXT')
             actual.execute('UPDATE ogrenci SET ogr_tel=?, veli_tel1=? WHERE id=1',
                            ('05551234567', '05321112233'))
             actual.execute('UPDATE ogrenci SET ogr_tel=?, veli_tel1=? WHERE id=2',
                            ('05559876543', '05321112233'))
+            actual.commit()
         src.close()
+
+    def _safe_cleanup(self):
+        gc.collect()
+        try:
+            self.tmp.cleanup()
+        except OSError:
+            pass
 
     def context(self, *rows, cap=40, file=None):
         return collect_mobile_pdf_context(file if file is not None else self.dbfile,
@@ -70,9 +80,10 @@ class V3546BridgeTests(unittest.TestCase):
         self.assertFalse(ctx['student_data_written'])
 
     def test_linked_owner_collision_quarantines_both_students_and_contacts(self):
-        with sqlite3.connect(self.dbfile) as conn:
+        with closing(sqlite3.connect(self.dbfile)) as conn:
             conn.execute('INSERT INTO odev_satir (id, ogrenci_id, kume_id, odev_id, ders, durum) '
                          "VALUES (305,2,100,101,'Fizik','devam')")
+            conn.commit()
         rows=[entry(1,'Öğrenci A'),entry(2,'Öğrenci B', '05559876543')]
         ctx=self.context(*rows)
         self.assertEqual(ctx['verified_count'],0)

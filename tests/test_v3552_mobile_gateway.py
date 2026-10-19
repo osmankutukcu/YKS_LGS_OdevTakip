@@ -17,14 +17,19 @@ from services.mobile_pdf_live_gateway_v3547 import PREFIX
 from services.mobile_pdf_feedback_v3550 import FEEDBACK_PREFIX
 
 
+from contextlib import closing
+import gc
+
+
 class MobileDeploymentTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(self._safe_cleanup)
         self.base = Path(self.tmp.name)
         self.db = self.base/'academic_snapshot.sqlite'
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db:
             db.execute('CREATE TABLE ogrenci (id INTEGER PRIMARY KEY, ad TEXT)')
+            db.commit()
         self.now = [10000.0]
         self.last_sync = [10000.0]
         self.config = MobileDeploymentConfig('https://portal.school.edu.tr',self.db,
@@ -44,6 +49,13 @@ class MobileDeploymentTests(unittest.TestCase):
                      explicit_opt_in=True,trusted_https_ready=True,
                      identity_provider_verified=True,school_acl_verified=True,
                      server_snapshot_sync_verified=True)
+
+    def _safe_cleanup(self):
+        gc.collect()
+        try:
+            self.tmp.cleanup()
+        except OSError:
+            pass
 
     def runtime(self, **changes):
         return create_mobile_gateway(self.config,**(self.kw|changes))

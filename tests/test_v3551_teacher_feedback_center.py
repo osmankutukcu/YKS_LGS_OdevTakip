@@ -8,6 +8,8 @@ import sqlite3
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from contextlib import closing
+import gc
 
 from services.mobile_pdf_feedback_v3550 import FeedbackInbox, RecipientPrincipal
 from services.mobile_pdf_secure_portal_v3548 import TeacherPrincipal
@@ -17,7 +19,7 @@ from services.mobile_pdf_feedback_center_v3551 import FeedbackCenter, readable_t
 class CenterTests(unittest.TestCase):
     def setUp(self):
         self.tmp = TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(self._safe_cleanup)
         self.now = [100_000.0]
         self.store = FeedbackInbox(Path(self.tmp.name)/'inbox.sqlite', clock=lambda: self.now[0])
         self.teacher = TeacherPrincipal('schoolA','teacherA',self.now[0]+3600)
@@ -28,6 +30,13 @@ class CenterTests(unittest.TestCase):
         self.center = FeedbackCenter(self.store,principal_provider=lambda:self.principal[0],
             authorize_student=lambda p,sid: sid in self.grants,
             student_label=lambda p,sid: {17:'Ayşe Test',18:'Zeynep Test'}.get(sid))
+
+    def _safe_cleanup(self):
+        gc.collect()
+        try:
+            self.tmp.cleanup()
+        except OSError:
+            pass
 
     def submit(self, sid, status, *, role='student', teacher='teacherA', tenant='schoolA', reason='none'):
         ref = self.store.issue(student_id=sid,tenant_id=tenant,teacher_id=teacher,
@@ -60,9 +69,10 @@ class CenterTests(unittest.TestCase):
 
     def test_review_only_changes_feedback_inbox(self):
         db=Path(self.tmp.name)/'real_homework.sqlite'
-        with sqlite3.connect(db) as c:
+        with closing(sqlite3.connect(db)) as c:
             c.execute('CREATE TABLE homework(id INTEGER PRIMARY KEY, completed INTEGER)')
             c.execute('INSERT INTO homework VALUES (1,0)')
+            c.commit()
         baseline=hashlib.sha256(db.read_bytes()).digest()
         feedback=self.submit(17,'completed_claim')
         self.assertTrue(self.center.review(feedback))

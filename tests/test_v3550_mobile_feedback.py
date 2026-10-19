@@ -22,7 +22,7 @@ ORIGIN='https://okul.eger.edu.tr'
 
 class FeedbackTests(unittest.TestCase):
     def setUp(self):
-        self.temp=TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        self.temp=TemporaryDirectory(); self.addCleanup(self._safe_cleanup)
         self.now=[100000.0]
         self.path=Path(self.temp.name)/'feedback.sqlite'
         self.store=FeedbackInbox(self.path,clock=lambda:self.now[0])
@@ -35,6 +35,14 @@ class FeedbackTests(unittest.TestCase):
         self.context={'student_cards':{'17':{'verified':True,'contact_allowed':True},
                                        '18':{'verified':False,'contact_allowed':True}}}
         self.csrf_secret=b'a'*32
+
+    def _safe_cleanup(self):
+        import gc
+        gc.collect()
+        try:
+            self.temp.cleanup()
+        except OSError:
+            pass
 
     def app(self, principal=None, allowed=True):
         return create_feedback_wsgi_app(self.store,origin=ORIGIN,
