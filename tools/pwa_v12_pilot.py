@@ -90,7 +90,7 @@ def backup(source: Path):
 def serve():
     problems = check_layout()
     if problems: raise RuntimeError('\n'.join(problems))
-    if not PILOT_DB.is_file(): raise RuntimeError('Önce PWA_PILOT_HAZIRLA.bat ile test DB kopyası alın.')
+    if not PILOT_DB.is_file(): raise RuntimeError('Önce python tools/pwa_v12_pilot.py backup --source <db> ile test DB kopyası alın.')
     con = sqlite_readonly(PILOT_DB)
     try: count = con.execute('SELECT count(*) FROM ogrenci').fetchone()[0]
     finally: con.close()

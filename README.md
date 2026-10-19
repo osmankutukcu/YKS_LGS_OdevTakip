@@ -92,7 +92,7 @@ python app.py
 ```
 
 ### 3. Tek Tıkla Başlatıcılar
-- **macOS:** `Baslat_Mac.command` dosyasına çift tıklayarak doğrudan çalıştırabilirsiniz.
+- **macOS:** `OdevTakip_Baslat.command` dosyasına çift tıklayarak doğrudan çalıştırabilirsiniz.
 - **Windows:** `Baslat_Windows.bat` dosyasına çift tıklayarak çalıştırabilirsiniz.
 
 ---
