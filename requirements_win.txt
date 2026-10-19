@@ -15,3 +15,4 @@ pyinstaller>=6.5.0
 certifi>=2024.0.0
 requests>=2.31.0
 qrcode>=7.4
+pymupdf>=1.24.0

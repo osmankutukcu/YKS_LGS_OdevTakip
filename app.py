@@ -450,18 +450,60 @@ def main() -> None:
                     }
                 """)
 
-        # 2. Sol Sidebar Butonları: Aktif hap (pill) durumu
+        # 2. Sol Sidebar Butonları: Aktif hap (pill) durumu (Yaklaşım A: Modül açıkken mavi, kapanıp Genel Bakış'a dönünce otomatik Genel Bakış mavi)
+        from PyQt6.QtCore import QEvent, QObject
         all_sidebar_btns = w.sidebar.findChildren(QPushButton)
+
         def _set_active_btn(target_btn):
             for btn in all_sidebar_btns:
                 is_act = (btn == target_btn)
                 btn.setProperty("active", "true" if is_act else "false")
+                if not is_act and btn.hasFocus():
+                    btn.clearFocus()
                 btn.style().unpolish(btn)
                 btn.style().polish(btn)
                 btn.update()
 
+        def _restore_home_if_on_dashboard():
+            if not hasattr(w, "btnHome"):
+                return
+            # Modal bir pencere hala açıksa mevcut vurguyu koru
+            if QApplication.activeModalWidget() is not None:
+                return
+            # Modal olmayan Detaylı Raporlar penceresi açıksa ve görünürse koru
+            rep_dlg = getattr(w, "_report_dashboard", None)
+            if rep_dlg is not None and rep_dlg.isVisible():
+                return
+            if hasattr(w, "stack") and w.stack.currentIndex() == 0:
+                _set_active_btn(w.btnHome)
+
         for btn in all_sidebar_btns:
-            btn.clicked.connect(lambda ch, b=btn: _set_active_btn(b))
+            # Basıldığı anda (modal dialog açılmadan hemen önce) mavi vurguyu yak
+            btn.pressed.connect(lambda b=btn: _set_active_btn(b))
+            # Tıklama (ve senkron modal dialog) bittiğinde Genel Bakış'a dönüldüyse vurguyu Genel Bakış'a geri al
+            def _on_sidebar_btn_AfterClick(checked=False, b=btn):
+                rep_dlg = getattr(w, "_report_dashboard", None)
+                if b == getattr(w, "btnRapor", None) and rep_dlg is not None:
+                    try:
+                        rep_dlg.finished.connect(lambda *_: QTimer.singleShot(0, _restore_home_if_on_dashboard))
+                    except Exception:
+                        pass
+                QTimer.singleShot(0, _restore_home_if_on_dashboard)
+            btn.clicked.connect(_on_sidebar_btn_AfterClick)
+            btn.released.connect(lambda: QTimer.singleShot(120, _restore_home_if_on_dashboard))
+
+        class _SidebarNavigationSyncGuard(QObject):
+            def eventFilter(self, watched, event):
+                et = event.type()
+                if watched is w and et in (QEvent.Type.WindowActivate, QEvent.Type.Show):
+                    QTimer.singleShot(0, _restore_home_if_on_dashboard)
+                elif et in (QEvent.Type.Hide, QEvent.Type.Close) and watched is not w:
+                    QTimer.singleShot(20, _restore_home_if_on_dashboard)
+                return False
+
+        _nav_guard = _SidebarNavigationSyncGuard(w)
+        app.installEventFilter(_nav_guard)
+        w._sidebar_nav_guard = _nav_guard
 
         # Başlangıçta Ana Sayfa (Genel Bakış) aktif
         if hasattr(w, "btnHome"):
@@ -533,30 +575,51 @@ def main() -> None:
 
             # Karar Masası [⚡ Günün Özeti] Butonu: Günün Özeti Dialogunu Aç
             if hasattr(w, "dashboard") and hasattr(w.dashboard, "sig_open_summary"):
-                w.dashboard.sig_open_summary.connect(w._smart_asistan)
+                def _open_summary_from_dash():
+                    if hasattr(w, "btnSmart"):
+                        _set_active_btn(w.btnSmart)
+                    try:
+                        w._smart_asistan()
+                    finally:
+                        QTimer.singleShot(0, _restore_home_if_on_dashboard)
+                w.dashboard.sig_open_summary.connect(_open_summary_from_dash)
 
             # Platform Keşif Vitrini [Hemen Keşfet →] Butonlarını İlgili Modüle Bağla
             if hasattr(w, "dashboard") and hasattr(w.dashboard, "sig_open_feature"):
                 def _handle_feature_launch(f_key: str):
                     try:
                         if f_key == "mobile" and hasattr(w, "_cep_programi"):
+                            if hasattr(w, "btnCep"):
+                                _set_active_btn(w.btnCep)
                             w._cep_programi()
                         elif f_key == "topic_map" and hasattr(w, "_open_topic_map"):
+                            if hasattr(w, "btnKonuHaritasi"):
+                                _set_active_btn(w.btnKonuHaritasi)
                             w._open_topic_map()
                         elif f_key == "pomodoro" and hasattr(w, "_open_pomodoro"):
+                            if hasattr(w, "btnPomodoro"):
+                                _set_active_btn(w.btnPomodoro)
                             w._open_pomodoro()
                         elif f_key == "target" and hasattr(w, "_hedef_analiz_open"):
+                            if hasattr(w, "btnTarget"):
+                                _set_active_btn(w.btnTarget)
                             w._hedef_analiz_open()
                         elif f_key == "whatsapp" and hasattr(w, "_wp_hizli"):
+                            if hasattr(w, "btnWp"):
+                                _set_active_btn(w.btnWp)
                             w._wp_hizli()
                         elif f_key == "simulation" and hasattr(w, "_open_exam_simulation"):
+                            if hasattr(w, "btnSimulasyon"):
+                                _set_active_btn(w.btnSimulasyon)
                             w._open_exam_simulation()
                     except Exception:
                         pass
+                    finally:
+                        QTimer.singleShot(0, _restore_home_if_on_dashboard)
 
                 w.dashboard.sig_open_feature.connect(_handle_feature_launch)
 
-            # Dashboard her yenilendiğinde öncelik analizini de tazele
+            # Dashboard her yenilendiğinde öncelik analizini ve aktif menü vurgusunu tazele
             if hasattr(w, "dashboard") and hasattr(w.dashboard, "refresh_stats"):
                 orig_refresh_stats = w.dashboard.refresh_stats
                 def _synced_refresh():
@@ -565,6 +628,7 @@ def main() -> None:
                         w._today_focus_v4.request_refresh()
                     except Exception:
                         pass
+                    QTimer.singleShot(0, _restore_home_if_on_dashboard)
                 w.dashboard.refresh_stats = _synced_refresh
 
     except Exception:

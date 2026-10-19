@@ -109,7 +109,8 @@ def inventory_sensitive_source(root: Path) -> list[str]:
         if (name in SENSITIVE_NAMES or name.startswith('.env.') or
                 name.endswith(SENSITIVE_SUFFIXES) or
                 name.endswith(('.db-wal', '.db-shm', '.sqlite-wal', '.sqlite-shm')) or
-                'keygen' in name or 'lisans_uretici' in name):
+                'keygen' in name or 'lisans_uretici' in name or
+                '_admin_tools_private' in rel.lower()):
             blocked.append(rel)
     return sorted(blocked)
 

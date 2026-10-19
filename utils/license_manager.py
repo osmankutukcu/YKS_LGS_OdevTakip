@@ -11,10 +11,18 @@ import hmac
 from pathlib import Path
 
 # --- Configuration ---
-# RSA Public Key (Embedded in App)
-# 1024-bit Güçlü Anahtar Modulus (N)
-RSA_N = 63596016435869199758595184650300680785102965001811426742530826267903030966068348475018147447679804548745840937391644961322478211825474436927570514904872183221096968649670640693766154323609305912491672225459870900893484653869132287389129929700182896257220340237660290286910826360144916404692757705278482529801
-RSA_E = 65537
+# RSA Public Keys (Embedded in App)
+# V2: 2048-bit Yeni Güçlü Birincil Anahtar
+RSA_N_V2 = 21955239187786712411670616664250014406547697929388643705678340957748940241053644687387568636471237974965245628409397119323486133471581089354242088936847705291081493139453792415093089061122924012167343075378153114326843814562157403769135050045060378347219223917506803548104152371010745992832750172074250111553476435777471828116190812783589470237421157368791421685655374939440748129837230299327759081643580646446531901151278238818011042021985274787709079169268003294343619857107968586489299324876639420183155485175391226560919472060869399918313277464330626313706657441405264919353175723401860374155859115797082300990063
+RSA_E_V2 = 65537
+
+# V1: 1024-bit Eski Anahtar (Geriye Dönük Uyumluluk - Mevcut Müşterilerin Kesintisiz Çalışması İçin)
+RSA_N_V1 = 63596016435869199758595184650300680785102965001811426742530826267903030966068348475018147447679804548745840937391644961322478211825474436927570514904872183221096968649670640693766154323609305912491672225459870900893484653869132287389129929700182896257220340237660290286910826360144916404692757705278482529801
+RSA_E_V1 = 65537
+
+# Geriye dönük uyumluluk takma adları
+RSA_N = RSA_N_V2
+RSA_E = RSA_E_V2
 HIDDEN_CONFIG_FILE = Path.home() / ".yks_lgs_manager_config"
 
 class MachineID:
@@ -49,7 +57,6 @@ class LicenseKey:
     def _hash_payload(payload_b64):
         """Returns secure integer hash of payload."""
         h = hashlib.sha256(payload_b64.encode()).hexdigest()
-        # 256-bit hash, 1024-bit anahtara sığar. Kırpmaya gerek yok.
         return int(h, 16)
 
     @staticmethod
@@ -73,30 +80,50 @@ class LicenseKey:
 
     @staticmethod
     def verify(key, machine_id):
-        """Verifies license using Public Key (RSA)."""
+        """Verifies license using Public Key (RSA). Supports Dual-Key verification (V2 primary, V1 legacy fallback)."""
         try:
             if "." not in key: return False, "Geçersiz format"
             payload_b64, sig_hex = key.split(".")
             
-            # Verify Sig: pow(sig, e, n) == hash
             sig_int = int(sig_hex, 16)
-            decrypted_hash = pow(sig_int, RSA_E, RSA_N)
             expected_hash = LicenseKey._hash_payload(payload_b64)
             
-            if decrypted_hash != expected_hash:
+            # 1. Önce Birincil V2 Anahtarı ile doğrula
+            is_valid = False
+            key_version = "unknown"
+            try:
+                decrypted_hash_v2 = pow(sig_int, RSA_E_V2, RSA_N_V2)
+                if decrypted_hash_v2 == expected_hash:
+                    is_valid = True
+                    key_version = "v2"
+            except Exception:
+                pass
+                
+            # 2. Eğer V2 ile doğrulanamazsa, geriye dönük uyumluluk için V1 anahtarını dene
+            if not is_valid:
+                try:
+                    decrypted_hash_v1 = pow(sig_int, RSA_E_V1, RSA_N_V1)
+                    if decrypted_hash_v1 == expected_hash:
+                        is_valid = True
+                        key_version = "v1_legacy"
+                except Exception:
+                    pass
+
+            if not is_valid:
                 return False, "İmza geçersiz (Lisans anahtarı hatalı)"
             
             # Decode Payload
             data = json.loads(base64.b64decode(payload_b64).decode())
             
-            if data["mid"] != machine_id:
+            if data.get("mid") != machine_id:
                 return False, "Bu lisans başka bir cihaza ait."
             
             exp_date = datetime.date.fromisoformat(data["exp"])
             if exp_date < datetime.date.today():
                 return False, "Lisans süresi dolmuş."
                 
-            return True, f"Lisans Aktif! Bitiş: {data['exp']}"
+            ver_label = "V2 Güvenli" if key_version == "v2" else "V1 Geçiş Lisansı"
+            return True, f"Lisans Aktif! ({ver_label}) Bitiş: {data['exp']}"
             
         except Exception as e:
             return False, f"Lisans hatası: {e}"

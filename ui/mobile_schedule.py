@@ -317,9 +317,67 @@ class SmartMobileSchedulePreviewDialog(QDialog):
             print(f"[MobileSchedule] WebEngine PDF fallback notice: {e}")
 
         if webengine_ok:
+            self._postprocess_pdf_navigation(fn, schedule, next_7_days)
             return
 
-        # 2. Yedek Motor: QPrinter (ScreenResolution + Point)
+        # 2. Yedek Motor: ReportLab Doğrudan PDF Üretici (V3.5.41-V3.5.44)
+        # Windows'ta WebEngine bulunmadığında QPrinter/QTextDocument yerine doğrudan gerçek PDF
+        # bağlantı nesneleri (LINK_URI + LINK_GOTO) üreten ReportLab motorunu kullanır.
+        try:
+            from services.mobile_agenda_pdf_v3541 import render_agenda_pdf, whatsapp_url
+
+            def _extra_summary(ev, _day_name, _disp_date):
+                if not inc_an:
+                    return []
+                an = self.generator._get_student_360_analytics(ev.get("oid"))
+                if not an or an.get("total_all", 0) <= 0:
+                    return []
+                lines_out = [f"360° Akademik Başarı: %{an['pct_all']} ({an['done_all']}/{an['total_all']} Görev)"]
+                if an.get("bottleneck_subject"):
+                    lines_out[0] += f"  |  Darboğaz: {an['bottleneck_subject']}"
+                if an.get("coach_advice"):
+                    lines_out.append(f"KoçPilot 360 Önerisi: {an['coach_advice']}")
+                return lines_out
+
+            def _extra_actions(ev, day_name, disp_date, student_phone, parent_phone):
+                if not inc_an:
+                    return []
+                target_ogr = student_phone or parent_phone
+                target_veli = parent_phone or student_phone
+                if not target_ogr and not target_veli:
+                    return []
+                an = self.generator._get_student_360_analytics(ev.get("oid"))
+                acts = []
+                if target_ogr:
+                    u_an = whatsapp_url(target_ogr, self.generator._build_academic_analysis_msg(ev, an, day_name, disp_date))
+                    if u_an:
+                        acts.append(("360° Akademik Analiz", "#7c3aed", u_an))
+                    u_rec = whatsapp_url(target_ogr, self.generator._build_recovery_plan_msg(ev, an, day_name, disp_date))
+                    if u_rec:
+                        rec_lbl = f"Telafi Planı ({an.get('late_all', 0)})" if an.get("late_all", 0) > 0 else "Başarı & Tebrik"
+                        rec_col = "#d97706" if an.get("late_all", 0) > 0 else "#059669"
+                        acts.append((rec_lbl, rec_col, u_rec))
+                if target_veli:
+                    u_vel = whatsapp_url(target_veli, self.generator._build_parent_executive_report_msg(ev, an, day_name, disp_date))
+                    if u_vel:
+                        acts.append(("Veli Gelişim Karnesi", "#0891b2", u_vel))
+                return acts
+
+            render_agenda_pdf(
+                fn,
+                schedule,
+                next_7_days,
+                student_message=self.generator._build_msg_single,
+                parent_message=self.generator._build_parent_msg,
+                extra_actions_fn=_extra_actions,
+                extra_summary_fn=_extra_summary,
+            )
+            if os.path.exists(fn) and os.path.getsize(fn) > 1024:
+                return
+        except Exception as e:
+            print(f"[MobileSchedule] ReportLab PDF fallback notice: {e}")
+
+        # 3. Son Yedek Motor: QPrinter (ScreenResolution + Point)
         printer = QPrinter(QPrinter.PrinterMode.ScreenResolution)
         printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
         printer.setOutputFileName(fn)
@@ -331,6 +389,82 @@ class SmartMobileSchedulePreviewDialog(QDialog):
             doc.setPageSize(QSizeF(page_rect.size()))
         doc.setHtml(pdf_html)
         doc.print(printer)
+        self._postprocess_pdf_navigation(fn, schedule, next_7_days)
+
+    def _postprocess_pdf_navigation(self, fn: str, schedule: Dict[str, Any], next_7_days: List[Any]) -> None:
+        """Üretilen 360° Koçluk Kokpiti PDF'ine:
+        1) 7 Günlük Hızlı Erişim, A-Z Öğrenci Dizini ve Haftaya Dön butonları için gerçek PDF içi (LINK_GOTO) bağlantılarını,
+        2) Mobil PDF okuyucular için İçindekiler / Yer İmi (Outline / TOC) ağacını işler."""
+        try:
+            import fitz
+            from services.mobile_agenda_pdf_v3541 import _student_directory
+
+            doc = fitz.open(fn)
+            destinations: Dict[str, tuple[int, float]] = {
+                "agenda_start": (0, 0.0),
+                "students_start": (0, 0.0),
+            }
+
+            # 1. Geçiş: Hedef noktaların (dest) sayfa ve dikey (y) koordinatlarını topla ve geçici dest linkini sil
+            for p_idx in range(len(doc)):
+                page = doc[p_idx]
+                for link in list(page.get_links()):
+                    uri = str(link.get("uri") or "")
+                    if uri.startswith("https://agenda.internal/dest/"):
+                        dest_id = uri.split("https://agenda.internal/dest/", 1)[1].strip()
+                        rect = link.get("from")
+                        y_coord = float(rect.y0) if rect is not None else 0.0
+                        if dest_id:
+                            destinations[dest_id] = (p_idx, y_coord)
+                        try:
+                            page.delete_link(link)
+                        except Exception:
+                            pass
+
+            # 2. Geçiş: Tıklanabilir iç gezinti kutularını (goto) gerçek PDF LINK_GOTO bağlantısına dönüştür
+            for p_idx in range(len(doc)):
+                page = doc[p_idx]
+                for link in list(page.get_links()):
+                    uri = str(link.get("uri") or "")
+                    if uri.startswith("https://agenda.internal/goto/"):
+                        dest_id = uri.split("https://agenda.internal/goto/", 1)[1].strip()
+                        rect = link.get("from")
+                        try:
+                            page.delete_link(link)
+                        except Exception:
+                            pass
+                        if rect is not None and dest_id in destinations:
+                            target_page, target_y = destinations[dest_id]
+                            page.insert_link({
+                                "kind": fitz.LINK_GOTO,
+                                "from": rect,
+                                "page": int(target_page),
+                                "to": fitz.Point(0.0, max(0.0, float(target_y) - 10.0)),
+                            })
+
+            # 3. Geçiş: PDF Yer İmleri / İçindekiler (TOC) ağacını oluştur
+            toc = [[1, "Haftalık Hızlı Erişim", int(destinations.get("agenda_start", (0, 0.0))[0]) + 1]]
+            for idx_day, (_, day_name) in enumerate(next_7_days, 1):
+                d_dest = f"day_{idx_day}"
+                d_page = int(destinations.get(d_dest, (0, 0.0))[0]) + 1
+                toc.append([1, f"{idx_day}. {day_name}", d_page])
+
+            st_entries, _ = _student_directory(schedule, next_7_days)
+            if st_entries:
+                st_start_page = int(destinations.get("students_start", (0, 0.0))[0]) + 1
+                toc.append([1, "Öğrenci Hızlı Erişim Dizini", st_start_page])
+                for entry in st_entries:
+                    s_dest = entry["key"]
+                    s_page = int(destinations.get(s_dest, (0, 0.0))[0]) + 1
+                    toc.append([2, str(entry["label"]), s_page])
+
+            doc.set_toc(toc)
+            tmp_fn = fn + ".tmp_nav.pdf"
+            doc.save(tmp_fn, garbage=2, deflate=True)
+            doc.close()
+            os.replace(tmp_fn, fn)
+        except Exception as e:
+            print(f"[MobileSchedule] PDF navigation postprocess notice: {e}")
 
     def _reveal_in_file_manager(self, fn: str):
         """Kaydedilen PDF dosyasını Finder / Windows Explorer'da seçili olarak gösterir."""
@@ -1470,180 +1604,268 @@ class GroupBulletinDialog(QDialog):
 # =========================================================================
 class ScheduleActionDialog(QDialog):
     """
-    Modern kart tasarımlı, canlı KPI sayaçlı Cep Ajandası ana seçim menüsü.
+    Modern kart tasarımlı, canlı KPI sayaçlı ve duyarlı (responsive)
+    Cep Ajandası & Çoklu İletişim Dağıtım Merkezi.
     """
-    def __init__(self, parent, generator: 'MobileScheduleGenerator', on_pdf, on_bulk, on_copy):
+    def __init__(self, parent, generator: 'MobileScheduleGenerator', on_pdf, on_bulk, on_copy, on_smart_pdf=None):
         super().__init__(parent)
         self.generator = generator
         self.setWindowTitle("📱 Akıllı Cep Ajandası & İletişim Merkezi")
         self.setFixedWidth(520)
 
-        # Düşük çözünürlüklü Windows ekranları için dikey sınır ve ortalama
+        # Ekran geometrisi ve duyarlı dikey sınır
         screen = QApplication.primaryScreen()
+        self._max_h = 640
         if screen:
             avail = screen.availableGeometry()
-            max_h = min(620, max(440, int(avail.height() * 0.88)))
-            self.setMaximumHeight(max_h)
+            self._max_h = min(640, max(460, int(avail.height() * 0.90)))
+        self.setMaximumHeight(self._max_h)
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
 
+        # Ultra-ince ve şık ScrollArea (Dar ekranlarda taşma olursa zarifçe kaydırır)
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        scroll.setStyleSheet("""
+            QScrollArea { background: #f8fafc; border: none; }
+            QScrollBar:vertical {
+                background: transparent;
+                width: 6px;
+                margin: 4px 1px 4px 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #cbd5e1;
+                border-radius: 3px;
+                min-height: 28px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #94a3b8;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
 
         content_widget = QWidget()
+        content_widget.setStyleSheet("background: #f8fafc;")
         layout = QVBoxLayout(content_widget)
-        layout.setSpacing(10)
-        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(8)
+        layout.setContentsMargins(14, 12, 14, 12)
 
-        # Header Area
+        # 1. Header Area (Koyu Lacivert / Indigo Derin Kart)
         header = QFrame()
         header.setStyleSheet("""
             QFrame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0f172a, stop:1 #1e3a8a);
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #0f172a, stop:0.6 #1e293b, stop:1 #1e3a8a);
                 border-radius: 10px;
-                padding: 12px 16px;
+                border: 1px solid #334155;
             }
         """)
         h_layout = QVBoxLayout(header)
-        h_layout.setSpacing(3)
-        h_layout.setContentsMargins(0, 0, 0, 0)
+        h_layout.setSpacing(2)
+        h_layout.setContentsMargins(14, 10, 14, 10)
 
-        lbl_title = QLabel("📱 Akıllı Cep Ajandası & İletişim Asistanı")
-        lbl_title.setStyleSheet("font-size: 19px; font-weight: 900; color: white; background: transparent;")
+        top_brand_row = QHBoxLayout()
+        top_brand_row.setSpacing(6)
+        lbl_badge = QLabel("📱 CEP AJANDASI & İLETİŞİM")
+        lbl_badge.setStyleSheet("""
+            background: rgba(56, 189, 248, 0.18); color: #38bdf8;
+            font-size: 9px; font-weight: 800; padding: 2px 7px;
+            border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.4);
+        """)
+        top_brand_row.addWidget(lbl_badge)
+        top_brand_row.addStretch()
+        h_layout.addLayout(top_brand_row)
+
+        lbl_title = QLabel("Haftalık Ajanda & Dağıtım Merkezi")
+        lbl_title.setStyleSheet("font-size: 16px; font-weight: 900; color: #ffffff; background: transparent;")
         h_layout.addWidget(lbl_title)
 
-        lbl_sub = QLabel("Haftalık ajanda, akıllı WhatsApp robotu ve sınıf grubu bülteni")
-        lbl_sub.setStyleSheet("font-size: 13px; color: #93c5fd; background: transparent;")
+        lbl_sub = QLabel("PDF baskı, akıllı WhatsApp robotu, grup bülteni ve mobil asistan")
+        lbl_sub.setStyleSheet("font-size: 11px; color: #94a3b8; background: transparent;")
         h_layout.addWidget(lbl_sub)
 
         layout.addWidget(header)
 
-        # Live KPI Ribbon
-        kpi_frame = QFrame()
-        kpi_frame.setStyleSheet("""
-            QFrame {
-                background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px;
-            }
-        """)
-        kpi_layout = QHBoxLayout(kpi_frame)
-        kpi_layout.setSpacing(10)
-
+        # 2. Live KPI Ribbon (Duyarlı 4'lü Hap Sayaç Bandı)
         stats = self.generator._get_operational_summary()
 
-        def make_kpi(icon, val, label, color):
-            box = QVBoxLayout()
-            box.setSpacing(2)
+        kpi_frame = QFrame()
+        kpi_frame.setStyleSheet("""
+            QFrame#KPIFrame {
+                background: #ffffff; border: 1px solid #e2e8f0; border-radius: 9px;
+            }
+        """)
+        kpi_frame.setObjectName("KPIFrame")
+        kpi_layout = QHBoxLayout(kpi_frame)
+        kpi_layout.setSpacing(6)
+        kpi_layout.setContentsMargins(6, 6, 6, 6)
+
+        def make_kpi_pill(icon, val, label, fg_color, bg_color, border_color):
+            pill = QFrame()
+            pill.setStyleSheet(f"""
+                QFrame {{
+                    background: {bg_color}; border: 1px solid {border_color};
+                    border-radius: 7px;
+                }}
+            """)
+            box = QVBoxLayout(pill)
+            box.setSpacing(1)
+            box.setContentsMargins(4, 5, 4, 5)
             box.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
             lbl_v = QLabel(f"{icon} {val}")
-            lbl_v.setStyleSheet(f"font-size: 16px; font-weight: 900; color: {color};")
+            lbl_v.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl_v.setStyleSheet(f"font-size: 14px; font-weight: 900; color: {fg_color}; background: transparent; border: none;")
+
             lbl_l = QLabel(label)
-            lbl_l.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748b;")
+            lbl_l.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl_l.setStyleSheet("font-size: 10px; font-weight: 700; color: #64748b; background: transparent; border: none;")
+
             box.addWidget(lbl_v)
             box.addWidget(lbl_l)
-            return box
+            return pill
 
-        kpi_layout.addLayout(make_kpi("📅", stats["today_deadlines"], "Bugün Teslim", "#2563eb"))
-        kpi_layout.addLayout(make_kpi("🕒", stats["weekly_meetings"], "Haftalık Randevu", "#0891b2"))
-        kpi_layout.addLayout(make_kpi("⚠️", stats["overdue_tasks"], "Geciken Ödev", "#ef4444" if stats["overdue_tasks"] > 0 else "#10b981"))
-        kpi_layout.addLayout(make_kpi("👥", stats["active_students"], "Aktif Öğrenci", "#334155"))
+        is_overdue = stats["overdue_tasks"] > 0
+        overdue_fg = "#dc2626" if is_overdue else "#059669"
+        overdue_bg = "#fef2f2" if is_overdue else "#ecfdf5"
+        overdue_bd = "#fecaca" if is_overdue else "#a7f3d0"
+
+        kpi_layout.addWidget(make_kpi_pill("📅", stats["today_deadlines"], "Bugün Teslim", "#2563eb", "#eff6ff", "#bfdbfe"))
+        kpi_layout.addWidget(make_kpi_pill("🕒", stats["weekly_meetings"], "Randevular", "#0891b2", "#ecfeff", "#a5f3fc"))
+        kpi_layout.addWidget(make_kpi_pill("⚠️", stats["overdue_tasks"], "Geciken Ödev", overdue_fg, overdue_bg, overdue_bd))
+        kpi_layout.addWidget(make_kpi_pill("👥", stats["active_students"], "Aktif Öğrenci", "#334155", "#f8fafc", "#e2e8f0"))
 
         layout.addWidget(kpi_frame)
 
-        # Section subtitle
-        lbl_hint = QLabel("Gerçekleştirmek istediğiniz işlemi seçiniz:")
-        lbl_hint.setStyleSheet("font-size: 13px; font-weight: bold; color: #334155; margin-top: 4px;")
+        # 3. Section subtitle
+        lbl_hint = QLabel("Lütfen gerçekleştirmek istediğiniz işlemi seçiniz:")
+        lbl_hint.setStyleSheet("font-size: 11.5px; font-weight: 700; color: #475569; margin: 2px 2px;")
         layout.addWidget(lbl_hint)
 
-        # 3 Cards Helper
-        def create_action_card(title: str, badge: str, desc: str, bg_color: str, hover_color: str, border_color: str, on_click):
+        # 4. Modern Action Card Builder
+        def create_action_card(title: str, badge: str, desc: str, accent_color: str, badge_bg: str, badge_fg: str, badge_bd: str, on_click):
             btn = QPushButton()
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setFixedHeight(66)
             btn.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {bg_color};
-                    border: 1px solid {border_color};
-                    border-radius: 10px;
-                    padding: 14px 18px;
+                    background-color: #ffffff;
+                    border: 1px solid #e2e8f0;
+                    border-left: 4px solid {accent_color};
+                    border-radius: 9px;
                     text-align: left;
                 }}
                 QPushButton:hover {{
-                    background-color: {hover_color};
-                    border: 1px solid #3b82f6;
+                    background-color: #f8fafc;
+                    border: 1px solid {accent_color};
+                    border-left: 4px solid {accent_color};
                 }}
             """)
             card_layout = QVBoxLayout(btn)
-            card_layout.setSpacing(4)
-            card_layout.setContentsMargins(0, 0, 0, 0)
+            card_layout.setSpacing(2)
+            card_layout.setContentsMargins(12, 7, 12, 7)
 
             top_row = QHBoxLayout()
+            top_row.setSpacing(8)
+
             lbl_t = QLabel(title)
-            lbl_t.setStyleSheet("font-size: 15px; font-weight: 800; color: #0f172a; background: transparent;")
+            lbl_t.setStyleSheet("font-size: 13.5px; font-weight: 800; color: #0f172a; background: transparent; border: none;")
             top_row.addWidget(lbl_t)
             top_row.addStretch()
 
             lbl_b = QLabel(badge)
-            lbl_b.setStyleSheet("""
-                background: #eff6ff; color: #1d4ed8; font-size: 10px; font-weight: 800;
-                padding: 3px 8px; border-radius: 12px; border: 1px solid #bfdbfe;
+            lbl_b.setStyleSheet(f"""
+                background: {badge_bg}; color: {badge_fg}; font-size: 9px; font-weight: 800;
+                padding: 2px 7px; border-radius: 5px; border: 1px solid {badge_bd};
             """)
             top_row.addWidget(lbl_b)
             card_layout.addLayout(top_row)
 
             lbl_d = QLabel(desc)
-            lbl_d.setStyleSheet("font-size: 12px; color: #64748b; background: transparent;")
+            lbl_d.setStyleSheet("font-size: 11px; color: #64748b; background: transparent; border: none;")
             lbl_d.setWordWrap(True)
             card_layout.addWidget(lbl_d)
 
             btn.clicked.connect(lambda: [self.close(), on_click()])
             return btn
 
-        # Card 1: PDF
+        # Card 1: Akıllı PDF Ajanda (Önizle & Yazdır)
         card1 = create_action_card(
             "📄  Akıllı PDF Ajanda (Önizle & Yazdır)",
             "GÖRSEL HAFTALIK PLAN",
-            "Gün gün renklendirilmiş teslim saatleri, rozetler (🌟/⚠️), tıklanabilir WhatsApp linkleri, dahili önizleme ve PDF çıktısı.",
-            "#ffffff", "#f0fdf4", "#cbd5e1",
+            "Gün gün teslimler, rozetler (🌟/⚠️), doğrudan WhatsApp bağlantıları ve PDF çıktısı.",
+            "#10b981", "#ecfdf5", "#047857", "#a7f3d0",
             on_pdf
         )
         layout.addWidget(card1)
 
-        # Card 2: WhatsApp
+        # Card 2: Akıllı İletişim Robotu (WhatsApp Merkezi)
         card2 = create_action_card(
-            "🚀  Akıllı İletişim Robotu (WhatsApp Merkezi)",
+            "🚀  Akıllı İletişim Robotu (WhatsApp)",
             "AI MESAJ KUYRUĞU",
-            "Yapay zeka ile kişiselleştirilmiş motivasyon mesajları üretir. Alıcı seçimi, mesaj düzenleme ve otomatik masaüstü/web gönderimi.",
-            "#ffffff", "#eff6ff", "#cbd5e1",
+            "Yapay zeka ile kişiselleştirilmiş motivasyon mesajları, alıcı seçimi ve toplu gönderim.",
+            "#2563eb", "#eff6ff", "#1d4ed8", "#bfdbfe",
             on_bulk
         )
         layout.addWidget(card2)
 
-        # Card 3: Bulletin
+        # Card 3: Sınıf & Veli Grubu Bülteni
         card3 = create_action_card(
             "📋  Sınıf & Veli Grubu Bülteni (Kopyala)",
             "TOPLU BÜLTEN",
-            "Bugünün teslimleri, yarının programı veya haftalık genel özet. Emojili, WhatsApp formatında tek tıkla panoya kopyalama.",
-            "#ffffff", "#fffbeb", "#cbd5e1",
+            "Günün teslimleri, yarının programı veya haftalık özet. Tek tıkla emojili WhatsApp formatında.",
+            "#f59e0b", "#fffbeb", "#b45309", "#fde68a",
             on_copy
         )
         layout.addWidget(card3)
 
+        # Card 4: Akıllı Mobil PDF Asistanı (Yeni)
+        if on_smart_pdf is not None:
+            card4 = create_action_card(
+                "📱  Akıllı Mobil PDF Asistanı (Yeni)",
+                "YENİ · A5 MOBİL PDF",
+                "7, 10 veya 14 günlük A5 cep boyutu, öğrenci dizini, dönemlik mesaj merkezi ve arama.",
+                "#6366f1", "#eef2ff", "#4338ca", "#c7d2fe",
+                on_smart_pdf
+            )
+            layout.addWidget(card4)
+
+        # Kapat Butonu
         btn_cancel = QPushButton("Kapat")
         btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_cancel.setStyleSheet("""
             QPushButton {
-                background: transparent; color: #64748b; font-weight: bold; padding: 6px; border: none;
+                background: #f1f5f9; color: #475569; font-weight: 700; font-size: 12px;
+                padding: 6px 28px; border: 1px solid #cbd5e1; border-radius: 6px;
             }
-            QPushButton:hover { color: #0f172a; }
+            QPushButton:hover {
+                background: #e2e8f0; color: #0f172a; border-color: #94a3b8;
+            }
         """)
         btn_cancel.clicked.connect(self.close)
-        layout.addWidget(btn_cancel)
+
+        foot_row = QHBoxLayout()
+        foot_row.addStretch()
+        foot_row.addWidget(btn_cancel)
+        foot_row.addStretch()
+        layout.addLayout(foot_row)
 
         scroll.setWidget(content_widget)
         root_layout.addWidget(scroll)
+
+        # Açılış yüksekliği: Tüm kartlar kaydırma çubuğuna gerek kalmadan tek bakışta görünür
+        self._target_h = min(self._max_h, 570)
+        self.resize(520, self._target_h)
+
+    def sizeHint(self):
+        from PyQt6.QtCore import QSize
+        return QSize(520, getattr(self, "_target_h", 570))
 
 
 # =========================================================================
@@ -1803,7 +2025,8 @@ class MobileScheduleGenerator:
             generator=self,
             on_pdf=self.open_pdf_preview_flow,
             on_bulk=self.open_bulk_communicator_flow,
-            on_copy=self.open_group_bulletin_flow
+            on_copy=self.open_group_bulletin_flow,
+            on_smart_pdf=self.open_smart_mobile_pdf_flow
         )
         dlg.exec()
 
@@ -1821,6 +2044,12 @@ class MobileScheduleGenerator:
     def open_group_bulletin_flow(self):
         """Seçenek 3: Sınıf & Veli Grubu Bülteni Penceresini açar"""
         dlg = GroupBulletinDialog(self.parent, self)
+        dlg.exec()
+
+    def open_smart_mobile_pdf_flow(self):
+        """Seçenek 4: independent, read-only mobile PDF assistant."""
+        from ui.smart_mobile_pdf_dialog_v3545 import SmartMobilePDFDialog
+        dlg = SmartMobilePDFDialog(self.parent, self)
         dlg.exec()
 
     # --- Data Fetching ---
@@ -2046,7 +2275,7 @@ class MobileScheduleGenerator:
                     final_list.append(ev)
                     continue
 
-                key = ev["ad"]
+                key = ev.get("oid") if ev.get("oid") is not None else ev["ad"]
                 if key not in merged:
                     merged[key] = ev
                 else:
@@ -2385,12 +2614,142 @@ class MobileScheduleGenerator:
 
     # --- HTML Builder for PDF / Browser ---
     def _build_html(self, schedule, next_7_days, for_pdf=False, include_analytics=True):
+        from services.mobile_agenda_pdf_v3541 import (
+            _student_directory,
+            whatsapp_message_parts,
+        )
+
         now_str = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
         op_stats = self._get_operational_summary()
 
         # Toplam hafta içi kart sayısı
         total_cards = sum(len(schedule.get(dn, [])) for _, dn in next_7_days)
         analytics_cache: Dict[int, Dict[str, Any]] = {}
+
+        def _nav_href(dest_id: str) -> str:
+            if for_pdf:
+                return f"https://agenda.internal/goto/{dest_id}"
+            return f"#{dest_id}"
+
+        def _dest_marker(dest_id: str, inner_html: str) -> str:
+            if for_pdf:
+                return f'<a id="{dest_id}" name="{dest_id}" href="https://agenda.internal/dest/{dest_id}" style="color: inherit; text-decoration: none;">{inner_html}</a>'
+            return f'<a id="{dest_id}" name="{dest_id}"></a>{inner_html}'
+
+        # 1) 7 Günlük Hızlı Erişim Tablosu (2 Sütunlu)
+        day_cells_html = []
+        for idx_day, (d_str, day_name) in enumerate(next_7_days, 1):
+            ev_cnt = len(schedule.get(day_name, []))
+            parts_d = d_str.split("-")
+            nice_d = f"{parts_d[2]}.{parts_d[1]}.{parts_d[0]}" if len(parts_d) == 3 else d_str
+            dest_id = f"day_{idx_day}"
+            cnt_txt = f"{ev_cnt} Kayıt → Git" if ev_cnt > 0 else "Boş Gün → Git"
+            cnt_bg = "#dbeafe" if ev_cnt > 0 else "#f1f5f9"
+            cnt_fg = "#1d4ed8" if ev_cnt > 0 else "#64748b"
+            day_cells_html.append(f"""
+                <td width="50%" valign="top" bgcolor="#ffffff" style="padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                    <a href="{_nav_href(dest_id)}" style="text-decoration: none; display: block;">
+                        <table width="100%" cellspacing="0" cellpadding="0">
+                            <tr>
+                                <td align="left" valign="middle">
+                                    <div style="font-size: 12px; font-weight: 800; color: #0f172a;">{idx_day}. {html.escape(day_name)}</div>
+                                    <div style="font-size: 10px; color: #64748b; margin-top: 1px;">{html.escape(nice_d)}</div>
+                                </td>
+                                <td align="right" valign="middle">
+                                    <span style="background-color: {cnt_bg}; color: {cnt_fg}; font-size: 10px; font-weight: bold; padding: 3px 7px; border-radius: 6px;">
+                                        {cnt_txt}
+                                    </span>
+                                </td>
+                            </tr>
+                        </table>
+                    </a>
+                </td>
+            """)
+
+        day_rows_html = ""
+        for i in range(0, len(day_cells_html), 2):
+            left_cell = day_cells_html[i]
+            right_cell = day_cells_html[i + 1] if i + 1 < len(day_cells_html) else '<td width="50%" style="padding: 7px 10px;"></td>'
+            day_rows_html += f"<tr>{left_cell}{right_cell}</tr>"
+
+        day_index_html = f"""
+        <table width="100%" cellspacing="0" cellpadding="0" bgcolor="#eff6ff" style="border: 1px solid #bfdbfe; border-radius: 8px; margin-bottom: 12px;">
+            <tr>
+                <td style="padding: 10px 12px;">
+                    <div style="font-size: 12px; font-weight: 900; color: #1e3a8a; margin-bottom: 2px;">
+                        {_dest_marker("agenda_start", "🗓️ HAFTALIK HIZLI ERİŞİM (7 GÜN)")}
+                    </div>
+                    <div style="font-size: 10.5px; color: #475569; margin-bottom: 6px;">
+                        Güne dokunarak ilgili günün ödev teslim ve koçluk randevu kartlarına doğrudan atlayın.
+                    </div>
+                    <table width="100%" cellspacing="4" cellpadding="0">
+                        {day_rows_html}
+                    </table>
+                </td>
+            </tr>
+        </table>
+        """
+
+        # 2) Öğrenci Hızlı Erişim Dizini (A–Z, 2 Sütunlu, Aynı İsimlileri Öğrenci No İle Ayırır)
+        student_entries, student_positions = _student_directory(schedule, next_7_days)
+        student_label_by_key: Dict[str, str] = {entry["key"]: str(entry["label"]) for entry in student_entries}
+        student_label_by_oid: Dict[str, str] = {
+            str(entry["oid"]): str(entry["label"])
+            for entry in student_entries
+            if entry.get("oid") is not None
+        }
+
+        student_index_html = ""
+        if student_entries:
+            st_cells_html = []
+            for st_entry in student_entries:
+                st_dest = st_entry["key"]
+                st_disp = str(st_entry["label"])
+                st_meta = f"{st_entry['day']} • {st_entry['count']} kayıt → Git"
+                st_cells_html.append(f"""
+                    <td width="50%" valign="top" bgcolor="#ffffff" style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                        <a href="{_nav_href(st_dest)}" style="text-decoration: none; display: block;">
+                            <div style="font-size: 11.5px; font-weight: 800; color: #0f172a;">👤 {html.escape(st_disp)}</div>
+                            <div style="font-size: 10px; color: #1d4ed8; font-weight: bold; margin-top: 2px;">{html.escape(st_meta)}</div>
+                        </a>
+                    </td>
+                """)
+            st_rows_html = ""
+            for i in range(0, len(st_cells_html), 2):
+                l_c = st_cells_html[i]
+                r_c = st_cells_html[i + 1] if i + 1 < len(st_cells_html) else '<td width="50%" style="padding: 6px 10px;"></td>'
+                st_rows_html += f"<tr>{l_c}{r_c}</tr>"
+
+            student_index_html = f"""
+            <table width="100%" cellspacing="0" cellpadding="0" bgcolor="#f8fafc" style="border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 14px;">
+                <tr>
+                    <td style="padding: 10px 12px;">
+                        <table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 6px;">
+                            <tr>
+                                <td align="left" valign="middle">
+                                    <div style="font-size: 12px; font-weight: 900; color: #0f172a;">
+                                        {_dest_marker("students_start", f"👥 ÖĞRENCİ HIZLI ERİŞİM DİZİNİ (A–Z • {len(student_entries)} Öğrenci)")}
+                                    </div>
+                                    <div style="font-size: 10.5px; color: #475569; margin-top: 1px;">
+                                        Öğrenci ismine dokunarak bu haftaki ilk kartına doğrudan gidin. Aynı isimli öğrenciler öğrenci numarası ile ayrılır.
+                                    </div>
+                                </td>
+                                <td align="right" valign="middle">
+                                    <a href="{_nav_href('agenda_start')}" style="background-color: #dbeafe; color: #1d4ed8; font-size: 10px; font-weight: bold; padding: 4px 8px; border-radius: 6px;">
+                                        ⬆ HAFTAYA DÖN
+                                    </a>
+                                </td>
+                            </tr>
+                        </table>
+                        <table width="100%" cellspacing="4" cellpadding="0">
+                            {st_rows_html}
+                        </table>
+                    </td>
+                </tr>
+            </table>
+            """
+        else:
+            student_index_html = f'<div style="display:none;">{_dest_marker("students_start", "")}</div>'
 
         html_out = f"""
         <!DOCTYPE html>
@@ -2421,6 +2780,9 @@ class MobileScheduleGenerator:
                     break-inside: avoid;
                     margin-bottom: 14px;
                 }}
+                .student-card-long {{
+                    margin-bottom: 14px;
+                }}
                 .btn-bar {{
                     page-break-inside: avoid;
                     break-inside: avoid;
@@ -2439,7 +2801,7 @@ class MobileScheduleGenerator:
                                         🧭 KoçPilot 360 — Haftalık Akıllı Mobil Cep Ajandası &amp; Analiz Paketi
                                     </div>
                                     <div style="font-size: 12px; color: #93c5fd; margin-top: 4px;">
-                                        Oluşturulma: {now_str} • Bütünleşik Koçluk, Ödev &amp; 360° Akademik Analiz Platformu (v3.5.41)
+                                        Oluşturulma: {now_str} • Bütünleşik Koçluk, Ödev &amp; 360° Akademik Analiz Platformu (v3.5.44)
                                     </div>
                                 </td>
                                 <td align="right" valign="middle">
@@ -2476,10 +2838,10 @@ class MobileScheduleGenerator:
             </table>
 
             <!-- MOBİL KULLANIM KILAVUZU ŞERİDİ -->
-            <table width="100%" cellspacing="0" cellpadding="0" bgcolor="#f0fdf4" style="border: 1px solid #bbf7d0; border-radius: 8px; margin-bottom: 16px;">
+            <table width="100%" cellspacing="0" cellpadding="0" bgcolor="#f0fdf4" style="border: 1px solid #bbf7d0; border-radius: 8px; margin-bottom: 12px;">
                 <tr>
                     <td style="padding: 9px 14px; font-size: 11px; color: #166534; line-height: 1.45;">
-                        <b>📲 Telefondan 6 Farklı Profesyonel WhatsApp Raporu Gönderimi:</b> Bu PDF'i WhatsApp'tan kendinize gönderin. Telefonda PDF'i açıp her öğrencinin altındaki:<br/>
+                        <b>📲 Telefondan 6 Farklı Profesyonel WhatsApp Raporu Gönderimi:</b> Bu PDF'i WhatsApp'tan kendinize gönderin. Telefonda PDF'i açıp her öğrencinin kartındaki:<br/>
                         <b>1) 💬 Ödev Programı</b> &nbsp;•&nbsp;
                         <b>2) 👪 Veli Ödev</b> &nbsp;•&nbsp;
                         <b>3) 📞 Hızlı Ara</b> &nbsp;•&nbsp;
@@ -2489,23 +2851,37 @@ class MobileScheduleGenerator:
                     </td>
                 </tr>
             </table>
+
+            <!-- HAFTALIK 7 GÜN HIZLI ERİŞİM İNDEKSİ -->
+            {day_index_html}
+
+            <!-- A-Z ÖĞRENCİ HIZLI ERİŞİM DİZİNİ -->
+            {student_index_html}
         """
 
-        for d_str, day_name in next_7_days:
+        for di, (d_str, day_name) in enumerate(next_7_days):
+            idx_day = di + 1
             events = schedule.get(day_name, [])
             parts_d = d_str.split("-")
             nice_date = f"{parts_d[2]}.{parts_d[1]}.{parts_d[0]}" if len(parts_d) == 3 else d_str
             short_date = f"{parts_d[2]}.{parts_d[1]}" if len(parts_d) == 3 else d_str
+            day_dest = f"day_{idx_day}"
 
             html_out += f"""
             <div class="day-header">
                 <table width="100%" cellspacing="0" cellpadding="0" bgcolor="#e2e8f0" style="border-left: 6px solid #2563eb; border-radius: 6px;">
                     <tr>
-                        <td align="left" style="padding: 9px 14px; font-size: 15px; font-weight: 900; color: #0f172a;">
-                            📅 {html.escape(day_name)}
+                        <td align="left" valign="middle" style="padding: 9px 14px; font-size: 15px; font-weight: 900; color: #0f172a;">
+                            {_dest_marker(day_dest, f"📅 {html.escape(day_name)}")}
+                            <span style="font-size: 12px; font-weight: bold; color: #475569; margin-left: 6px;">({nice_date} • {len(events)} Kayıt)</span>
                         </td>
-                        <td align="right" style="padding: 9px 14px; font-size: 12px; font-weight: bold; color: #475569;">
-                            {nice_date} • {len(events)} Kayıt
+                        <td align="right" valign="middle" style="padding: 9px 14px;">
+                            <a href="{_nav_href('agenda_start')}" style="background-color: #dbeafe; color: #1d4ed8; font-size: 10px; font-weight: bold; padding: 4px 8px; border-radius: 5px; margin-right: 4px;">
+                                ⬆ HAFTAYA DÖN
+                            </a>
+                            <a href="{_nav_href('students_start')}" style="background-color: #f1f5f9; color: #0f172a; font-size: 10px; font-weight: bold; padding: 4px 8px; border-radius: 5px;">
+                                👥 ÖĞRENCİLER
+                            </a>
                         </td>
                     </tr>
                 </table>
@@ -2524,11 +2900,21 @@ class MobileScheduleGenerator:
                 """
                 continue
 
-            for ev in events:
+            for ei, ev in enumerate(events):
                 sid = ev.get("oid")
                 if sid not in analytics_cache:
                     analytics_cache[sid] = self._get_student_360_analytics(sid)
                 an = analytics_cache[sid]
+
+                st_dest = student_positions.get((di, ei))
+                is_first_student_card = bool(st_dest)
+
+                if st_dest and st_dest in student_label_by_key:
+                    card_student_title = student_label_by_key[st_dest]
+                elif sid is not None and str(sid) in student_label_by_oid:
+                    card_student_title = student_label_by_oid[str(sid)]
+                else:
+                    card_student_title = str(ev.get("ad") or "Öğrenci")
 
                 ogr_clean = self._clean(ev.get("tel_ogr"))
                 veli_clean = self._clean(ev.get("tel_veli"))
@@ -2548,6 +2934,9 @@ class MobileScheduleGenerator:
 
                 # Teslim / Randevu rozeti
                 is_deadline = (ev["tip"] == "Teslim")
+                hw_lines = list((ev.get("meta") or {}).get("lines") or [])
+                is_long_card = len(hw_lines) > 8
+
                 if is_deadline:
                     t_date = ev["meta"].get("nice_date", nice_date)
                     saat_lbl = ev.get("saat", "18:00")
@@ -2557,7 +2946,7 @@ class MobileScheduleGenerator:
                         header_badge = f"<span style='background-color:#fef2f2; color:#b91c1c; font-size:11px; font-weight:bold; padding:4px 9px; border-radius:8px;'>⏰ {t_date} • {saat_lbl} Teslim</span>"
 
                     task_rows_html = ""
-                    for idx_line, line in enumerate(ev["meta"]["lines"], 1):
+                    for idx_line, line in enumerate(hw_lines, 1):
                         bg_row = "#f8fafc" if idx_line % 2 == 1 else "#ffffff"
                         task_rows_html += f"""
                         <tr>
@@ -2647,25 +3036,63 @@ class MobileScheduleGenerator:
                     </table>
                     """
 
-                # --- HER DURUMDA ÇIKMASI GARANTİ EDİLEN 6'LI MOBİL KOMUTA BUTONLARI ---
+                # --- HER DURUMDA ÇIKMASI GARANTİ EDİLEN 6'LI MOBİL KOMUTA BUTONLARI + UZUN MESAJ BÖLÜCÜ ---
                 target_ogr_num = ogr_clean or veli_clean
                 target_veli_num = veli_clean or ogr_clean
 
                 def _make_wa_url(phone_num: Optional[str], message_text: str) -> str:
-                    enc = urllib.parse.quote(message_text)
+                    enc = urllib.parse.quote(message_text, safe="")
                     if phone_num:
                         return f"https://wa.me/{phone_num}?text={enc}"
                     return f"https://api.whatsapp.com/send?text={enc}"
 
-                # 1. Öğrenci Günlük/Haftalık Ödev Programı
+                # 1. Öğrenci Günlük/Haftalık Ödev Programı (1800 karakter üstü mesajlar otomatik bölünür)
                 msg_ogr = self._build_msg_single(ev, day_name, short_date)
-                wa_ogr_url = _make_wa_url(target_ogr_num, msg_ogr)
-                wa_ogr_label = "💬 1. Ödev Programı (Öğr)" if target_ogr_num else "💬 1. Ödev Programı (Seç)"
+                ogr_parts = whatsapp_message_parts(msg_ogr)
+                wa_ogr_url = _make_wa_url(target_ogr_num, ogr_parts[0] if ogr_parts else msg_ogr)
+                if len(ogr_parts) > 1:
+                    wa_ogr_label = f"💬 1. Ödev Programı (1/{len(ogr_parts)})"
+                else:
+                    wa_ogr_label = "💬 1. Ödev Programı (Öğr)" if target_ogr_num else "💬 1. Ödev Programı (Seç)"
 
-                # 2. Veli Günlük/Haftalık Ödev Bilgilendirme
+                # 2. Veli Günlük/Haftalık Ödev Bilgilendirme (1800 karakter üstü mesajlar otomatik bölünür)
                 msg_veli = self._build_parent_msg(ev, day_name, short_date)
-                wa_veli_url = _make_wa_url(target_veli_num, msg_veli)
-                wa_veli_label = "👪 2. Veli Ödev Bilgisi" if target_veli_num else "👪 2. Veli Ödev (Seç)"
+                veli_parts = whatsapp_message_parts(msg_veli)
+                wa_veli_url = _make_wa_url(target_veli_num, veli_parts[0] if veli_parts else msg_veli)
+                if len(veli_parts) > 1:
+                    wa_veli_label = f"👪 2. Veli Ödev (1/{len(veli_parts)})"
+                else:
+                    wa_veli_label = "👪 2. Veli Ödev Bilgisi" if target_veli_num else "👪 2. Veli Ödev (Seç)"
+
+                # Ekstra uzun mesaj parçaları (Bölüm 2/N, 3/N vb.)
+                extra_part_cells = []
+                for p_idx, part_txt in enumerate(ogr_parts[1:], 2):
+                    p_url = _make_wa_url(target_ogr_num, part_txt)
+                    extra_part_cells.append(f"""
+                        <td bgcolor="#15803d" align="center" valign="middle" style="padding: 6px; border-radius: 6px;">
+                            <a href="{p_url}" style="color: #ffffff; text-decoration: none; font-size: 10.5px; font-weight: bold; display: block;">
+                                <font color="#ffffff">💬 Ödev Programı ({p_idx}/{len(ogr_parts)})</font>
+                            </a>
+                        </td>
+                    """)
+                for p_idx, part_txt in enumerate(veli_parts[1:], 2):
+                    p_url = _make_wa_url(target_veli_num, part_txt)
+                    extra_part_cells.append(f"""
+                        <td bgcolor="#1d4ed8" align="center" valign="middle" style="padding: 6px; border-radius: 6px;">
+                            <a href="{p_url}" style="color: #ffffff; text-decoration: none; font-size: 10.5px; font-weight: bold; display: block;">
+                                <font color="#ffffff">👪 Veli Ödev ({p_idx}/{len(veli_parts)})</font>
+                            </a>
+                        </td>
+                    """)
+                extra_parts_html = ""
+                if extra_part_cells:
+                    extra_rows = ""
+                    for i in range(0, len(extra_part_cells), 3):
+                        chunk = extra_part_cells[i:i + 3]
+                        while len(chunk) < 3:
+                            chunk.append("<td></td>")
+                        extra_rows += f"<tr>{''.join(chunk)}</tr>"
+                    extra_parts_html = f'<table width="100%" cellspacing="4" cellpadding="0" style="margin-top: 2px;">{extra_rows}</table>'
 
                 # 3. Telefonla Arama Butonu
                 call_num = ogr_clean or veli_clean
@@ -2703,21 +3130,82 @@ class MobileScheduleGenerator:
                 wa_parent_exec_url = _make_wa_url(target_veli_num, msg_parent_exec)
 
                 border_color = ev.get("renk", "#3b82f6")
+                card_css_class = "student-card-long" if is_long_card else "student-card"
+                title_inner = f'<span style="font-size: 16px; font-weight: 900; color: #0f172a;">{html.escape(card_student_title)}</span>'
+                if is_first_student_card and st_dest:
+                    title_html = _dest_marker(st_dest, title_inner)
+                else:
+                    title_html = title_inner
+
+                buttons_block_html = f"""
+                <div class="btn-bar">
+                <table width="100%" cellspacing="4" cellpadding="0" style="margin-top: 8px;">
+                    <tr>
+                        <td width="33%" bgcolor="#16a34a" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
+                            <a href="{wa_ogr_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                <font color="#ffffff">{wa_ogr_label}</font>
+                            </a>
+                        </td>
+                        <td width="33%" bgcolor="#2563eb" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
+                            <a href="{wa_veli_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                <font color="#ffffff">{wa_veli_label}</font>
+                            </a>
+                        </td>
+                        {call_cell_html}
+                    </tr>
+                    <tr>
+                        <td width="33%" bgcolor="#7c3aed" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
+                            <a href="{wa_analysis_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                <font color="#ffffff">📊 4. 360° Akademik Analiz</font>
+                            </a>
+                        </td>
+                        <td width="33%" bgcolor="{recovery_bg}" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
+                            <a href="{wa_recovery_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                <font color="#ffffff">{recovery_label}</font>
+                            </a>
+                        </td>
+                        <td width="34%" bgcolor="#0891b2" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
+                            <a href="{wa_parent_exec_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
+                                <font color="#ffffff">🎯 6. Veli Gelişim Karnesi</font>
+                            </a>
+                        </td>
+                    </tr>
+                </table>
+                {extra_parts_html}
+                </div>
+                """
+
+                # Uzun ödev listelerinde (>8 madde) butonları ödev tablosunun hemen üstünde de göstererek
+                # öğretmenin sayfalarca aşağı kaydırmadan tek dokunuşla aksiyon almasını sağlarız.
+                if is_long_card:
+                    card_middle_html = f"""
+                    {buttons_block_html}
+                    {analytics_box_html}
+                    {body_content}
+                    """
+                else:
+                    card_middle_html = f"""
+                    {body_content}
+                    {analytics_box_html}
+                    {buttons_block_html}
+                    """
 
                 html_out += f"""
-                <div class="student-card">
+                <div class="{card_css_class}">
                 <table width="100%" cellspacing="0" cellpadding="0" bgcolor="#ffffff" style="border: 1px solid #cbd5e1; border-left: 6px solid {border_color}; border-radius: 8px;">
                     <tr>
                         <td style="padding: 12px 16px;">
-                            <!-- ÜST SATIR: ÖĞRENCİ ADI VE TESLİM SAATİ -->
+                            <!-- ÜST SATIR: ÖĞRENCİ ADI, GRUP VE TESLİM SAATİ + HIZLI DÖNÜŞ -->
                             <table width="100%" cellspacing="0" cellpadding="0">
                                 <tr>
                                     <td align="left" valign="middle">
-                                        <span style="font-size: 16px; font-weight: 900; color: #0f172a;">{html.escape(ev['ad'])}</span>
+                                        {title_html}
                                         &nbsp;{grup_badge}
                                     </td>
                                     <td align="right" valign="middle">
                                         {header_badge}
+                                        &nbsp;<a href="{_nav_href('students_start')}" style="background-color:#f1f5f9; color:#334155; font-size:9.5px; font-weight:bold; padding:3px 6px; border-radius:5px;">👥 Dizin</a>
+                                        &nbsp;<a href="{_nav_href('agenda_start')}" style="background-color:#eff6ff; color:#1d4ed8; font-size:9.5px; font-weight:bold; padding:3px 6px; border-radius:5px;">⬆ Hafta</a>
                                     </td>
                                 </tr>
                             </table>
@@ -2737,47 +3225,8 @@ class MobileScheduleGenerator:
                             <!-- ÜÇÜNCÜ SATIR: DURUM ROZETİ -->
                             {f'<div style="margin-top: 6px;">{badge_html}</div>' if badge_html else ''}
 
-                            <!-- DÖRDÜNCÜ SATIR: ÖDEV LİSTESİ / GÖRÜŞME DETAYI -->
-                            {body_content}
-
-                            <!-- BEŞİNCİ SATIR: 360° AKADEMİK ANALİZ ÖZET KUTUSU -->
-                            {analytics_box_html}
-
-                            <!-- ALTINCI SATIR: 6'LI MOBİL KOMUTA MERKEZİ BUTONLARI (2 SATIR x 3 BUTON) -->
-                            <div class="btn-bar">
-                            <table width="100%" cellspacing="4" cellpadding="0" style="margin-top: 8px;">
-                                <tr>
-                                    <td width="33%" bgcolor="#16a34a" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
-                                        <a href="{wa_ogr_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
-                                            <font color="#ffffff">{wa_ogr_label}</font>
-                                        </a>
-                                    </td>
-                                    <td width="33%" bgcolor="#2563eb" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
-                                        <a href="{wa_veli_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
-                                            <font color="#ffffff">{wa_veli_label}</font>
-                                        </a>
-                                    </td>
-                                    {call_cell_html}
-                                </tr>
-                                <tr>
-                                    <td width="33%" bgcolor="#7c3aed" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
-                                        <a href="{wa_analysis_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
-                                            <font color="#ffffff">📊 4. 360° Akademik Analiz</font>
-                                        </a>
-                                    </td>
-                                    <td width="33%" bgcolor="{recovery_bg}" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
-                                        <a href="{wa_recovery_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
-                                            <font color="#ffffff">{recovery_label}</font>
-                                        </a>
-                                    </td>
-                                    <td width="34%" bgcolor="#0891b2" align="center" valign="middle" style="padding: 7px 6px; border-radius: 6px;">
-                                        <a href="{wa_parent_exec_url}" style="color: #ffffff; text-decoration: none; font-size: 11px; font-weight: bold; display: block;">
-                                            <font color="#ffffff">🎯 6. Veli Gelişim Karnesi</font>
-                                        </a>
-                                    </td>
-                                </tr>
-                            </table>
-                            </div>
+                            <!-- GÖVDE + 360° ANALİZ + 6'LI MOBİL KOMUTA MERKEZİ -->
+                            {card_middle_html}
                         </td>
                     </tr>
                 </table>
@@ -2789,9 +3238,14 @@ class MobileScheduleGenerator:
 
     def _clean(self, t) -> Optional[str]:
         """Telefon numarasını uluslararası WhatsApp formatına (905xxxxxxxxx) temizler.
-        Boş maskeleri ('(5)' vb.) ve 10 haneden kısa geçersiz girdileri eler."""
+        Boş maskeleri ('(5)' vb.), belirsiz çoklu numaraları ve geçersiz girdileri eler."""
         if not t:
             return None
+        try:
+            from services.mobile_agenda_pdf_v3541 import normalize_mobile_number
+            return normalize_mobile_number(t)
+        except Exception:
+            pass
         c = "".join(filter(str.isdigit, str(t)))
         if len(c) < 10:
             return None
@@ -2801,9 +3255,7 @@ class MobileScheduleGenerator:
             return "9" + c
         if len(c) == 12 and c.startswith("905"):
             return c
-        if c.startswith("0"):
-            return "9" + c
-        return c
+        return None
 
     def _format_phone(self, t) -> str:
         """Geçerli telefon numarasını okunaklı '05xx xxx xx xx' biçiminde döndürür."""

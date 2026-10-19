@@ -30,7 +30,7 @@ jobs:
           if ('${{ github.ref_type }}' -eq 'tag') {
             python tools/validate_release.py --tag '${{ github.ref_name }}' --check-tracked
           } else {
-            python tools/validate_release.py
+            python tools/validate_release.py --check-tracked
           }
 
       - name: Korunan kaynak denetimi (manuel kabul yerine gecmez)
@@ -79,11 +79,45 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements_win.txt pytest httpx
 
-      - name: V3.5.30-40 akademik danisman ve butunlesik regresyon
+      - name: V3.5.49 cevrimdisi mobil PDF ve alici guvenligi testleri
         shell: pwsh
         run: |
-          python -m unittest tests.test_v3530_shared_academic tests.test_v3531_system_health tests.test_v3532_verified_recovery tests.test_v3533_backup_automation tests.test_v3534_cohort_advisor tests.test_v3535_canonical_evidence tests.test_v3536_academic_actions tests.test_v3537_intervention_advisor tests.test_v3538_intervention_followup tests.test_v3539_intervention_patterns tests.test_v3540_release_safety -q
-          if ($LASTEXITCODE -ne 0) { throw 'Akademik danisman/butunlesik testler gecemedi' }
+          python -m pip install "PyMuPDF>=1.24,<2"
+          if ($LASTEXITCODE -ne 0) { throw 'PDF testi icin PyMuPDF kurulumu basarisiz' }
+          python -m pytest -q tests/test_v3549_offline_mobile_center.py tests/test_v3545_smart_mobile_pdf.py tests/test_v3546_mobile_pdf_bridge.py
+          if ($LASTEXITCODE -ne 0) { throw 'Mobil PDF ve alici guvenligi regresyon testleri basarisiz' }
+
+      - name: V3.5.51 ogretmen geri bildirim merkezi izole yetki testleri
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_v3550_mobile_feedback tests.test_v3551_teacher_feedback_center -v
+          if ($LASTEXITCODE -ne 0) { throw 'V3.5.51 geri bildirim ve ogretmen yetki testleri basarisiz' }
+
+      - name: V3.5.52 guvenli mobil WSGI koprusu ve erisim testleri
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_v3552_mobile_gateway -v
+          if ($LASTEXITCODE -ne 0) { throw 'Guvenli mobil kopru fail-closed ve yetki testleri basarisiz' }
+
+      - name: V3.5.53 mobil PDF otomatik kabul ve guvenlik testleri
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_v3553_mobile_acceptance -v
+          if ($LASTEXITCODE -ne 0) { throw 'Mobil PDF çapraz-platform otomatik kabul başarısız' }
+          python tools/v3553_mobile_acceptance.py --check-source
+          if ($LASTEXITCODE -ne 0) { throw 'Mobil PDF çekirdek veya sürüm denetimi başarısız' }
+
+      - name: V3.5.54 Mobil PDF kimlik ve baglanti denetimi
+        shell: pwsh
+        run: |
+          python -m pytest -q tests/test_v3554_stabilization.py
+          if ($LASTEXITCODE -ne 0) { throw 'Akilli Mobil PDF alici ve baglanti guvenligi testi basarisiz' }
+
+      - name: V3.5.30-44 akademik danisman, cep ajandasi ve butunlesik regresyon
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_v3530_shared_academic tests.test_v3531_system_health tests.test_v3532_verified_recovery tests.test_v3533_backup_automation tests.test_v3534_cohort_advisor tests.test_v3535_canonical_evidence tests.test_v3536_academic_actions tests.test_v3537_intervention_advisor tests.test_v3538_intervention_followup tests.test_v3539_intervention_patterns tests.test_v3540_release_safety tests.test_v3541_mobile_agenda_pdf tests.test_v3542_agenda_navigation tests.test_v3543_agenda_whatsapp_long_messages tests.test_v3544_student_directory -q
+          if ($LASTEXITCODE -ne 0) { throw 'Akademik danisman/cep ajandasi/butunlesik testler gecemedi' }
 
       - name: Otomatik testler
         shell: pwsh
@@ -119,6 +153,32 @@ jobs:
           & $iscc setup.iss
           if ($LASTEXITCODE -ne 0) { throw 'Inno Setup derlemesi basarisiz' }
 
+      - name: SignPath Vakfi ile dijital kod imzalama (Acik Kaynak Resmi Imza)
+        if: env.SIGNPATH_API_TOKEN != ''
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
+          org-id: '${{ secrets.SIGNPATH_ORGANIZATION_ID }}'
+          project-slug: '${{ secrets.SIGNPATH_PROJECT_SLUG || ''yks-lgs-homeworkmanager'' }}'
+          signing-policy-slug: '${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG || ''release-signing'' }}'
+          github-token: '${{ secrets.GITHUB_TOKEN }}'
+          wait-for-completion: true
+          output-artifact-directory: 'dist_signed'
+          file-path: 'dist/OdevTakip_v2_Kurulum.exe'
+
+      - name: Imzali kurulum paketini yerine koy
+        if: env.SIGNPATH_API_TOKEN != ''
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          if (Test-Path dist_signed/OdevTakip_v2_Kurulum.exe) {
+            Copy-Item dist_signed/OdevTakip_v2_Kurulum.exe dist/OdevTakip_v2_Kurulum.exe -Force
+            Write-Host "Kurulum paketi SignPath ile basariyla dijital olarak imzalandi."
+          }
+
       - name: SHA256 ve kurulum paketini dogrula
         shell: pwsh
         run: |
@@ -150,6 +210,25 @@ jobs:
           } else {
             python tools/v35_release_gate.py
             if ($LASTEXITCODE -ne 0) { throw 'Kaynak kapisi gecemedi; Release engellendi' }
+          }
+
+      - name: Etiket icin Mac ve mobil cihaz kabul kaydi zorunlu
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          MOBILE_DEVICE_ACCEPTANCE_JSON: ${{ secrets.V3553_MOBILE_DEVICE_ACCEPTANCE_JSON }}
+        run: |
+          if ($env:MOBILE_DEVICE_ACCEPTANCE_JSON) {
+            Set-Content -Path release/mobile_pdf_device_acceptance.json -Value $env:MOBILE_DEVICE_ACCEPTANCE_JSON -Encoding utf8
+            try {
+              python tools/v3553_mobile_acceptance.py --require-device-acceptance
+              if ($LASTEXITCODE -ne 0) { throw 'Mobil PDF manuel cihaz kabulü geçmedi; Release engellendi' }
+            } finally {
+              Remove-Item release/mobile_pdf_device_acceptance.json -ErrorAction SilentlyContinue
+            }
+          } else {
+            python tools/v3553_mobile_acceptance.py --check-source
+            if ($LASTEXITCODE -ne 0) { throw 'Mobil PDF kaynak kapisi gecemedi; Release engellendi' }
           }
 
       - name: v3.5.4 gibi etiketlerde Release yayinla

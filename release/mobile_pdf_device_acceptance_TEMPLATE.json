@@ -1,0 +1,56 @@
+{
+  "version": "3.5.54",
+  "git_commit": "<exact 40-digit Git commit SHA>",
+  "tested_at": "<YYYY-MM-DD>",
+  "test_data": "SYNTHETIC_ONLY",
+  "devices": {
+    "windows": {
+      "tester": "<tester name>",
+      "device": "<OS version / device / PDF viewer>",
+      "checks": {
+        "create_7_10_14_day_pdf": "PENDING",
+        "whatsapp_student_parent": "PENDING",
+        "call_links": "PENDING",
+        "protected_forms_unchanged": "PENDING",
+        "reopen_exported_pdf": "PENDING"
+      }
+    },
+    "macos": {
+      "tester": "<tester name>",
+      "device": "<OS version / device / PDF viewer>",
+      "checks": {
+        "create_7_10_14_day_pdf": "PENDING",
+        "whatsapp_student_parent": "PENDING",
+        "call_links": "PENDING",
+        "old_agenda_unchanged": "PENDING",
+        "reopen_exported_pdf": "PENDING"
+      }
+    },
+    "iphone": {
+      "tester": "<tester name>",
+      "device": "<OS version / device / PDF viewer>",
+      "checks": {
+        "receive_pdf_as_file": "PENDING",
+        "offline_student_navigation": "PENDING",
+        "whatsapp_draft_student_parent": "PENDING",
+        "phone_call_dialog": "PENDING",
+        "long_message_parts": "PENDING",
+        "return_to_document": "PENDING"
+      }
+    },
+    "android": {
+      "tester": "<tester name>",
+      "device": "<OS version / device / PDF viewer>",
+      "checks": {
+        "receive_pdf_as_file": "PENDING",
+        "offline_student_navigation": "PENDING",
+        "whatsapp_draft_student_parent": "PENDING",
+        "phone_call_dialog": "PENDING",
+        "long_message_parts": "PENDING",
+        "return_to_document": "PENDING"
+      }
+    }
+  },
+  "live_https_status": "NOT_TESTED",
+  "notes": "V3.5.54: Gerçek cihaz onayı yetkili testçi ve gerçek cihaz üzerinde; yalnızca sentetik verilerle. Canlı HTTPS ve kurum SSO ayrı kabul gerektirir."
+}

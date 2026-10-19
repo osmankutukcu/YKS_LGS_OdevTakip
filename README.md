@@ -1,101 +1,129 @@
-# V3.5.40 STABILIZASYON PILOTU — 18.10.2026
+# 🎓 KoçPilot 360 — YKS & LGS Ödev ve Bütünleşik Koçluk Sistemi
 
-Bu kaynak ZIP **Stable / Windows EXE degildir**. V3.5.26–39 gelistirmeleri korunarak CI release guvenligi ve entegre kaynak testleri guclendirildi. Gercek Windows kabul kaydi olmadan GitHub Release engellenir. 
+[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue.svg)](https://www.python.org/)
+[![Framework](https://img.shields.io/badge/GUI-PyQt6-green.svg)](https://riverbankcomputing.com/software/pyqt/)
+[![Database](https://img.shields.io/badge/Database-SQLite-lightgrey.svg)](https://sqlite.org/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Release](https://img.shields.io/badge/Release-v3.5.55-indigo.svg)](https://github.com/osmankutukcu/YKS_LGS_OdevTakip/releases)
 
-- Genel durum ve kabul plani: `V3540_STABILIZASYON_VE_WINDOWS_KABUL_RAPORU.md`
-- Tek komutla salt-okunur kaynak kontrolu: `python tools/v3540_preflight.py`
-- Windows tek tik kaynak QA: `V3540_WINDOWS_QA_BASLAT.bat`
-- **Odev Takip/Odev Kontrol form kaynaklari degistirilmedi.** Gercek tik/renk/kilit davranisi Windows'ta ayrica onaylanmalidir.
-- Asagidaki eski MVP aciklamalari tarihsel iceriktir; gunumuzun tam modullerini eksiksiz tarif etmez.
+**KoçPilot 360**, YKS ve LGS hazırlık sürecindeki öğrencilerin ödev takip, koçluk, deneme sınavı analizi, haftalık çalışma programı ve veli bilgilendirme süreçlerini tek bir merkezden yöneten profesyonel bir masaüstü uygulamasıdır.
 
 ---
 
-# YKS/LGS Ödev & Takip Yöneticisi (MVP)
+## 🌟 Öne Çıkan Özellikler
 
-Bu proje, PyQt6 + SQLite ile geliştirilen, öğrenci kaydı, ödevlendirme ve takip,
-raporlar ve kitap yönetimi özelliklerini içeren **MVP** bir masaüstü uygulamadır.
+### 🏠 1. Öğretmen Karar Masası & Kokpit
+- **Sınav Geri Sayımı:** YKS, MSÜ ve LGS gün sayaçları ve güncel eğitim takvimi.
+- **Anlık Metrikler (KPI):** Bugünkü ödev kontrolü, aktif öğrenciler, geciken görevler ve genel tamamlama oranı.
+- **Akademik Trend Grafiği:** Haftalık başarı eğilimleri ve öğrenci performans rozetleri.
 
-## Kurulum
+### 📱 2. Akıllı Cep Ajandası & İletişim Merkezi
+- **Responsive Arayüz:** Her ekran çözünürlüğüne otomatik uyum sağlayan modern kart tasarımı.
+- **Veli & Öğrenci İletişimi:** Tek tıkla WhatsApp üzerinden kişiselleştirilmiş ödev ve durum bildirimleri.
+- **Hızlı Durum Raporlama:** Öğrencinin günlük ve haftalık programını doğrudan cep formatında görüntüleme.
+
+### 📄 3. Akıllı Mobil PDF Asistanı
+- **A5 Cep Formatı:** Telefon ve tabletlerde rahat okunabilen, yatay kaydırma gerektirmeyen optimize PDF planları.
+- **Esnek Planlama:** 7, 10 veya 14 günlük periyotlarda dinamik soru hedefi ve konu dağılımı.
+- **Dönemlik Mesaj & Geri Bildirim Merkezi:** Öğrenciye özel motivasyon notları ve öğretmen yönlendirmeleri.
+- **Alıcı Kimlik Doğrulaması:** Yetkisiz erişimi engelleyen güvenli bağlantı ve karekod köprüleri.
+
+### 📋 4. Ödev Takip & Dinamik Kontrol Formu
+- **Dinamik Kitap & Ders Matrisi:** Öğrenciye tanımlı kaynaklara göre dinamik şekillenen etkileşimli tablo.
+- **Hücre Koruma & Renklendirme:** Tamamlanan, geciken ve aktarılan ödevler için görsel kilit ve durum takibi.
+- **Otomatik Senkronizasyon:** Form kapatıldığında veya tamamlandığında ana ekran ve menü durumunun kusursuz eşitlemesi.
+
+### 📊 5. Deneme Sınavları & Eksik Konu Analizi
+- **Net Takibi:** TYT, AYT, YDT ve LGS sınav sonuçlarının ders ve konu bazında detaylı dökümü.
+- **Kazanım Eşleştirme:** Yanlış yapılan sorulara göre MEB ve ÖSYM müfredatına dayalı konu eksik tespit robotu.
+
+### 🔒 6. Dual-Key Güvenlikli Lisanslama Mimarisi
+- **2048-bit RSA V2 İmzası:** En yüksek endüstri standartlarında donanıma bağlı (Machine ID) şifreleme.
+- **Kesintisiz Geçiş (Dual-Key Migration):** Mevcut lisanslı kullanıcıların haklarını koruyan, geriye dönük tam uyumlu doğrulama mekanizması.
+- **Depo ve Dağıtım Hijyeni:** Gizli anahtar ve admin araçlarının dağıtım paketlerine sızmasını engelleyen otomatik CI/CD güvenlik kapıları.
+
+---
+
+## 📂 Proje Dizin Yapısı
+
+```text
+├── app.py                     # Uygulama ana giriş noktası
+├── main_window.py             # Ana kokpit penceresi ve sol navigasyon menüsü
+├── db.py                      # SQLite veritabanı motoru ve şema yönetimi
+├── version.py / version.json  # Uygulama sürüm bilgisi ve güncelleme yapılandırması
+├── setup.iss                  # Windows Inno Setup kurulum derleme betiği
+├── ui/                        # PyQt6 arayüz modülleri ve formlar
+│   ├── mobile_schedule.py     # Akıllı Cep Ajandası & İletişim Merkezi
+│   ├── homework_form.py       # Ödev Takip Formu
+│   ├── odev_kontrol.py        # Ödev Kontrol & Sonuç Giriş Formu
+│   └── coaching_manager.py    # Adaptif Koçluk Merkezi
+├── services/                  # İş mantığı, mobil PDF asistanı ve veri servisleri
+├── utils/                     # Yardımcı kütüphaneler ve lisans yöneticisi
+├── seed/                      # MEB / ÖSYM müfredat ve konu veri tabanları
+├── tests/                     # Otomatik birim, entegrasyon ve regresyon testleri
+└── tools/                     # Dağıtım, sürüm doğrulama ve güvenlik denetim araçları
+```
+
+---
+
+## 🚀 Kurulum ve Çalıştırma
+
+### 1. Gereksinimler
+- Python 3.10 veya 3.11
+- pip paket yöneticisi
+
+### 2. Kaynak Koddan Çalıştırma
+
 ```bash
+# Depoyu klonlayın
+git clone https://github.com/osmankutukcu/YKS_LGS_OdevTakip.git
+cd YKS_LGS_OdevTakip
+
+# Sanal ortam oluşturun ve etkinleştirin
+python3 -m venv .venv
+source .venv/bin/activate       # macOS / Linux
+# veya: .venv\Scripts\activate   # Windows
+
+# Bağımlılıkları yükleyin
 pip install -r requirements.txt
+
+# Uygulamayı başlatın
 python app.py
 ```
 
-İlk çalıştırmada `~/.yks_lgs_manager/veritabani.db` oluşturulur ve `seed/*.json` dosyalarındaki
-konular ders tablolarına yüklenir.
+### 3. Tek Tıkla Başlatıcılar
+- **macOS:** `Baslat_Mac.command` dosyasına çift tıklayarak doğrudan çalıştırabilirsiniz.
+- **Windows:** `Baslat_Windows.bat` dosyasına çift tıklayarak çalıştırabilirsiniz.
 
-## Modüller
-- `app.py`: Giriş noktası
-- `main_window.py`: Ana menü ve geçişler
-- `db.py`: Veritabanı ve seed yükleme
-- `ui/student_form.py`: Öğrenci kaydı (Excel içe aktarma + progress + async)
-- `ui/homework_form.py`: Ödev takibi (sekmeler, dinamik kitap sütunları, checkbox)
-- `ui/book_dialog.py`: Kitap Ekle/Sil (tek/seçilen/tümü hedefleri)
-- `ui/progress.py`: Genel amaçlı ilerleme penceresi
-- `ui/reports.py`: Raporlar (örnek grafik yer tutucu)
-- `utils/async_workers.py`: Arka plan iş sarmalayıcısı
-- `utils/xlsx_io.py`: Excel şablon ve içe aktarma
-- `utils/whatsapp.py`: WhatsApp gönderim **yer tutucu**
+---
 
-## Notlar
-- Bu, kapsamlı isteğinizin çekirdek işlevlerini çalışır şekilde örnekleyen bir başlangıçtır.
-- Ödev kontrol ekranı, yazdırma/PDF, WhatsApp otomasyonu, hücre kilitleme/renklendirme gibi ileri özellikler
-  bir sonraki yinelemede eklenecek şekilde yer tutucularla işaretlenmiştir.
+## 🧪 Testlerin Çalıştırılması
 
+Tüm test paketini çalıştırmak için:
 
-## V29 · Kontrol Sonrası Adaptif Karar (modüler)
+```bash
+# Birim ve güvenlik testlerini çalıştırın
+python -m unittest discover -s tests -p "test_*.py"
 
-- Ödev Kontrol → seçili ödevde sağ tık → **🧠 Sonraki adım önerisini göster (salt okunur)**.
-- Ödev Takip → **Adaptif Koçluk** sağ panelinde güncel öğretmen notlarına dayalı kısa öneriler.
-- **V29 ödev kaydı, checkbox, Kaydet veya WhatsApp kodlarını değiştirmez.**
-- Yalnız yeni özelliği devre dışı bırakmak: Windows PowerShell'de başlatmadan önce `$env:EDUTRACK_ADAPTIVE_V29='0'`.
-- Pilot ve Windows test bilgileri: `V29_KONTROL_SONRASI_ADAPTIF_KARAR_WINDOWS_TEST_RAPORU.md`.
+# Dağıtım ve sürüm hijyen kontrolü
+python tools/validate_release.py --check-tracked
+python tools/v3540_preflight.py
+```
 
+---
 
-## V30 · Öğretmen Onaylı Tek Ekran Ödev Taslağı
+## 📦 Dağıtım ve Yayın Süreci (CI/CD)
 
-- **Ödev Takip → Adaptif Koçluk → Genel Bakış → Taslağı İncele ve Seç**.
-- Sadece mevcut öğrencinin V25 verilerinden ve varsa V29 açık öğretmen notlarından öneriler hazırlanır.
-- Ders/kitap/konu hücresi bulunamıyor, kilitli veya işaretliyse aktarım yapılamaz.
-- Öğretmen önerileri seçip onayladıktan sonra **yalnızca** mevcut `_wizard_transfer_tasks` çağrılır.
-- `Verilen Ödevler` tablosundaki değişiklikler eskisi gibi **Kaydet** ile kalıcı olur.
-- Ödev Kontrol, tik, kayıt geri alma, yazdırma ve WhatsApp işlemleri değişmez.
-- Varsayılanı kapatmak: `$env:EDUTRACK_ADAPTIVE_V30='0'` (uygulamayı açmadan önce).
-- Windows pilot ayrıntıları: `V30_MODULER_OGRETMEN_ONAYLI_TASLAK_RAPORU.md`.
+Proje, GitHub Actions üzerinde tam otomatik derleme hattına sahiptir:
+1. `push` veya sürüm etiketi (`v3.5.55`) verildiğinde derleme tetiklenir.
+2. Otomatik güvenlik testleri, korunan çekirdek denetimi ve hijyen kapıları çalıştırılır.
+3. PyInstaller ile Windows bağımsız EXE (`OdevTakip_v2.exe`) derlenir.
+4. Inno Setup ile tek kurulumlu Windows Kurulum Paketi (`OdevTakip_v2_Kurulum.exe`) üretilir.
+5. **SignPath Foundation** açık kaynak kod imzalama servisi üzerinden SHA-256 dijital sertifika ile imzalanır.
 
-## V33 – Windows A/B hız pilotu ve Stable'a bitirme planı
+---
 
-- Test DB üzerinde eski/yeni tablo stil yenilemesini kıyaslamak için `tools/v33_windows_ab_pilot.py`.
-- Deneysel stil birleştirme **normal programda kapalıdır**. Ödev Takip, Ödev Kontrol, veritabanı ve Kaydet/Geri Taşı kaynak dosyaları V32 ile aynıdır.
-- Windows komutları, raporun nasıl yorumlanacağı ve V35 Stable kabul kriterleri için `V33_WINDOWS_PILOT_VE_BITIRME_PLANI.md`.
+## 📄 Lisans
 
-### V35 Windows kabul adayı (Stable değildir)
-
-V34 adaptif koçluk ve Ödev Takip / Ödev Kontrol çekirdeği korunmuştur.
-V35'te yalnızca güvenli yayın kapısı, geçici/sahte veritabanında Windows EXE açılış
-kontrolü ve manuel pilot kabul süreci eklenmiştir. Başlangıç: `python tools/v35_release_gate.py`.
-Test koşulları için `V35_WINDOWS_KARARLILIK_VE_YAYIN_KABUL_RAPORU.md` dosyasına bakın.
-Gerçek Windows kabulü tamamlanmadan GitHub tag release'i engellenir.
-
-
-## V35 son Windows pilot kiti (yayın adayı)
-
-Windows üzerinde çift tıklamayla başlatmak için `V35_Windows_Pilot_Baslat.bat`.
-Geçerli, tamamen sahte SQLite DB önceden oluşturulur; mevcut öğrenci DB'si
-otomatik seçilmez. Sadece gerçek Windows kullanıcı kabulü sonrası sürüm yayımlanabilir.
-Ayrıntılı rehber: `V35_WINDOWS_PILOT_KULLANIM_VE_SON_DOGRULAMA.md`.
-
-
-### V35 RC2 son Windows pilot güvenlik düzeltmesi
-
-Windows test başlatıcısının kullanıcı profili ve ek dosya yollarını yalıtan güncel sürümü, gerçek verilerle karışmayı azaltır. Yalnız sahte öğrenci ve ayrı test kurulumuyla çalışın; bu paket henüz Stable değildir. Ayrıntılar: `V35_WINDOWS_PILOT_KULLANIM_VE_SON_DOGRULAMA.md` ve `V35_RC2_SON_PILOT_GUVENLIK_RAPORU.md`.
-
-
-## V3.5.30 · Ortak Akademik Karar Pilotu (Windows UAT bekliyor)
-
-- `services/shared_academic_decision_v3530.py`: aynı öğrenciye ait ödev kanıtını ve koçluk planı durumunu salt okunur biçimde değerlendirir.
-- Öğrenci 360, Koç Asistanı ve ana ekrandaki otomatik takip şeridi aynı kanıt sözleşmesini kullanır.
-- Ayrı haftalık takvim ekranında öğrenci kimliği bağlamı doğrulanmadan otomatik plan değişikliği yapılmaz.
-- Ödev Takip/Ödev Kontrol, checkbox, renk, kilit, kayıt ve geri alma işleyişi değiştirilmedi.
-- Kaynak, durum, doğrulanamayan alan ve öğretmen onayı ayrılır; bu **pilot** genel GitHub/Windows dağıtımına uygun değildir.
-- Ayrıntılar `V3530_ORTAK_AKADEMIK_KARAR_RAPORU.md` dosyasındadır.
+Bu proje [MIT Lisansı](LICENSE) kapsamında açık kaynak olarak geliştirilmektedir.
+Ticari modüller ve kurum lisanslama altyapısı KoçPilot 360 telif haklarına tabidir.

@@ -1,4 +1,6 @@
 {
-  "version": "3.5.41",
-  "note": "KoçPilot 360 v3.5.41: 6 Akıllı Butonlu Mobil Cep Ajandası & 360° Akademik Analiz PDF Paketi, Bütünleşik Akademik Karar Motoru, 7/14 Gün Müdahale İzlem, Doğrulamalı Yedekleme ve Tek Ekran Kokpit Arayüzü."
+  "version": "3.5.55",
+  "name": "YKS-LGS Ödev Takip",
+  "channel": "stable",
+  "note": "KoçPilot 360 v3.5.55: Dual-Key Lisanslama Güvenlik Mimarisi (2048-bit RSA V2 Birincil + V1 Geriye Dönük Kesintisiz Uyumluluk) + Dağıtım ve Depo Hijyen Denetimleri + Responsive Akıllı Cep Ajandası + Genel Bakış Navigasyon Senkronizasyonu."
 }
