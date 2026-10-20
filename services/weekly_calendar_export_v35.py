@@ -526,75 +526,98 @@ def enhance_print_preview_dialog(
     student_name: str,
 ):
     """Injects [💾 PDF Olarak Kaydet] and [📱 WhatsApp ile Gönder] buttons into the preview toolbar."""
-    toolbars = preview.findChildren(QToolBar)
-    if not toolbars:
+    try:
+        from PyQt6.sip import isdeleted
+        if isdeleted(preview):
+            return
+    except Exception:
+        pass
+
+    if getattr(preview, "_v35_enhanced", False):
         return
+    try:
+        preview._v35_enhanced = True
+    except Exception:
+        pass
 
-    tb = toolbars[0]
-    tb.addSeparator()
+    try:
+        toolbars = preview.findChildren(QToolBar)
+        if not toolbars:
+            return
 
-    # 1. PDF Kaydet Butonu
-    btn_save_pdf = QPushButton("💾 PDF Kaydet")
-    btn_save_pdf.setToolTip("Haftalık çalışma planını bilgisayarınıza A4 yatay PDF olarak kaydeder.")
-    btn_save_pdf.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-    btn_save_pdf.setStyleSheet("""
-        QPushButton {
-            background-color: #f1f5f9;
-            color: #1e293b;
-            font-weight: 700;
-            font-size: 11.5px;
-            padding: 5px 12px;
-            border: 1px solid #cbd5e1;
-            border-radius: 5px;
-        }
-        QPushButton:hover {
-            background-color: #e2e8f0;
-            color: #0f172a;
-        }
-    """)
+        tb = toolbars[0]
+        tb.addSeparator()
 
-    def _on_save_pdf():
-        from services.smart_calendar import SmartCalendarService
-        html = html_holder[0] if (html_holder and html_holder[0]) else SmartCalendarService.get_latest_html()
-        save_weekly_calendar_pdf_file(html, student_name, parent=preview)
+        # 1. PDF Kaydet Butonu
+        btn_save_pdf = QPushButton("💾 PDF Kaydet")
+        btn_save_pdf.setToolTip("Haftalık çalışma planını bilgisayarınıza A4 yatay PDF olarak kaydeder.")
+        btn_save_pdf.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        btn_save_pdf.setStyleSheet("""
+            QPushButton {
+                background-color: #f1f5f9;
+                color: #1e293b;
+                font-weight: 700;
+                font-size: 11.5px;
+                padding: 5px 12px;
+                border: 1px solid #cbd5e1;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #e2e8f0;
+                color: #0f172a;
+            }
+        """)
 
-    btn_save_pdf.clicked.connect(_on_save_pdf)
-    tb.addWidget(btn_save_pdf)
+        def _on_save_pdf():
+            try:
+                from services.smart_calendar import SmartCalendarService
+                html = html_holder[0] if (html_holder and html_holder[0]) else SmartCalendarService.get_latest_html()
+                save_weekly_calendar_pdf_file(html, student_name, parent=preview)
+            except Exception as ex:
+                QMessageBox.warning(preview, "Kayıt Hatası", f"PDF kaydedilirken hata: {ex}")
 
-    # 2. WhatsApp ile Gönder Butonu
-    btn_send_wa = QPushButton("📱 WhatsApp Gönder")
-    btn_send_wa.setToolTip("Haftalık plan PDF'ini öğrenci ve veliye otomatik (otopilot) WhatsApp mesajıyla gönderir.")
-    btn_send_wa.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-    btn_send_wa.setStyleSheet("""
-        QPushButton {
-            background-color: #059669;
-            color: #ffffff;
-            font-weight: 700;
-            font-size: 11.5px;
-            padding: 5px 14px;
-            border: none;
-            border-radius: 5px;
-        }
-        QPushButton:hover {
-            background-color: #047857;
-        }
-    """)
+        btn_save_pdf.clicked.connect(_on_save_pdf)
+        tb.addWidget(btn_save_pdf)
 
-    def _on_send_wa():
-        from services.smart_calendar import SmartCalendarService
-        html = html_holder[0] if (html_holder and html_holder[0]) else SmartCalendarService.get_latest_html()
-        # Create temp pdf for sending
-        tmp_dir = tempfile.gettempdir()
-        safe_name = _sanitize_filename(student_name)
-        date_str = datetime.date.today().strftime("%Y_%m_%d")
-        temp_pdf = os.path.join(tmp_dir, f"{safe_name}_Haftalik_Calisma_Plani_{date_str}.pdf")
-        export_html_to_pdf_file(html, temp_pdf)
+        # 2. WhatsApp ile Gönder Butonu
+        btn_send_wa = QPushButton("📱 WhatsApp Gönder")
+        btn_send_wa.setToolTip("Haftalık plan PDF'ini öğrenci ve veliye otomatik (otopilot) WhatsApp mesajıyla gönderir.")
+        btn_send_wa.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        btn_send_wa.setStyleSheet("""
+            QPushButton {
+                background-color: #059669;
+                color: #ffffff;
+                font-weight: 700;
+                font-size: 11.5px;
+                padding: 5px 14px;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #047857;
+            }
+        """)
 
-        dlg = WeeklyPlanWhatsAppDialog(preview, student_id, student_name, temp_pdf)
-        dlg.exec()
+        def _on_send_wa():
+            try:
+                from services.smart_calendar import SmartCalendarService
+                html = html_holder[0] if (html_holder and html_holder[0]) else SmartCalendarService.get_latest_html()
+                # Create temp pdf for sending
+                tmp_dir = tempfile.gettempdir()
+                safe_name = _sanitize_filename(student_name)
+                date_str = datetime.date.today().strftime("%Y_%m_%d")
+                temp_pdf = os.path.join(tmp_dir, f"{safe_name}_Haftalik_Calisma_Plani_{date_str}.pdf")
+                export_html_to_pdf_file(html, temp_pdf)
 
-    btn_send_wa.clicked.connect(_on_send_wa)
-    tb.addWidget(btn_send_wa)
+                dlg = WeeklyPlanWhatsAppDialog(preview, student_id, student_name, temp_pdf)
+                dlg.exec()
+            except Exception as ex:
+                QMessageBox.warning(preview, "WhatsApp Hatası", f"WhatsApp penceresi açılırken hata: {ex}")
+
+        btn_send_wa.clicked.connect(_on_send_wa)
+        tb.addWidget(btn_send_wa)
+    except Exception:
+        pass
 
 
 def wrap_open_smart_calendar_pdf(target_cls):
@@ -604,44 +627,29 @@ def wrap_open_smart_calendar_pdf(target_cls):
         return
 
     def wrapped(self):
-        # We temporarily intercept QPrintPreviewDialog exec
-        orig_preview_init = QPrintPreviewDialog.__init__
+        # Synchronously intercept QPrintPreviewDialog.exec right when it executes
+        orig_preview_exec = QPrintPreviewDialog.exec
 
-        def preview_hook(dialog_self, *args, **kwargs):
-            orig_preview_init(dialog_self, *args, **kwargs)
-            # Find student info from self
-            s_uid = self._secili_ogrenci_id() if hasattr(self, "_secili_ogrenci_id") else None
-            if not s_uid and hasattr(self, "cmbAd"):
-                s_uid = self.cmbAd.currentData()
-            s_name = ""
-            if hasattr(self, "cmbAd") and hasattr(self, "cmbSoyad"):
-                s_name = f"{self.cmbAd.currentText()} {self.cmbSoyad.currentText()}".strip()
+        def exec_hook(dlg):
+            try:
+                from PyQt6.sip import isdeleted
+                if not isdeleted(dlg):
+                    s_uid = self._secili_ogrenci_id() if hasattr(self, "_secili_ogrenci_id") else None
+                    if not s_uid and hasattr(self, "cmbAd"):
+                        s_uid = self.cmbAd.currentData()
+                    s_name = ""
+                    if hasattr(self, "cmbAd") and hasattr(self, "cmbSoyad"):
+                        s_name = f"{self.cmbAd.currentText()} {self.cmbSoyad.currentText()}".strip()
 
-            # Schedule toolbar enhancement when preview dialog is shown
-            from PyQt6.QtCore import QTimer
-            def _inject():
-                # Locate html_holder if accessible or build it
-                html_holder = [""]
-                # Try finding handle_print closure or frame
-                try:
-                    import inspect
-                    frame = inspect.currentframe()
-                    while frame:
-                        if "html_holder" in frame.f_locals:
-                            html_holder = frame.f_locals["html_holder"]
-                            break
-                        frame = frame.f_back
-                except Exception:
-                    pass
+                    enhance_print_preview_dialog(dlg, [""], s_uid, s_name)
+            except Exception:
+                pass
+            return orig_preview_exec(dlg)
 
-                enhance_print_preview_dialog(dialog_self, html_holder, s_uid, s_name)
-
-            QTimer.singleShot(50, _inject)
-
-        QPrintPreviewDialog.__init__ = preview_hook
+        QPrintPreviewDialog.exec = exec_hook
         try:
             return original_method(self)
         finally:
-            QPrintPreviewDialog.__init__ = orig_preview_init
+            QPrintPreviewDialog.exec = orig_preview_exec
 
     target_cls._open_smart_calendar_pdf = wrapped
