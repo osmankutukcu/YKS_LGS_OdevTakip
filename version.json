@@ -1,6 +1,6 @@
 {
-  "version": "3.5.76",
+  "version": "3.5.80",
   "name": "YKS-LGS Ödev Takip",
   "channel": "stable",
-  "note": "KoçPilot 360 v3.5.76: Akıllı Öğrenme & Müdahale Motoru + Bilimsel Ödev Kalitesi + Otomatik Koçluk Döngüsü + Öğrenci 360° Müdahale Etkililiği + Baileys Windows Güvenli Kurulum ve Sağlık Denetimi."
+  "note": "KoçPilot 360 v3.5.80: Öğrenci Yükleme Performans V1-V4 (Tanılama Profiler + Fastpath + SQL Denetim + Bellekte İndeks Benchmark) + Modüler 861 MEB YKS Müfredatı & Maarif Modeli."
 }

@@ -418,6 +418,19 @@ def main() -> None:
     except Exception:
         pass
     from main_window import AnaPencere
+    # V3578: Başarılı öğrenci yüklemelerinde dıştaki çift öneri/özet
+    # hesaplarını atla. Ortam değişkeniyle kapatılabilir; çekirdek değişmez.
+    try:
+        from services.student_load_fastpath_v3578 import install_default_fastpath
+        install_default_fastpath()
+    except Exception:
+        pass  # Optimizasyon çalışmazsa mevcut öğrenci yükleme devam eder.
+    # V3577: sadece süre ölçümü; mevcut yükleme/progress/checkbox koduna dokunmaz.
+    try:
+        from services.student_load_profiler_v3577 import install_default_profiler
+        install_default_profiler()
+    except Exception:
+        pass  # Diagnostik arızası programın açılışını engellememeli.
     w = AnaPencere()
     w.setWindowTitle("KoçPilot 360 — Bütünleşik Koçluk & Sınav Platformu")
     try:

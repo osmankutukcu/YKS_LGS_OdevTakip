@@ -4,7 +4,7 @@
 [![Framework](https://img.shields.io/badge/GUI-PyQt6-green.svg)](https://riverbankcomputing.com/software/pyqt/)
 [![Database](https://img.shields.io/badge/Database-SQLite-lightgrey.svg)](https://sqlite.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/Release-v3.5.76-indigo.svg)](https://github.com/osmankutukcu/YKS_LGS_OdevTakip/releases)
+[![Release](https://img.shields.io/badge/Release-v3.5.80-indigo.svg)](https://github.com/osmankutukcu/YKS_LGS_OdevTakip/releases)
 
 **KoçPilot 360**, YKS ve LGS hazırlık sürecindeki öğrencilerin ödev takip, koçluk, deneme sınavı analizi, haftalık çalışma programı ve veli bilgilendirme süreçlerini tek bir merkezden yöneten profesyonel bir masaüstü uygulamasıdır.
 
