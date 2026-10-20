@@ -1,6 +1,6 @@
 {
-  "version": "3.5.80",
+  "version": "3.5.88",
   "name": "YKS-LGS Ödev Takip",
   "channel": "stable",
-  "note": "KoçPilot 360 v3.5.80: Öğrenci Yükleme Performans V1-V4 (Tanılama Profiler + Fastpath + SQL Denetim + Bellekte İndeks Benchmark) + Modüler 861 MEB YKS Müfredatı & Maarif Modeli."
+  "note": "KoçPilot 360 v3.5.88: Bütünleşik Rapor Merkezi (V3.5.81-V3.5.87), Kanıta Dayalı Ölçüm Motoru, Profesyonel & Toplu PDF Önizleme, Sadeleştirilmiş Sol Panel, WhatsApp Otopilot Odak Koruması ve Otomatik PDF Ek Gönderimi."
 }
