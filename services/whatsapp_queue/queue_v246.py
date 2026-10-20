@@ -237,3 +237,49 @@ class SafeWhatsAppQueue:
     def rows(self, batch: str) -> List[dict]:
         with self.connect() as c:
             return [dict(r) for r in c.execute("SELECT * FROM jobs WHERE batch_id=? ORDER BY rowid", (batch,))]
+
+    def cancel_batch(self, batch: str, reason: str = "Kullanıcı tarafından iptal edildi") -> int:
+        """Kuyruktaki bekleyen veya denenmekte olan mesajları iptal eder."""
+        now = _utc()
+        with self.connect() as c:
+            q = c.execute("""UPDATE jobs SET state=?, detail=?, updated=?
+                             WHERE batch_id=? AND state IN (?, ?)""",
+                          (FAILED, reason, now, batch, PENDING, IN_FLIGHT))
+            c.execute("""UPDATE batches SET status=?, updated=? WHERE id=?""",
+                      ("CANCELLED", now, batch))
+            return q.rowcount
+
+    def purge_batch(self, batch: str) -> None:
+        """Belirtilen partiyi ve ilişkili işlerini kuyruktan tamamen siler."""
+        with self.connect() as c:
+            c.execute("DELETE FROM jobs WHERE batch_id=?", (batch,))
+            c.execute("DELETE FROM batches WHERE id=?", (batch,))
+
+    def purge_queue(self, db_path: str) -> int:
+        """Belirtilen veritabanına ait tüm kuyruk kayıtlarını tamamen siler/sıfırlar."""
+        real_db = os.path.realpath(db_path)
+        with self.connect() as c:
+            deleted_jobs = c.execute("""DELETE FROM jobs WHERE batch_id IN (
+                SELECT id FROM batches WHERE source_db=?
+            )""", (real_db,)).rowcount
+            c.execute("DELETE FROM batches WHERE source_db=?", (real_db,))
+            return deleted_jobs
+
+    def clean_stale_lock(self) -> None:
+        """Kilit dosyası sahipsiz kalmışsa güvenle temizler."""
+        lock_path = self.path + ".worker.lock"
+        try:
+            if not os.path.exists(lock_path):
+                return
+            with open(lock_path, "rt", encoding="ascii") as f:
+                pid = int(f.read().strip())
+            if pid == os.getpid():
+                os.unlink(lock_path)
+                return
+            try:
+                os.kill(pid, 0)
+            except (ProcessLookupError, OSError):
+                os.unlink(lock_path)
+        except Exception:
+            pass
+

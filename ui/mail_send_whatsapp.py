@@ -1210,9 +1210,11 @@ class WhatsAppTab(QWidget):
         bottom.addWidget(self.lblKuyrukWA, 1)
         self.btnBaileysTest = QPushButton("🧪 Baileys Testi (tek alıcı)")
         self.btnKuyrukWA = QPushButton("📋 Kuyruğu Gör / Sürdür")
+        self.btnKuyrukSifirlaWA = QPushButton("🗑️ Kuyruğu Sıfırla")
         self.btnSettingsWA = QPushButton("⚙️ Ayarlar / Şablonlar")
         bottom.addWidget(self.btnBaileysTest)
         bottom.addWidget(self.btnKuyrukWA)
+        bottom.addWidget(self.btnKuyrukSifirlaWA)
         bottom.addWidget(self.btnSettingsWA)
         root.addLayout(bottom)
 
@@ -1222,6 +1224,7 @@ class WhatsAppTab(QWidget):
         self.btnGonderWA.clicked.connect(self._on_send_clicked)
         self.btnBaileysTest.clicked.connect(self._open_baileys_test_v257)
         self.btnKuyrukWA.clicked.connect(self._on_queue_clicked)
+        self.btnKuyrukSifirlaWA.clicked.connect(self._on_queue_reset_clicked)
         self.btnSettingsWA.clicked.connect(self._open_settings_dialog)
 
         # Filtre + şablon entegrasyonu: gecikmiş filtresi açılırsa "gecikmiş" şablonu yükle
@@ -1365,19 +1368,114 @@ class WhatsAppTab(QWidget):
                 lines.append(f"… {len(errors)-8} kayıt daha")
         summary = "\n".join(lines)
         if not pending:
-            QMessageBox.information(self, "Son Gönderim Sonuçları", summary +
-                "\n\nTeslim durumları kişisel WhatsApp üzerinden kesin doğrulanamaz.")
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Son Gönderim Sonuçları")
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setText(summary + "\n\nTeslim durumları kişisel WhatsApp üzerinden kesin doğrulanamaz.")
+            btn_ok = msg.addButton("Tamam", QMessageBox.ButtonRole.AcceptRole)
+            btn_clear = msg.addButton("🗑️ Geçmişi / Kuyruğu Sıfırla", QMessageBox.ButtonRole.DestructiveRole)
+            msg.exec()
+            if msg.clickedButton() == btn_clear:
+                confirm = QMessageBox.question(
+                    self, "Kuyruğu Temizle",
+                    "Geçmiş gönderim sonuçları kuyruktan tamamen temizlensin mi?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
+                if confirm == QMessageBox.StandardButton.Yes:
+                    try:
+                        q.purge_batch(batch)
+                        q.clean_stale_lock()
+                        self.lblKuyrukWA.setText("WhatsApp kuyruk geçmişi sıfırlandı.")
+                        QMessageBox.information(self, "Temizlendi", "WhatsApp kuyruğu başarıyla sıfırlandı.")
+                    except Exception as exc:
+                        QMessageBox.warning(self, "Hata", f"Temizleme hatası: {exc}")
             return
         manual_reminder = ("\n\nSeçili manuel bağlantı yöntemi HER TIKLAMADA yalnızca BİR sohbet açar. "
             "Gönderme işlemini siz yaparsınız." if self._selected_transport() in MANUAL_LINKS else "")
-        if QMessageBox.question(self, "Kaydedilmiş Kuyruğu Sürdür",
-                summary + "\n\nBekleyen mesajlar eski içerikleriyle işlenecek. "
-                "Sonucu belirsiz mesajlar tekrar gönderilmeyecek." + manual_reminder + " Devam edilsin mi?") != QMessageBox.StandardButton.Yes:
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Kaydedilmiş Kuyruğu Sürdür")
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setText(summary + "\n\nBekleyen mesajlar eski içerikleriyle işlenecek. "
+            "Sonucu belirsiz mesajlar tekrar gönderilmeyecek." + manual_reminder + "\n\nDevam edilsin mi?")
+
+        btn_yes = msg.addButton("Devam Et (Sürdür)", QMessageBox.ButtonRole.AcceptRole)
+        btn_reset = msg.addButton("🗑️ Kuyruğu Sıfırla / İptal Et", QMessageBox.ButtonRole.DestructiveRole)
+        btn_no = msg.addButton("Vazgeç / Kapat", QMessageBox.ButtonRole.RejectRole)
+        msg.setDefaultButton(btn_yes)
+
+        msg.exec()
+        clicked = msg.clickedButton()
+
+        if clicked == btn_reset:
+            confirm = QMessageBox.question(
+                self,
+                "Kuyruğu Sıfırla",
+                f"Kuyruktaki {pending} adet bekleyen mesaj iptal edilecek ve kuyruk tamamen sıfırlanacaktır.\n\n"
+                "Bu işlemi onaylıyor musunuz?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if confirm == QMessageBox.StandardButton.Yes:
+                try:
+                    q.purge_batch(batch)
+                    q.clean_stale_lock()
+                    self.lblKuyrukWA.setText("WhatsApp gönderim kuyruğu sıfırlandı.")
+                    QMessageBox.information(self, "Kuyruk Sıfırlandı", "WhatsApp gönderim kuyruğu başarıyla temizlendi ve sıfırlandı.")
+                except Exception as exc:
+                    QMessageBox.warning(self, "Hata", f"Kuyruk sıfırlanırken hata oluştu: {exc}")
             return
+        elif clicked != btn_yes:
+            return
+
         if requested_baileys:
             self._open_baileys_bulk_v258(resume_batch=batch)
         else:
             self._start_worker(resume_batch_id=batch)
+
+    def _on_queue_reset_clicked(self):
+        if self.worker and self.worker.isRunning():
+            QMessageBox.warning(self, "Kuyruk Meşgul", "WhatsApp gönderimi devam ederken kuyruk sıfırlanamaz. Lütfen önce gönderimin bitmesini bekleyin.")
+            return
+        if self._selected_transport() == BAILEYS_BULK:
+            from services.whatsapp_queue.baileys_bulk_v258 import open_baileys_queue
+            try:
+                q = open_baileys_queue(self.db_path, _appdata_dir())
+            except Exception as exc:
+                QMessageBox.warning(self, 'Baileys şifreli kuyruk', str(exc))
+                return
+        else:
+            q = SafeWhatsAppQueue(queue_path_for(self.db_path, _appdata_dir()))
+
+        batch = q.current_batch(self.db_path) or q.latest_batch(self.db_path)
+        if not batch:
+            QMessageBox.information(self, "Kuyruk Boş", "Temizlenecek aktif veya kayıtlı WhatsApp gönderim kuyruğu bulunmuyor.")
+            return
+
+        counts = q.counts(batch)
+        pending = counts.get(PENDING, 0)
+        total = sum(counts.values())
+
+        reply = QMessageBox.question(
+            self,
+            "Kuyruğu Sıfırla",
+            f"Kayıtlı WhatsApp kuyruğu sıfırlanacak:\n\n"
+            f"• Bekleyen Mesajlar: {pending}\n"
+            f"• Toplam Kuyruk Kaydı: {total}\n\n"
+            "Kuyruktaki işler iptal edilecek ve kuyruk tamamen temizlenecektir.\n\n"
+            "Bu işlemi onaylıyor musunuz?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                q.purge_batch(batch)
+                q.clean_stale_lock()
+                self.lblKuyrukWA.setText("WhatsApp gönderim kuyruğu başarıyla sıfırlandı.")
+                QMessageBox.information(self, "Kuyruk Sıfırlandı", "WhatsApp gönderim kuyruğu başarıyla temizlendi ve sıfırlandı.")
+            except Exception as exc:
+                QMessageBox.warning(self, "Hata", f"Kuyruk sıfırlanırken hata oluştu: {exc}")
 
     def _start_worker(self, resume_batch_id=None):
         if self.worker and self.worker.isRunning():
