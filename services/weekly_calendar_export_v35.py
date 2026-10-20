@@ -397,148 +397,361 @@ class WeeklyPlanWhatsAppDialog(QDialog):
         msg_text = self.txt_message.toPlainText().strip()
         use_desktop = self.rb_desktop.isChecked()
 
+        # macOS: Otopilot tuş basımı için Erişilebilirlik izni ön kontrolü.
+        # İzin yoksa sahte "gönderildi" demek yerine kullanıcıyı doğru yönlendir.
+        if use_desktop and sys.platform == "darwin":
+            ax_ok, ax_err = _mac_accessibility_ok()
+            if not ax_ok:
+                self._handle_missing_accessibility(selected_numbers, msg_text, ax_err)
+                return
+
         self.btn_send.setEnabled(False)
         self.btn_send.setText("Gönderiliyor...")
 
         try:
-            success_count = 0
-            fail_count = 0
             import time
+            results: List[Dict[str, Any]] = []
             for phone, r_name in selected_numbers:
                 clean = normalize_phone_number(phone)
                 if not clean:
-                    fail_count += 1
+                    results.append({"name": r_name, "text_sent": False, "pdf_sent": False,
+                                    "error": "Geçersiz telefon numarası", "permission": False})
                     continue
 
                 if use_desktop:
-                    _dispatch_desktop_autopilot(clean, msg_text, self.pdf_path, self.student_id)
+                    res = _dispatch_desktop_autopilot(clean, msg_text, self.pdf_path, self.student_id)
                 else:
-                    _dispatch_web_autopilot(clean, msg_text, self.pdf_path, self.student_id)
-                success_count += 1
+                    res = _dispatch_web_autopilot(clean, msg_text, self.pdf_path, self.student_id)
+                res["name"] = r_name
+                results.append(res)
+                if res.get("permission"):
+                    break  # izin yoksa diğer alıcılarda da başarısız olur
                 if len(selected_numbers) > 1:
                     time.sleep(2.0)
 
-            QMessageBox.information(
-                self,
-                "WhatsApp Gönderimi Tamamlandı",
-                f"Haftalık plan PDF'i {success_count} alıcı için WhatsApp üzerinden gönderildi.\n"
-                f"Ekli dosya: {os.path.basename(self.pdf_path)}",
-            )
-            self.accept()
+            self._report_results(results, use_desktop)
         except Exception as exc:
             QMessageBox.critical(self, "Gönderim Hatası", f"WhatsApp otopilotunda hata: {exc}")
         finally:
             self.btn_send.setEnabled(True)
             self.btn_send.setText("🚀 Otopilot ile Gönder")
 
+    # ------------------------------------------------------------------
+    def _handle_missing_accessibility(self, selected_numbers, msg_text: str, ax_err: str):
+        """macOS Erişilebilirlik izni yoksa: PDF'i panoya koy, sohbeti aç, kullanıcıyı yönlendir."""
+        app_name = _mac_host_app_name()
+        abs_pdf = _prepare_shareable_pdf(self.pdf_path)
+        clip_ok = _copy_file_to_clipboard(abs_pdf) if abs_pdf else False
 
-def _dispatch_desktop_autopilot(clean_phone: str, message: str, pdf_path: str, student_id: Optional[int]):
-    """Opens desktop WhatsApp, sends message, and pastes + sends PDF document in autopilot."""
+        box = QMessageBox(self)
+        box.setWindowTitle("Otopilot İzni Gerekli")
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setText(
+            "macOS, uygulamanın WhatsApp'ta sizin yerinize tuşlara basmasına henüz izin vermiyor.\n"
+            "Bu nedenle mesaj kutuya yazılıyor ama gönderilemiyor ve PDF eklenemiyordu."
+        )
+        box.setInformativeText(
+            "Kalıcı çözüm (bir kez yapılır):\n"
+            f"1) Sistem Ayarları › Gizlilik ve Güvenlik › Erişilebilirlik\n"
+            f"2) Listede '{app_name}' anahtarını AÇIK yapın (yoksa + ile ekleyin)\n"
+            f"3) '{app_name}' uygulamasını tamamen kapatıp programı yeniden başlatın.\n\n"
+            + ("Şimdilik: PDF panoya kopyalandı. WhatsApp sohbetinde ⌘V ile yapıştırıp Enter'a basabilirsiniz."
+               if clip_ok else "Şimdilik: PDF dosyasını WhatsApp sohbetine sürükleyip bırakabilirsiniz.")
+        )
+        if ax_err:
+            box.setDetailedText(ax_err)
+        btn_settings = box.addButton("Erişilebilirlik Ayarlarını Aç", QMessageBox.ButtonRole.ActionRole)
+        btn_manual = box.addButton("Sohbeti Aç (Elle Gönder)", QMessageBox.ButtonRole.ActionRole)
+        box.addButton("Kapat", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+
+        clicked = box.clickedButton()
+        if clicked is btn_settings:
+            _open_mac_accessibility_settings()
+        elif clicked is btn_manual:
+            for phone, _r in selected_numbers[:1]:
+                clean = normalize_phone_number(phone)
+                if clean:
+                    uri = f"whatsapp://send?phone={clean}&text={urllib.parse.quote(msg_text)}"
+                    subprocess.run(["open", uri], check=False)
+
+    def _report_results(self, results: List[Dict[str, Any]], use_desktop: bool):
+        """Gerçek sonuca göre dürüst bilgi verir (sahte 'gönderildi' yok)."""
+        full_ok = [r for r in results if r.get("text_sent") and r.get("pdf_sent")]
+        if results and len(full_ok) == len(results):
+            QMessageBox.information(
+                self,
+                "WhatsApp Gönderimi Tamamlandı",
+                f"Mesaj ve haftalık plan PDF'i {len(full_ok)} alıcıya otopilot ile gönderildi.\n"
+                f"Ekli dosya: {os.path.basename(self.pdf_path)}",
+            )
+            self.accept()
+            return
+
+        if not use_desktop:
+            QMessageBox.information(
+                self,
+                "WhatsApp Web Açıldı",
+                "WhatsApp Web sohbeti açıldı ve mesaj kutuya yazıldı.\n"
+                "PDF dosyası panoya kopyalandı: sohbete tıklayıp ⌘V / Ctrl+V ile yapıştırın ve Enter'a basın.",
+            )
+            self.accept()
+            return
+
+        if any(r.get("permission") for r in results):
+            err = next((r.get("error", "") for r in results if r.get("permission")), "")
+            self._handle_missing_accessibility([], "", err)
+            return
+
+        lines = []
+        for r in results:
+            if r.get("text_sent") and r.get("pdf_sent"):
+                durum = "✅ Mesaj + PDF gönderildi"
+            elif r.get("text_sent"):
+                durum = "⚠️ Mesaj gönderildi, PDF eklenemedi (PDF panoda: ⌘V + Enter)"
+            else:
+                durum = f"❌ Gönderilemedi: {r.get('error') or 'bilinmeyen hata'}"
+            lines.append(f"• {r.get('name', '')}: {durum}")
+        QMessageBox.warning(self, "WhatsApp Gönderim Sonucu", "\n".join(lines) or "Gönderim yapılmadı.")
+
+
+# ----------------------------------------------------------------------
+# macOS / Windows yardımcıları (otopilot)
+# ----------------------------------------------------------------------
+_AX_ERROR_MARKERS = ("-1719", "-25211", "1002", "-1743", "assistive", "not allowed",
+                     "izin veril", "yardımcı erişim", "erişilebilirlik")
+
+
+def _run_osascript(script: str, timeout: int = 60) -> Tuple[bool, str, str]:
+    """osascript çalıştırır; (başarılı, stdout, stderr) döndürür. Hataları yutmaz."""
+    try:
+        proc = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=timeout)
+        return proc.returncode == 0, (proc.stdout or "").strip(), (proc.stderr or "").strip()
+    except Exception as exc:  # pragma: no cover - platform dependent
+        return False, "", str(exc)
+
+
+def _is_permission_error(err: str) -> bool:
+    low = (err or "").lower()
+    return any(m in low for m in _AX_ERROR_MARKERS)
+
+
+def _mac_accessibility_ok() -> Tuple[bool, str]:
+    """System Events üzerinden tuş basabilmek için Erişilebilirlik izni var mı?"""
+    if sys.platform != "darwin":
+        return True, ""
+    ok, _out, err = _run_osascript(
+        'tell application "System Events" to count windows of process "Finder"', timeout=15
+    )
+    if ok:
+        return True, ""
+    return (False, err) if _is_permission_error(err) else (True, "")
+
+
+def _mac_host_app_name() -> str:
+    """Programı başlatan uygulama (izin bu uygulamaya verilmeli)."""
+    bundle = os.environ.get("__CFBundleIdentifier", "")
+    term = os.environ.get("TERM_PROGRAM", "")
+    mapping = {
+        "com.apple.Terminal": "Terminal",
+        "com.googlecode.iterm2": "iTerm",
+        "com.microsoft.VSCode": "Visual Studio Code",
+    }
+    if bundle in mapping:
+        return mapping[bundle]
+    if "pycharm" in bundle.lower():
+        return "PyCharm"
+    if term == "Apple_Terminal":
+        return "Terminal"
+    if term:
+        return term.replace(".app", "")
+    if getattr(sys, "frozen", False):
+        return "KoçPilot 360 / OdevTakip"
+    return "Terminal (veya Python)"
+
+
+def _open_mac_accessibility_settings():
+    try:
+        subprocess.run(
+            ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"],
+            check=False,
+        )
+    except Exception:
+        pass
+
+
+def _prepare_shareable_pdf(pdf_path: str) -> str:
+    """PDF'i WhatsApp'ın (sandbox) okuyabileceği kalıcı bir klasöre kopyalar."""
+    if not pdf_path or not os.path.exists(pdf_path):
+        return ""
+    src = os.path.abspath(pdf_path)
+    try:
+        import shutil
+        target_dir = os.path.join(os.path.expanduser("~"), "Documents", "KocPilot360", "Haftalik_Planlar")
+        os.makedirs(target_dir, exist_ok=True)
+        dst = os.path.join(target_dir, os.path.basename(src))
+        if os.path.abspath(dst) != src:
+            shutil.copy2(src, dst)
+        return dst
+    except Exception:
+        return src
+
+
+def _copy_file_to_clipboard(abs_path: str) -> bool:
+    """Dosyayı panoya Finder'daki 'Kopyala' ile aynı şekilde (dosya nesnesi olarak) koyar."""
+    if not abs_path or not os.path.exists(abs_path):
+        return False
+    if sys.platform == "darwin":
+        safe = abs_path.replace("\\", "\\\\").replace('"', '\\"')
+        script = (
+            'use framework "AppKit"\n'
+            'use scripting additions\n'
+            "set pb to current application's NSPasteboard's generalPasteboard()\n"
+            "pb's clearContents()\n"
+            f"set u to current application's NSURL's fileURLWithPath:\"{safe}\"\n"
+            "return ((pb's writeObjects:{u}) as boolean)"
+        )
+        ok, out, _err = _run_osascript(script, timeout=15)
+        if ok and out.lower() == "true":
+            return True
+        ok2, _o, _e = _run_osascript(f'set the clipboard to (POSIX file "{safe}")', timeout=15)
+        return ok2
+    if sys.platform == "win32":
+        try:
+            ps_path = abs_path.replace("'", "''")
+            proc = subprocess.run(
+                ["powershell", "-NoProfile", "-STA", "-Command", f"Set-Clipboard -LiteralPath '{ps_path}'"],
+                capture_output=True, text=True, timeout=20,
+            )
+            return proc.returncode == 0
+        except Exception:
+            return False
+    return False
+
+
+def _dispatch_desktop_autopilot(clean_phone: str, message: str, pdf_path: str, student_id: Optional[int]) -> Dict[str, Any]:
+    """Opens desktop WhatsApp, sends message, and pastes + sends PDF document in autopilot.
+
+    Returns a result dict: text_sent, pdf_sent, error, permission.
+    """
+    result: Dict[str, Any] = {"text_sent": False, "pdf_sent": False, "error": "", "permission": False}
     encoded = urllib.parse.quote(message)
     uri = f"whatsapp://send?phone={clean_phone}&text={encoded}"
-    abs_pdf = os.path.abspath(pdf_path) if (pdf_path and os.path.exists(pdf_path)) else ""
+    abs_pdf = _prepare_shareable_pdf(pdf_path)
     has_pdf = bool(abs_pdf)
 
     if sys.platform == "darwin":
+        # 0. PDF'i önceden panoya dosya olarak koy (izin gerektirmez; otopilot
+        #    başarısız olsa bile kullanıcı ⌘V ile yapıştırabilir)
+        clip_ok = _copy_file_to_clipboard(abs_pdf) if has_pdf else False
+
         # 1. WhatsApp uygulamasını aç ve sohbeti yükle
         subprocess.run(["open", uri], check=False)
 
-        # 2. AppleScript: WhatsApp'ı öne getir, metni gönder (Enter), ardından PDF'i yapıştırıp gönder
-        if has_pdf:
-            script = f"""
-            delay 2.2
-            tell application "WhatsApp"
-                activate
-            end tell
-            delay 0.6
+        # 2. AppleScript: WhatsApp'ı GERÇEKTEN öne getirdiğini doğrulayarak tuşlara bas.
+        #    Odak başka uygulamadaysa asla tuş gönderme (yanlış pencereye yazmayı önler).
+        paste_block = ""
+        if has_pdf and clip_ok:
+            paste_block = """
+            delay 1.5
+            if not my focusWA() then return "TEXT_OK|FOCUS_LOST"
             tell application "System Events"
-                -- Metin mesajını gönder
-                key code 36
-                delay 1.0
-            end tell
-
-            -- PDF dosyasını panoya dosya URL'si olarak yerleştir
-            set the clipboard to (POSIX file "{abs_pdf}")
-            delay 0.5
-
-            tell application "WhatsApp"
-                activate
-            end tell
-            delay 0.5
-            tell application "System Events"
-                -- PDF dosyasını yapıştır (Command + V)
                 keystroke "v" using command down
-                delay 1.8
-                -- Belge gönderme onayını ver (Enter)
-                key code 36
             end tell
-            """
-        else:
-            script = """
-            delay 2.2
-            tell application "WhatsApp"
-                activate
-            end tell
-            delay 0.6
+            delay 2.8
+            if not my focusWA() then return "TEXT_OK|FOCUS_LOST"
             tell application "System Events"
                 key code 36
             end tell
+            delay 0.8
+            return "TEXT_OK|PDF_OK"
             """
-        try:
-            subprocess.run(["osascript", "-e", script], check=False)
-        except Exception:
-            pass
+        script = f"""
+        on focusWA()
+            tell application "WhatsApp" to activate
+            delay 0.4
+            tell application "System Events"
+                repeat 15 times
+                    if exists (process "WhatsApp") then
+                        set frontmost of process "WhatsApp" to true
+                        delay 0.2
+                        if frontmost of process "WhatsApp" then return true
+                    end if
+                    delay 0.3
+                end repeat
+            end tell
+            return false
+        end focusWA
+
+        delay 2.8
+        if not my focusWA() then return "FOCUS_LOST"
+        delay 0.4
+        tell application "System Events"
+            key code 36
+        end tell
+        {paste_block if paste_block else 'return "TEXT_OK|NO_PDF"'}
+        """
+        ok, out, err = _run_osascript(script, timeout=60)
+        if not ok:
+            result["error"] = err or "AppleScript hatası"
+            result["permission"] = _is_permission_error(err)
+        else:
+            result["text_sent"] = out.startswith("TEXT_OK")
+            result["pdf_sent"] = (out == "TEXT_OK|PDF_OK") or (out == "TEXT_OK|NO_PDF" and not has_pdf)
+            if out == "FOCUS_LOST":
+                result["error"] = "WhatsApp penceresi öne getirilemedi"
+            elif has_pdf and not clip_ok:
+                result["error"] = "PDF panoya kopyalanamadı"
+            elif "FOCUS_LOST" in out:
+                result["error"] = "PDF yapıştırılırken WhatsApp odağı kayboldu"
     elif sys.platform == "win32":
+        clip_ok = _copy_file_to_clipboard(abs_pdf) if has_pdf else False
         try:
             os.startfile(uri)
         except Exception:
             subprocess.run(f'start "" "{uri}"', shell=True)
         import time
-        time.sleep(2.5)
+        time.sleep(3.0)
         try:
             import pyautogui as pag
             # Metin mesajını gönder
             pag.press("enter")
-            time.sleep(1.0)
-            if has_pdf:
-                # PDF dosyasını panoya koy
-                ps_cmd = f"Set-Clipboard -Path '{abs_pdf}'"
-                subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], check=False)
-                time.sleep(0.5)
+            result["text_sent"] = True
+            time.sleep(1.5)
+            if has_pdf and clip_ok:
                 # WhatsApp'a yapıştır (Ctrl + V)
                 pag.hotkey("ctrl", "v")
-                time.sleep(1.8)
+                time.sleep(2.8)
                 # Gönderim onayını ver (Enter)
                 pag.press("enter")
-        except Exception:
-            pass
+                result["pdf_sent"] = True
+            elif not has_pdf:
+                result["pdf_sent"] = True
+            else:
+                result["error"] = "PDF panoya kopyalanamadı"
+        except Exception as exc:
+            result["error"] = f"pyautogui: {exc}"
     else:
         subprocess.run(["xdg-open", uri], check=False)
+        result["error"] = "Bu platformda otomatik gönderim desteklenmiyor"
 
-    _log_whatsapp_dispatch(clean_phone, message, student_id, success=True)
+    _log_whatsapp_dispatch(clean_phone, message, student_id, success=bool(result["text_sent"]))
+    return result
 
 
-def _dispatch_web_autopilot(clean_phone: str, message: str, pdf_path: str, student_id: Optional[int]):
+def _dispatch_web_autopilot(clean_phone: str, message: str, pdf_path: str, student_id: Optional[int]) -> Dict[str, Any]:
     """Opens WhatsApp Web in default browser, and sets clipboard to PDF."""
     encoded = urllib.parse.quote(message)
     web_url = f"https://web.whatsapp.com/send?phone={clean_phone}&text={encoded}"
     import webbrowser
     webbrowser.open(web_url)
 
-    abs_pdf = os.path.abspath(pdf_path) if (pdf_path and os.path.exists(pdf_path)) else ""
-    if abs_pdf:
-        if sys.platform == "darwin":
-            try:
-                subprocess.run(["osascript", "-e", f'set the clipboard to (POSIX file "{abs_pdf}")'], check=False)
-            except Exception:
-                pass
-        elif sys.platform == "win32":
-            try:
-                subprocess.run(["powershell", "-NoProfile", "-Command", f"Set-Clipboard -Path '{abs_pdf}'"], check=False)
-            except Exception:
-                pass
+    abs_pdf = _prepare_shareable_pdf(pdf_path)
+    clip_ok = _copy_file_to_clipboard(abs_pdf) if abs_pdf else False
 
     _log_whatsapp_dispatch(clean_phone, message, student_id, success=True)
+    return {"text_sent": False, "pdf_sent": False, "clipboard": clip_ok,
+            "error": "", "permission": False}
 
 
 def _log_whatsapp_dispatch(phone: str, msg: str, student_id: Optional[int], success: bool = True):
