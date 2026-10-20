@@ -4,7 +4,7 @@
 [![Framework](https://img.shields.io/badge/GUI-PyQt6-green.svg)](https://riverbankcomputing.com/software/pyqt/)
 [![Database](https://img.shields.io/badge/Database-SQLite-lightgrey.svg)](https://sqlite.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/Release-v3.5.55-indigo.svg)](https://github.com/osmankutukcu/YKS_LGS_OdevTakip/releases)
+[![Release](https://img.shields.io/badge/Release-v3.5.56-indigo.svg)](https://github.com/osmankutukcu/YKS_LGS_OdevTakip/releases)
 
 **KoçPilot 360**, YKS ve LGS hazırlık sürecindeki öğrencilerin ödev takip, koçluk, deneme sınavı analizi, haftalık çalışma programı ve veli bilgilendirme süreçlerini tek bir merkezden yöneten profesyonel bir masaüstü uygulamasıdır.
 
@@ -115,7 +115,7 @@ python tools/v3540_preflight.py
 ## 📦 Dağıtım ve Yayın Süreci (CI/CD)
 
 Proje, GitHub Actions üzerinde tam otomatik derleme hattına sahiptir:
-1. `push` veya sürüm etiketi (`v3.5.55`) verildiğinde derleme tetiklenir.
+1. `push` veya sürüm etiketi (`v3.5.56`) verildiğinde derleme tetiklenir.
 2. Otomatik güvenlik testleri, korunan çekirdek denetimi ve hijyen kapıları çalıştırılır.
 3. PyInstaller ile Windows bağımsız EXE (`OdevTakip_v2.exe`) derlenir.
 4. Inno Setup ile tek kurulumlu Windows Kurulum Paketi (`OdevTakip_v2_Kurulum.exe`) üretilir.

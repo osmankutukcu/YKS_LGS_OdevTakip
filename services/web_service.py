@@ -26,6 +26,7 @@ try:
 except ImportError:
     certifi = None
 from PyQt6.QtCore import QThread, pyqtSignal
+from services.exam_planning_v3555 import read_calendar
 
 
 @dataclass
@@ -46,15 +47,15 @@ OFFLINE_KNOWLEDGE_BASE: List[FeedItem] = [
     # 1. PDR & Rehberlik & Zihin Yönetimi
     FeedItem(source="REHBERLİK", title="Turlama Tekniği: İlk turda bildiğin ve hızlı çözdüğün soruları yap, vakit alanları işaretleyip 2. tura bırak.", url="", tags="REHBERLİK,SINAV", score=80),
     FeedItem(source="PDR", title="Soru Kökü Kuralı: Soruyu okumadan önce altı çizili veya olumsuz ('değildir', 'ulaşılamaz') ifadeleri daire içine al.", url="", tags="REHBERLİK,DİKKAT", score=78),
-    FeedItem(source="KOÇ", title="Biyolojik Saat: Sınava 90 gün kala her gün 07:00'de uyanarak beynini saat 10:15'teki sınav zirvesine hazırla.", url="", tags="REHBERLİK,BİYOLOJİ", score=76),
-    FeedItem(source="PDR", title="Sınav Kaygısı Yönetimi: Kaygılandığında 4 saniye burnundan nefes al, 4 saniye tut ve 8 saniyede yavaşça ver (4-7-8 kuralı).", url="", tags="REHBERLİK,KAYGI", score=75),
-    FeedItem(source="KOÇ", title="İç Disiplin: Motivasyon başlamanı sağlar, ancak hedeflediğin dereceye sadece 'sürdürülebilir alışkanlıklar' ulaştırır.", url="", tags="REHBERLİK,MOTİVASYON", score=74),
-    FeedItem(source="PDR", title="Optik Kodlama Ritmi: Kodlamayı sona bırakmak kaydırma riskini %80 artırır; sayfa sayfa veya soru soru kodla.", url="", tags="REHBERLİK,TAKTIK", score=73),
+    FeedItem(source="KOÇ", title="Uyku rutini: Sınav saatine uygun, sürdürülebilir bir uyku ve uyanma düzeni oluştur.", url="", tags="REHBERLİK,BİYOLOJİ", score=76),
+    FeedItem(source="PDR", title="Sınav kaygısı: Kendini gergin hissettiğinde birkaç tur yavaş nefes alıp ver; ihtiyaç halinde okulun psikolojik danışmanına başvur.", url="", tags="REHBERLİK,KAYGI", score=75),
+    FeedItem(source="KOÇ", title="Sürdürülebilir çalışma: Sabit bir çalışma düzeni oluştur; zorlandığın haftalarda yükünü gözden geçir.", url="", tags="REHBERLİK,MOTİVASYON", score=74),
+    FeedItem(source="PDR", title="Optik kodlamayı sona bırakma; denemelerde soru soru veya sayfa sayfa kodlama alışkanlığı geliştir.", url="", tags="REHBERLİK,TAKTIK", score=73),
     FeedItem(source="KOÇ", title="Zor Soru Efsanesi: Sınavda en zor soru ile en kolay sorunun standart sapma hariç puan değeri aynıdır; inatlaşma!", url="", tags="REHBERLİK,STRATEJİ", score=72),
     FeedItem(source="PDR", title="Kıyaslama Tuzağı: Kendini başkalarının netleriyle değil, dünkü kendi performansınla kıyasla; gelişim kişiseldir.", url="", tags="REHBERLİK,MOTİVASYON", score=70),
 
     # 2. YKS / TYT / AYT Taktikleri
-    FeedItem(source="YKS", title="TYT Paragraf Çözme Formülü: Günde sabah aç karna çözülen 20-25 paragraf sorusu, 3 ayda netlerini 6-8 net yukarı taşır.", url="", tags="YKS,TYT,TÜRKÇE", score=85),
+    FeedItem(source="YKS", title="Paragraf çalışması: Günlük düzenli pratik yap, haftalık denemelerle gelişimini izle; kesin net artışı vaat edilmez.", url="", tags="YKS,TYT,TÜRKÇE", score=85),
     FeedItem(source="YKS", title="TYT Matematik Problem Çözümü: Problemleri okurken verilenleri ve isteneni kenara mini sembollerle not ederek oku.", url="", tags="YKS,TYT,MATEMATİK", score=84),
     FeedItem(source="YKS", title="AYT Matematik Derinliği: AYT'de formül ezberi değil, formülün 'nereden çıktığı' sorulur; ispatları gözden geçir.", url="", tags="YKS,AYT,MATEMATİK", score=83),
     FeedItem(source="YKS", title="TYT Fen Hızlandırma: Fizik, Kimya ve Biyoloji TYT'de 20 netlik büyük bir fırsattır; temel kavramları ihmal etme.", url="", tags="YKS,TYT,FEN", score=82),
@@ -77,12 +78,12 @@ OFFLINE_KNOWLEDGE_BASE: List[FeedItem] = [
     # 4. Odaklanma & Zaman Yönetimi (Pomodoro & Deep Work)
     FeedItem(source="ODAK", title="Pomodoro 25/5 Metodu: 25 dakika kesintisiz tek derse odaklan, 5 dakika ekrandan uzak mola ver; 4 set sonra 30 dk dinlen.", url="", tags="ODAK,POMODORO", score=79),
     FeedItem(source="ODAK", title="Ultradian Ritim (50/10): İleri düzey deneme çözümlerinde 50 dakika derin odaklanma + 10 dakika göz dinlendirme uygula.", url="", tags="ODAK,ZAMAN", score=78),
-    FeedItem(source="ODAK", title="Dijital Detoks Kuralı: Çalışma masasında telefon bulundurmak, dokunmasan bile bilişsel kapasiteyi %20 azaltır; telefonu başka odaya bırak.", url="", tags="ODAK,DİJİTAL", score=82),
+    FeedItem(source="ODAK", title="Dikkat dağınıklığı: Çalışma sırasında bildirimleri kapatıp telefonu görüş alanının dışında tutmayı dene.", url="", tags="ODAK,DİJİTAL", score=82),
     FeedItem(source="ODAK", title="Günün En Zor Dersi Kuralı: İrade gücü sabah en yüksektir; en çok zorlandığın dersi ilk çalışma seansına koy.", url="", tags="ODAK,PLAN", score=76),
     FeedItem(source="ODAK", title="Masa Düzeni: Masanda yalnızca o an çalıştığın kitap, defter ve kalem olsun; diğer kitapların kalabalığı dikkat dağıtır.", url="", tags="ODAK,ORTAM", score=74),
 
     # 5. Akıllı Tekrar (Spaced Repetition) & Öğrenme Teknikleri
-    FeedItem(source="TEKRAR", title="1-7-30 Gün Kuralı: Öğrenilen bilginin %70'i ilk 24 saatte unutulur; 1 gün, 7 gün ve 30 gün sonra yapılan 15 dk'lık tekrarlar kalıcılığı sağlar.", url="", tags="TEKRAR,HAFIZA", score=85),
+    FeedItem(source="TEKRAR", title="Aralıklı tekrar: Konularını ertesi gün ve sonraki haftalarda kısa aralıklarla kendini sınayarak gözden geçir.", url="", tags="TEKRAR,HAFIZA", score=85),
     FeedItem(source="METOT", title="Feynman Öğrenme Tekniği: Bir konuyu tam anladığını test etmek için konuyu 10 yaşındaki bir çocuğa anlatır gibi sade bir dille anlat.", url="", tags="TEKRAR,FEYNMAN", score=82),
     FeedItem(source="TEKRAR", title="Hata Defteri Mucizesi: Denemelerde yanlış yaptığın soruları kesip yapıştır; haftada bir bu defteri sıfırdan çöz, netlerin zıplasın.", url="", tags="TEKRAR,ANALİZ", score=84),
     FeedItem(source="METOT", title="Aktif Hatırlama (Active Recall): Kitabı okuyup altını çizmek pasiftir; sayfayı kapatıp 'Ben az önce ne öğrendim?' diye kendine sor.", url="", tags="TEKRAR,ÖĞRENME", score=81),
@@ -239,10 +240,8 @@ def _urlopen(url: str, timeout: int = 6) -> bytes:
     if certifi:
         context = ssl.create_default_context(cafile=certifi.where())
     else:
-        # Fallback if certifi is missing: use unverified context or default
+        # HTTPS sertifikası her durumda doğrulanır; doğrulama kapatılmaz.
         context = ssl.create_default_context()
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
 
     req = urllib.request.Request(
         url,
@@ -660,47 +659,16 @@ def _build_professional_analysis(ranked: List[FeedItem], countdown: Dict[str, in
 # Countdown
 # -----------------------------
 def _default_exam_dates(today: dt.date) -> Dict[str, dt.date]:
-    defaults = {
-        "MSÜ": dt.date(today.year, 3, 23),
-        "LGS": dt.date(today.year, 6, 15),
-        "YKS": dt.date(today.year, 6, 21),
-    }
-    for k, d in list(defaults.items()):
-        if d < today:
-            defaults[k] = dt.date(today.year + 1, d.month, d.day)
-    return defaults
+    """Eski API uyumu. Doğrulanmış olmayan senaryoları kaynakta işaretli tut."""
+    records = read_calendar(today)
+    return {k: dt.date.fromisoformat(r['date']) for k, r in records.items() if r.get('date')}
 
 
 def _resolve_exam_dates(con: sqlite3.Connection, today: dt.date) -> Tuple[Dict[str, dt.date], Dict[str, str]]:
-    dates: Dict[str, dt.date] = {}
-    sources: Dict[str, str] = {}
-
-    for exam in ["YKS", "MSÜ", "LGS"]:
-        cached = _exam_cache_get(con, exam)
-        if cached:
-            iso, src = cached
-            try:
-                y, m, d = [int(x) for x in iso.split("-")]
-                dd = dt.date(y, m, d)
-                if dd < today:
-                    dd = dt.date(today.year + 1, dd.month, dd.day)
-                dates[exam] = dd
-                sources[exam] = f"cache:{src}"
-            except Exception:
-                pass
-
-    defaults = _default_exam_dates(today)
-    for exam in ["YKS", "MSÜ", "LGS"]:
-        if exam not in dates:
-            dates[exam] = defaults[exam]
-            sources[exam] = "fallback"
-
-    try:
-        for exam, dd in dates.items():
-            _exam_cache_set(con, exam, dd.isoformat(), sources.get(exam, "fallback"))
-    except Exception:
-        pass
-
+    """Eski exam_date_cache tahminlerini resmî gibi göstermez."""
+    records = read_calendar(today)
+    dates = {k: dt.date.fromisoformat(v['date']) for k,v in records.items() if v.get('date')}
+    sources = {k: v.get('status','unknown') for k,v in records.items()}
     return dates, sources
 
 
@@ -728,7 +696,14 @@ class WebContentProvider(QThread):
         if not self._force_refresh:
             cached = _cache_get(con, cache_key)
             if cached:
-                self.on_data_ready.emit(cached)
+                try:
+                    age = dt.datetime.now() - dt.datetime.fromisoformat(cached.get('generated_at', ''))
+                    if dt.timedelta(0) <= age <= dt.timedelta(minutes=15):
+                        cached['exam_calendar'] = read_calendar(dt.date.today())
+                        cached['countdown'] = {k: v['days'] for k, v in cached['exam_calendar'].items() if v['days'] is not None}
+                        self.on_data_ready.emit(cached)
+                except (TypeError, ValueError):
+                    pass
 
         today = dt.date.today()
         exam_dates, exam_sources = _resolve_exam_dates(con, today)
@@ -802,11 +777,12 @@ class WebContentProvider(QThread):
 
         payload = {
             "countdown": countdown,
+            "exam_calendar": read_calendar(today),
             "analysis": analysis_text,
             "analysis_tag": analysis_tag,
             "online": bool(online_ok),
             "generated_at": dt.datetime.now().isoformat(timespec="seconds"),
-            "items": [asdict(x) for x in ranked[:65]],
+            "items": [asdict(x) for x in ranked[:45]] + [asdict(x) for x in OFFLINE_KNOWLEDGE_BASE[:20]],
             "exam_date_sources": exam_sources,
         }
 

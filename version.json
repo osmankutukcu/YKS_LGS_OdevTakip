@@ -1,6 +1,6 @@
 {
-  "version": "3.5.55",
+  "version": "3.5.56",
   "name": "YKS-LGS Ödev Takip",
   "channel": "stable",
-  "note": "KoçPilot 360 v3.5.55: Dual-Key Lisanslama Güvenlik Mimarisi (2048-bit RSA V2 Birincil + V1 Geriye Dönük Kesintisiz Uyumluluk) + Dağıtım ve Depo Hijyen Denetimleri + Responsive Akıllı Cep Ajandası + Genel Bakış Navigasyon Senkronizasyonu."
+  "note": "KoçPilot 360 v3.5.56: Öğrenci Bazlı Stratejik Sınav Simülasyonu + 2027 YKS/MSÜ/LGS Tahmini ve Resmi Takvimi + Dinamik Yerel Müfredat Kazanım Sayımı + Haftalık Sınav & Kamp Çalışma Planı Önizleme Modülü."
 }
