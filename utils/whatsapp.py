@@ -37,10 +37,19 @@ except Exception:
 
 def _dlog(msg: str):
     try:
-        p = os.path.join(_log_dir(), "wa_debug.log")
-        with open(p, "a", encoding="utf-8") as f:
-            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            f.write(f"[{ts}] {msg}\n")
+        try:
+            from utils.error_manager import _get_target_log_dirs
+            dirs = _get_target_log_dirs()
+        except Exception:
+            dirs = [_log_dir()]
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        for d in dirs:
+            try:
+                p = os.path.join(d, "wa_debug.log")
+                with open(p, "a", encoding="utf-8") as f:
+                    f.write(f"[{ts}] {msg}\n")
+            except Exception:
+                pass
     except Exception:
         pass
 
