@@ -20,12 +20,28 @@ def collect_numbers(ogrenci_id):
     if row:
         for i in range(3):
             v = row[i]
-            if v: nums.append(v)
+            if v and str(v).strip() and str(v).strip() not in nums:
+                nums.append(str(v).strip())
     return nums
 
 def build_message(sablon, ozet_list):
-    ozet = "; ".join([f"{x['ders']}/{x['kitap']} – {x['konu']}" for x in ozet_list])
-    return sablon.replace('{ozet}', ozet)
+    parts = []
+    for x in ozet_list:
+        ders = (x.get('ders') or '').strip()
+        kitap = (x.get('kitap') or '').strip()
+        konu = (x.get('konu') or '').strip()
+        has_kitap = kitap and kitap.lower() != 'none'
+        has_konu = konu and konu.lower() != 'none'
+        if has_kitap and has_konu:
+            parts.append(f"{ders}/{kitap} – {konu}")
+        elif has_konu:
+            parts.append(f"{ders} – {konu}")
+        elif has_kitap:
+            parts.append(f"{ders}/{kitap}")
+        elif ders:
+            parts.append(ders)
+    ozet = "; ".join(p for p in parts if p)
+    return (sablon or 'Merhaba: {ozet}').replace('{ozet}', ozet)
 
 def send_for_due_tomorrow(ogrenci_id, sablon):
     items = due_tomorrow_for_student(ogrenci_id)

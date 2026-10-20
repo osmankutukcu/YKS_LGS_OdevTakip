@@ -98,6 +98,8 @@ def ayar_get(anahtar: str, varsayilan: Optional[Any] = None) -> Optional[str]:
     Ayarı string olarak döndürür (DB'ye hep TEXT yazıyoruz).
     Yoksa varsayilan.
     """
+    if anahtar == 'timer_enabled' and varsayilan == '1':
+        varsayilan = '0'
     con = _get_conn()
     _ensure_ayar_table(con)
     try:

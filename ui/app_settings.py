@@ -1575,6 +1575,8 @@ class UygulamaAyarlar(QWidget):
 
 # ----- geri uyumlu kısa adlar -----
 def ayar_get(anahtar, varsayilan=None):
+    if anahtar == 'timer_enabled' and varsayilan == '1':
+        varsayilan = '0'
     return appset.ayar_get(anahtar, varsayilan)
 
 
