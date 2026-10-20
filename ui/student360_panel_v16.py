@@ -41,6 +41,14 @@ class Student360Panel(QWidget):
         self.output = QTextEdit()
         self.output.setReadOnly(True)
         lay.addWidget(self.output)
+        # V3.5.66 optional asynchronous cycle summary. The existing Student360
+        # analysis, controls and layout remain unchanged.
+        self._journey_v3566 = None
+        try:
+            from ui.student360_journey_sidecar_v3566 import Student360JourneySidecarV3566
+            self._journey_v3566 = Student360JourneySidecarV3566(self)
+        except ImportError:
+            pass
         self.set_student(None)
         # V24.1: visible Student 360° overview follows committed SQLite updates.
         from ui.live_change_bridge_v241 import install_live_updates
@@ -237,3 +245,5 @@ class Student360Panel(QWidget):
         if data.source_warnings:
             parts += ['', 'VERİ UYARILARI', *[f'• {w}' for w in data.source_warnings]]
         self.output.setPlainText('\n'.join(parts))
+        if self._journey_v3566 is not None:
+            self._journey_v3566.request(sid)

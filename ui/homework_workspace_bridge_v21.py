@@ -40,6 +40,15 @@ class HomeworkWorkspaceBridgeV21:
             )
         except Exception:
             self.secretary = None
+        # V3.5.63: optional read-only research coach sidecar; the legacy
+        # assistant and the protected forms remain byte-for-byte unchanged.
+        self.research_coach = None
+        if self.secretary is not None:
+            try:
+                from ui.research_coaching_bridge_v3563 import ResearchCoachingBridgeV3563
+                self.research_coach = ResearchCoachingBridgeV3563(form, self.secretary)
+            except ImportError:
+                pass
         for cmb in (form.cmbAd, form.cmbSoyad):
             cmb.currentIndexChanged.connect(self.selection_changed)
         # Existing clicked handlers are connected first; refresh happens after they return.
@@ -57,6 +66,8 @@ class HomeworkWorkspaceBridgeV21:
         self.panel.set_student(sid)
         if getattr(self, 'secretary', None) is not None:
             self.secretary.on_student_changed(sid)
+        if getattr(self, 'research_coach', None) is not None:
+            self.research_coach.on_student_changed(sid)
 
     def toggle(self):
         want = not self.panel._is_open

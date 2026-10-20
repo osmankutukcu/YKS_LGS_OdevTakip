@@ -12,13 +12,16 @@ import os
 import shutil
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QProcess, QTimer
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt, QProcess, QProcessEnvironment, QTimer, QUrl
+from PyQt6.QtGui import QPixmap, QDesktopServices
 from PyQt6.QtWidgets import (
     QCheckBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
     QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout,
 )
 
+from services.whatsapp_queue.baileys_runtime_v3576 import (
+    detect_runtime, enriched_path, setup_failure_message,
+)
 from services.whatsapp_queue.queue_v246 import (
     SafeWhatsAppQueue, queue_path_for, QueueBusyError, PENDING, INVALID,
     FAILED, UNKNOWN, UI_UNVERIFIED,
@@ -50,6 +53,8 @@ class BaileysBulkDialog(QDialog):
         self._batch = None
         self._lock = None
         self._process = None
+        self._setup_process = None
+        self._setup_phase = ''
         self._buffer = b''
         self._active = None
         self._connected = False
@@ -161,26 +166,148 @@ class BaileysBulkDialog(QDialog):
             QMessageBox.warning(self, 'Ret listesi', str(e))
 
     def _install(self):
-        if self._started:
+        """One consented setup; detect Node/npm before initiating npm operations."""
+        if self._started or self._setup_process is not None:
             return
-        if QMessageBox.question(self, 'Kurulum onayı',
-                'Kaynak dosyaları Windows kullanıcı profilinize kopyalanacak. '
-                'Açılan komut penceresinden resmî npm deposundan sabit Baileys paketi '
-                'indirilmesi için ayrıca onayınız istenecek. Devam edilsin mi?',
+        runtime = detect_runtime()
+        if not runtime.ready:
+            if not runtime.winget:
+                answer = QMessageBox.question(
+                    self, 'Node.js kurulumu gerekiyor',
+                    runtime.reason + '\n\nBu bilgisayarda otomatik Windows paket yöneticisi '
+                    '(winget) bulunamadı. Resmî Node.js indirme sayfası açılsın mı? '
+                    'Kurulumdan sonra tekrar Kur / Güncelle düğmesine basabilirsiniz.',
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes)
+                if answer == QMessageBox.StandardButton.Yes:
+                    QDesktopServices.openUrl(QUrl('https://nodejs.org/en/download'))
+                self.status.setText(runtime.reason)
+                return
+            if QMessageBox.question(
+                    self, 'Node.js LTS otomatik kurulum izni',
+                    runtime.reason + '\n\nWindows paket yöneticisi (winget), resmî '
+                    'OpenJS.NodeJS.LTS paketini indirecek ve yalnızca bu Windows '
+                    'kullanıcısı için kurmayı deneyecek. Ağ bağlantısı gereklidir; '
+                    'gerekirse Windows ayrıca izin isteyebilir. '
+                    'Bu işlem WhatsApp mesajı göndermez. Devam edilsin mi?',
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+                return
+            self._run_setup_process('node', runtime.winget,
+                                    ['install', '--id', 'OpenJS.NodeJS.LTS', '--exact',
+                                     '--scope', 'user', '--silent',
+                                     '--accept-package-agreements', '--accept-source-agreements'],
+                                    'Node.js LTS kuruluyor; işlem biraz sürebilir.')
+            return
+        self._confirm_dependencies(runtime)
+
+    def _confirm_dependencies(self, runtime):
+        if QMessageBox.question(
+                self, 'Baileys bağımlılıkları',
+                f'{runtime.node_version} ve npm doğrulandı.\n'
+                'Yalnızca kullanıcı profilindeki Baileys klasörüne, sabitlenmiş '
+                'paketlerin npm üzerinden kurulmasına ve gönderimsiz protokol '
+                'testlerinin çalıştırılmasına izin veriyor musunuz?\n'
+                'WhatsApp hesabınıza bağlanılmayacak; mesaj gönderilmeyecek.',
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
+        self._begin_dependency_setup(runtime)
+
+    def _begin_dependency_setup(self, runtime):
         try:
             folder = stage_bulk_bridge()
-            os.startfile(str(folder / 'Windows_Hazirla_V258.cmd'))
-            QMessageBox.information(self, 'Kurulum',
-                'Windows kurulum penceresi açıldı. Kurulum tamamlandığında '
-                'bu diyalogdaki Başlat / QR düğmesini kullanabilirsiniz. '
-                'Kurulum başarısızsa hiçbir mesaj gönderilmez.')
         except Exception as exc:
-            QMessageBox.warning(self, 'Kurulum açılamadı', str(exc))
+            QMessageBox.warning(self, 'Kurulum dosyaları', str(exc))
+            return
+        child_env = QProcessEnvironment.systemEnvironment()
+        child_env.insert('PATH', enriched_path(runtime, child_env.value('PATH')))
+        child_env.insert('BAILEYS_SETUP_APPROVED', '1')
+        self._run_setup_process('deps', os.environ.get('ComSpec', 'cmd.exe'),
+                                ['/d', '/c', str(folder / 'Windows_Hazirla_V258.cmd')],
+                                'Baileys paketleri hazırlanıyor ve protokol testleri yapılıyor.',
+                                cwd=str(folder), process_env=child_env)
+
+    def _run_setup_process(self, phase, program, arguments, description,
+                           cwd=None, process_env=None):
+        self._setup_phase = phase
+        self.setup_btn.setEnabled(False)
+        self.start_btn.setEnabled(False)
+        self.status.setText(description)
+        self.qr.setText('Kurulum sürüyor. Gönderim başlatılamaz.')
+        proc = QProcess(self)
+        if cwd:
+            proc.setWorkingDirectory(cwd)
+        if process_env is not None:
+            proc.setProcessEnvironment(process_env)
+        proc.setProgram(program)
+        proc.setArguments(arguments)
+        # Never show raw npm / Node output; future logs might include local paths.
+        proc.readyReadStandardOutput.connect(lambda: proc.readAllStandardOutput())
+        proc.readyReadStandardError.connect(lambda: proc.readAllStandardError())
+        proc.finished.connect(self._setup_finished)
+        proc.errorOccurred.connect(self._setup_error)
+        self._setup_process = proc
+        proc.start()
+        # Do not allow a stuck external installer to block the dialog forever.
+        QTimer.singleShot(300000, lambda: self._setup_timeout(proc))
+
+    def _setup_timeout(self, proc):
+        if self._setup_process is proc and proc.state() != QProcess.ProcessState.NotRunning:
+            proc.kill()
+            self.status.setText('Kurulum zaman aşımına uğradı. Hiçbir mesaj gönderilmedi.')
+
+    def _setup_error(self, _error):
+        proc = self._setup_process
+        if proc is not None:
+            self.status.setText('Kurulum işlemi Windows tarafından başlatılamadı. '
+                                'Yetkileri ve sistem paket yöneticisini kontrol edin.')
+            if proc.state() == QProcess.ProcessState.NotRunning:
+                QTimer.singleShot(0, lambda: self._setup_finished(-1, QProcess.ExitStatus.CrashExit)
+                                  if self._setup_process is proc else None)
+
+    def _setup_finished(self, exit_code, exit_status):
+        if self._setup_process is None:
+            return
+        phase = self._setup_phase
+        proc = self._setup_process
+        self._setup_process = None
+        self._setup_phase = ''
+        proc.deleteLater()
+        self.setup_btn.setEnabled(True)
+        self.start_btn.setEnabled(True)
+        success = (exit_code == 0 and exit_status == QProcess.ExitStatus.NormalExit)
+        if not success:
+            self.status.setText(
+                setup_failure_message(phase, exit_code)
+                + f' (Kod: {exit_code}). Hiçbir mesaj gönderilmedi.')
+            QMessageBox.warning(self, 'Kurulum tamamlanamadı', self.status.text())
+            return
+        if phase == 'node':
+            runtime = detect_runtime()
+            if not runtime.ready:
+                self.status.setText('Windows paket kurulumu tamamlandı fakat Node.js/npm '
+                                    'doğrulanamadı. Programı yeniden açın veya Node.js '
+                                    'LTS kurulumunu onarın. Hiçbir mesaj gönderilmedi.')
+                return
+            self.status.setText('Node.js bulundu. Baileys paketleri için ayrıca izin gerekiyor.')
+            self._confirm_dependencies(runtime)
+            return
+        ok, explanation = bulk_prerequisites()
+        if ok:
+            self.status.setText('Baileys motoru ve testler hazır. '
+                                'WhatsApp eşleştirmesi ve gönderim için ayrıca açık onay gereklidir.')
+            self.qr.setText('Hazır. QR bağlantısını ayrı düğmeden başlatabilirsiniz.')
+            QMessageBox.information(self, 'Kurulum doğrulandı', self.status.text())
+        else:
+            self.status.setText('Kurulum işlemi sonlandı fakat güvenlik kontrolü başarısız: '
+                                + explanation + ' Hiçbir mesaj gönderilmedi.')
+            QMessageBox.warning(self, 'Motor henüz hazır değil', self.status.text())
 
     def _start(self):
+        if self._setup_process is not None:
+            QMessageBox.information(self, 'Kurulum sürüyor', 'Kurulum tamamlanmadan gönderim başlatılamaz.')
+            return
         if self._started or not self._jobs:
             QMessageBox.information(self, 'Alıcı', 'İşlenecek izinli alıcı bulunamadı.')
             return
@@ -226,7 +353,19 @@ class BaileysBulkDialog(QDialog):
         self._buffer = b''
         process = QProcess(self)
         process.setWorkingDirectory(str(bulk_bridge_dir()))
-        process.setProgram(shutil.which('node'))
+        runtime = detect_runtime()
+        if not runtime.ready:
+            self._unlock()
+            self._started = False
+            self.start_btn.setEnabled(True)
+            self.setup_btn.setEnabled(True)
+            self.stop_btn.setEnabled(False)
+            self.done_btn.setEnabled(True)
+            self.approval.setEnabled(True)
+            self.reject_button.setEnabled(True)
+            self.status.setText(runtime.reason)
+            return
+        process.setProgram(runtime.node)
         process.setArguments([str(bulk_bridge_dir() / 'bulk_bridge_v258.mjs')])
         process.readyReadStandardOutput.connect(self._read)
         process.readyReadStandardError.connect(lambda: process.readAllStandardError())
@@ -387,6 +526,11 @@ class BaileysBulkDialog(QDialog):
                 self._lock=None
 
     def closeEvent(self,event):
+        if self._setup_process is not None:
+            QMessageBox.information(self, 'Kurulum sürüyor',
+                'Güvenli kurulum tamamlanana kadar bu pencere açık kalmalıdır.')
+            event.ignore()
+            return
         if self._process is not None:
             self._stop()
             event.ignore()

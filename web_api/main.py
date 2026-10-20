@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from web_api.auth import authorized
 from web_api.survey_invites_v9 import router as survey_v9_router
 from web_api.live_changes_v10 import router as live_v10_router
+from web_api.homework_feedback_v3571 import router as feedback_v12_router
 from utils.homework_status import is_completed, mobile_status, status_counts
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 
@@ -27,6 +28,7 @@ except ImportError as e:
 app = FastAPI(title="YKS/LGS Manager API", version="1.0.0")
 app.include_router(survey_v9_router)
 app.include_router(live_v10_router)
+app.include_router(feedback_v12_router)
 
 # CORS (Cross-Origin Resource Sharing) - Allow Frontend to access this
 # SPA ve API aynı adreste çalışıyor. Varsayılan yabancı origin erişimi kapalı.
@@ -46,8 +48,8 @@ async def protect_personal_data(request, call_next):
         return await call_next(request)
     # İlk HTML ekranı giriş anahtarı ister; statik dosyalarda kişisel veri yok.
     if (path == '/' or path.startswith('/static/') or path == '/sw.js'
-            or path == '/manifest.json' or (path.startswith('/s/') and path.count('/') == 2
-                and request.method in ('GET', 'POST'))):
+            or path == '/manifest.json' or ((path.startswith('/s/') or path.startswith('/h/'))
+                and path.count('/') == 2 and request.method in ('GET', 'POST'))):
         response = await call_next(request)
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         return response

@@ -1,0 +1,23 @@
+KoçPilot — Çevrim İçi Anket | ŞABLON (GERÇEK ANAHTAR DEĞİLDİR)
+
+Hiçbir gerçek sır bu belgeye, bir müşteri EXE paketine, GitHub deposuna veya sohbete yazılmamalıdır.
+Bulut sağlayıcısı henüz seçilmedi. Altyapı varsayılan olarak KAPALIDIR.
+
+WINDOWS / KURUM TARAFI
+YKS_HOMEWORK_FEEDBACK_V12_ENABLED=0
+YKS_FEEDBACK_RELAY_V14_ENABLED=0
+YKS_FEEDBACK_RELAY_URL=https://CANLI-SUNUCU-SECILINCE.example
+YKS_FEEDBACK_RELAY_TENANT=KURUM_KODU
+YKS_FEEDBACK_RELAY_KEY=GERCEK-RASTGELE-EN-AZ-32-KARAKTER-GIZLI-ANAHTAR
+
+SUNUCU TARAFI (mevcut bağımsız FastAPI rölesi)
+YKS_FEEDBACK_RELAY_PUBLIC_URL=https://CANLI-SUNUCU-SECILINCE.example
+YKS_FEEDBACK_RELAY_DB=/KALICI_DISK/feedback.sqlite
+YKS_FEEDBACK_RELAY_TENANT_HASHES={"KURUM_KODU":"64_HANELI_SHA256_OZETI"}
+
+Kontroller (bağlantı açmaz, veri göndermez, ayar değiştirmez):
+python -m tools.feedback_preflight_v3574 --role desktop --json
+python -m tools.feedback_preflight_v3574 --role server --json
+python -m tools.feedback_preflight_v3574 --role contract --json
+
+Gerçek dağıtım için sağlayıcı, sunucu hesabı, HTTPS, güvenli anahtar yönetimi, kalıcı depolama, hız sınırı, yedekleme, KVKK ve Windows/telefon kabul testleri ayrıca gereklidir.

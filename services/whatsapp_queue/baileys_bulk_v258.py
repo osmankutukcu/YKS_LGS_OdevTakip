@@ -161,7 +161,11 @@ def stage_bulk_bridge() -> Path:
 
 def bulk_prerequisites():
     from .baileys_v257 import prerequisites
-    ok, reason = prerequisites(folder=bulk_bridge_dir())
+    from .baileys_runtime_v3576 import detect_runtime
+    runtime = detect_runtime()
+    if not runtime.ready:
+        return False, runtime.reason + ' Kur / Güncelle seçeneğini kullanın.'
+    ok, reason = prerequisites(node=runtime.node, folder=bulk_bridge_dir())
     if not ok:
         return ok, reason
     if not (bulk_bridge_dir() / 'bulk_bridge_v258.mjs').is_file():

@@ -1355,6 +1355,12 @@ class SurveyManager(QWidget):
         create_action = menu.addAction("Yeni güvenli bağlantıyı kopyala")
         review_action = menu.addAction("Gelen yanıtları incele")
         revoke_action = menu.addAction("Gönderilmiş bağlantıyı iptal et")
+        student_feedback_action = parent_feedback_action = review_feedback_action = None
+        if os.getenv('YKS_HOMEWORK_FEEDBACK_V12_ENABLED') == '1':
+            menu.addSeparator()
+            student_feedback_action = menu.addAction("Ödev için öğrenci mini anketi")
+            parent_feedback_action = menu.addAction("Ödev için veli gözlem formu")
+            review_feedback_action = menu.addAction("Ödev geri bildirimlerini incele")
         choice = menu.exec(self.cursor().pos())
         if choice == create_action:
             self._create_online_survey_v9()
@@ -1362,6 +1368,15 @@ class SurveyManager(QWidget):
             self._review_online_surveys_v9()
         elif choice == revoke_action:
             self._revoke_online_survey_v9()
+        elif choice is not None and choice == student_feedback_action:
+            from ui.homework_feedback_bridge_v3571 import send_link
+            send_link(self, 'student')
+        elif choice is not None and choice == parent_feedback_action:
+            from ui.homework_feedback_bridge_v3571 import send_link
+            send_link(self, 'parent')
+        elif choice is not None and choice == review_feedback_action:
+            from ui.homework_feedback_bridge_v3571 import review_feedback
+            review_feedback(self)
 
     def _revoke_online_survey_v9(self):
         if not self.current_student_id:

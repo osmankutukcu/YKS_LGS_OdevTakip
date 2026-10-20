@@ -1,0 +1,21 @@
+{
+  "baseline": "v3.5.74",
+  "files": {
+    "ui/homework_form.py": "53e6b12db96cf81fd622947e7d343b4130a1a8e42a0e30d5c5ec58e64e456314",
+    "ui/odev_kontrol.py": "da0f9c272f528f18dcadf4548b837039371780b9509039df5da2585ab51b095e",
+    "ui/weekly_plan.py": "5a287effff451e10756665fbc14634137d7c13d03ce18c5abe4674beec17a51e",
+    "ui/weekly_planner_adaptive_bridge_v35.py": "780e28dd71a2188acfa7dcfc077e046dd33d7f4d1e198e3c09b49eab7b74f170",
+    "services/planning_constraints.py": "46e627758e09ffdc56c1030e0a08de54365f34e642fbb436fa120bbed8a9a986",
+    "services/calendar_plan_inputs.py": "b0bec97afba30ea31f73a3f9fc6d5d98a8cba21fa32eaac856598ef55c262785",
+    "services/calendar_plan_integrity.py": "9803589b39053352465180ca89399549f05a42ee768d184e87f3a17338c71be3",
+    "services/weekly_one_click_v35.py": "5d47083779cc7207ffa3c5071733ca192a6b3507c14e7784dc414d91481cf89c",
+    "services/weekly_coaching_alignment_v3570.py": "23491ea7fab46ab0a3ee2eedf53ccfeb8338c3d9556333acfc1add1ee570228c",
+    "web_api/main.py": "7f1be0b19e3e2193470e16f3987a65dbdcb2195ce217d397d9892db4cbdc7043",
+    "services/feedback_relay_v3573.py": "c2e9640b5358d0a33bb7f629db1e676368972f72d2b6cf028ad9df651401f938",
+    "services/homework_feedback_cloud_bridge_v3573.py": "825c8325ea66f660d3f1d6754c95372671b391f1cd4afd3f106e7adaf1576a3e",
+    "services/homework_feedback_v3571.py": "feadc74c8892c77d5d14a1e5e5c471056b7c86d88230cd44d808f45a1a7c3577",
+    "services/feedback_deployment_v3574.py": "79cd4f1a0893e9b21e5190f3eefd5db60dbdffc22c69d0da0c4ae644c7c63fec",
+    "utils/updater.py": "9143190bc4c36fa2396665ca49a25b84d4b1d98d2e9e536ddd4c053a049bb200"
+  },
+  "policy": "Any changed hash needs explicit release review, not an automated update."
+}

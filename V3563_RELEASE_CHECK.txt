@@ -1,0 +1,10 @@
+KoçPilot 360 v3.5.63 - Aşama 4 Araştırma Destekli Koçluk Pilotu
+Korunan formlar / legacy Koç Asistanı: kaynakları değişmedi.
+Düzenlenen tek eski dosya: ui/homework_workspace_bridge_v21.py
+Yeni: services/evidence_based_coach_v3563.py
+Yeni: ui/research_coaching_bridge_v3563.py
+Yeni: tests/test_evidence_based_coach_v3563.py
+Yeni: V3563_STAGE4_RESEARCH_NOTES.md
+Seçilmiş regresyon: 168 passed, 27 subtests passed
+Temel form guard: PASS
+Canlı Windows GUI: TEST EDİLMEDİ. Üretime hemen kurulması tavsiye edilmez.

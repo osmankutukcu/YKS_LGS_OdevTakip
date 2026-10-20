@@ -150,6 +150,47 @@ def install_existing_centers(menu: Any, host: Any):
            'Zaten mevcut olan V21 Öğrenci 360° yan panelini açar; öğrenci değişmez.', ready_360)
     action(parent, '📎 Öğrencinin Konu Kanıtları', 'topics',
            'Var olan Konu Kanıtları ekranını açar. Sağ tıklanan konuyu otomatik seçmez.', ready_360)
+    # v3.5.68: one optional group INSIDE the already-existing right-click
+    # menu. Nothing is added to the homework form layout or checkbox handlers.
+    # Snapshot is produced asynchronously by the optional research sidecar.
+    try:
+        from datetime import date
+        research = getattr(bridge, 'research_coach', None)
+        snapshot_method = getattr(research, 'navigation_recommendations_v3568', None)
+        suggested = snapshot_method(sid, date.today()) if callable(snapshot_method) else ()
+        if suggested and not isinstance(suggested, tuple):
+            suggested = ()
+        if suggested:
+            import os
+            # Opt-out without modifying existing QSettings user preferences.
+            enabled = os.environ.get('KOCPILOT_COACH_NAV_V3568', '1').strip().lower()
+            try:
+                from PyQt6.QtCore import QSettings
+                setting = str(QSettings('EduTrack', 'HomeworkManagerV2').value(
+                    'coaching_navigation_v3568_enabled', '1')).strip().lower()
+            except ImportError:
+                setting = '1'  # Headless tests; actual Windows app has Qt.
+            if (enabled not in ('0', 'false', 'off', 'no')
+                and setting not in ('0', 'false', 'off', 'no')):
+                recommendation_menu = parent.addMenu('🧠 Koçluk önerisinden işleme geç')
+                recommendation_menu.setToolTipsVisible(True)
+                for suggestion in suggested[:2]:
+                    if (not isinstance(suggestion, dict)
+                        or suggestion.get('student_id') != sid
+                        or suggestion.get('as_of') != date.today().isoformat()
+                        or suggestion.get('read_only') is not True
+                        or suggestion.get('key') not in ('learning','wizard')):
+                        continue
+                    dest = suggestion['key']
+                    button = next((x for x in CENTERS if x.key == dest), None)
+                    if button is None:
+                        continue
+                    action(recommendation_menu, suggestion['label'], dest,
+                           str(suggestion.get('detail') or '') +
+                           ' · Yalnızca mevcut ekrana geçer; kayıt/aktarım yapmaz.',
+                           available_existing(host, button))
+    except (AttributeError, TypeError, ValueError, ImportError):
+        pass  # Existing navigation remains exactly as before.
     parent.addSeparator()
     for center in CENTERS[:3]:
         action(parent, center.title, center.key, center.explanation, available_existing(host, center))

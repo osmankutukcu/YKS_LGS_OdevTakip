@@ -181,6 +181,20 @@ def read_teacher_feed(db_path: str | Path, *, today: date | None = None,
                     con, lesson=lesson, max_scan=60, max_groups=1)
             except (sqlite3.Error, ValueError, TypeError, KeyError):
                 historical_patterns = {'state': 'SOURCE_UNVERIFIED', 'patterns': []}
+        # V3.5.67: ONE optional academic priority for the already chosen
+        # first student. Existing V10/V11 ordering and overdue list untouched.
+        # Same read snapshot, bounded by the pre-existing timeout.
+        if cards and time.monotonic() < deadline - 1.5:
+            try:
+                from services.automatic_coaching_cycle_v3565 import read_automatic_coaching_cycle
+                from services.coaching_action_center_v3567 import build_action_center_card
+                sid = cards[0]['student_id']
+                cycle = read_automatic_coaching_cycle(con, sid, today=day, max_actions=2)
+                card = build_action_center_card(cycle, sid, today=day)
+                if card['state'] == 'ACTION_SUGGESTED':
+                    cards[0]['shared_coaching_priority_v3567'] = card
+            except (sqlite3.Error, ValueError, TypeError, KeyError, ImportError):
+                pass  # Optional new view never replaces the original feed.
         con.rollback()
         return {
             'day': day.isoformat(),

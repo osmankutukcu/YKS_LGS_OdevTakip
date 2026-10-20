@@ -1,0 +1,20 @@
+{
+  "contract_version": "v14",
+  "hosting_provider": null,
+  "active": false,
+  "deployment": "separate_service",
+  "existing_web_api_untouched": true,
+  "implementation_available": "FastAPI with persistent SQLite (pilot)",
+  "public_origin": "https://SET-A-LIVE-SERVICE-ADDRESS.example",
+  "required_properties": {
+    "tls_https": true,
+    "durable_storage": true,
+    "per_tenant_credentials": true,
+    "rate_limits_at_edge": true,
+    "automated_backups": true,
+    "data_retention_policy": true,
+    "live_mobile_windows_acceptance": true
+  },
+  "other_hosting_adapters": "Not implemented. Serverless/D1 requires a separate compatible implementation and tests.",
+  "privacy": "Do not copy student database, names, phone numbers, grades or teacher notes to remote service."
+}

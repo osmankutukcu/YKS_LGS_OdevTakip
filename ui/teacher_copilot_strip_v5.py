@@ -320,6 +320,23 @@ class TeacherCopilotStripV5(QFrame):
                     self.preview.setText(self.preview.text() + '\n⚠ Öğrenci–ödev bağlantısı denetlenmeli.')
                 elif shared.get('planning_hint'):
                     self.preview.setText(self.preview.text() + '\n🗓 ' + shared['planning_hint'])
+        # V3.5.67: same verified student-specific priority as Student360 and
+        # Coach Assistant, within the existing text strip; no new controls.
+        if self._cards:
+            try:
+                from PyQt6.QtCore import QSettings
+                settings = QSettings('EduTrack', 'HomeworkManagerV2')
+                enabled = str(settings.value('coaching_action_center_v3567_enabled', '1')).lower() not in ('0','false','off','no')
+                if enabled:
+                    from services.coaching_action_center_v3567 import compact_teacher_line
+                    first = self._cards[0]
+                    priority = first.get('shared_coaching_priority_v3567')
+                    if priority:
+                        line = compact_teacher_line(priority, first['student_id'], today=date.today())
+                        if line:
+                            self.preview.setText(self.preview.text() + '\n' + line)
+            except (ValueError, TypeError, ImportError, KeyError):
+                pass  # Legacy teacher strip remains available.
         # V3.5.39: append ONLY an anonymous, sufficiently large descriptive
         # cohort pattern. Never advertise method effectiveness or prescribe.
         historical = payload.get('historical_patterns') or {}
