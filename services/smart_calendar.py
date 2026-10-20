@@ -229,13 +229,16 @@ class SmartCalendarService:
             from services.weekly_planner_presentation_v35 import enhance_html
             html_content = enhance_html(html_content, days, profile, details)
 
-        return {
+        result = {
             "html": html_content,
             "days": days,
             "profile": profile,
             "tasks": tasks,
             "input_summary": input_summary,
         }
+        SmartCalendarService._latest_bundle = result
+        SmartCalendarService._latest_html = html_content
+        return result
 
     @staticmethod
     def create_weekly_plan_pdf(student_name: str, homework_list: List[Dict[str, Any]], details: Any = None) -> Optional[str]:
@@ -1117,6 +1120,16 @@ class SmartCalendarService:
 
         daily_max = profile.get("daily_max", 180)
 
+        # Koç / Kurum Bilgisi (Ayarlardan)
+        koc_adi = ""
+        kurum_adi = ""
+        try:
+            from utils import settings as appset
+            koc_adi = str(appset.ayar_get("egitim_kocu", "") or "").strip()
+            kurum_adi = str(appset.ayar_get("kurum_adi", "") or "").strip()
+        except Exception:
+            pass
+
         # Meta Bilgi Çubuğu (Tertemiz ve kurumsal)
         meta_parts = []
         if profile.get("school_days"):
@@ -1292,6 +1305,7 @@ class SmartCalendarService:
             cells_html.append(c_html)
 
         # 8. Hücre: Haftalık Özet Kartı
+        koc_imza_html = f'<span style="color: #0f172a; font-weight: 700;">{escape(koc_adi)}</span>' if koc_adi else '.......................'
         summary_cell = f"""
         <td width="25%" valign="top" style="padding: {cell_pad};">
             <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #cbd5e1; border-radius: 6px; background-color: #f0fdf4;">
@@ -1316,7 +1330,7 @@ class SmartCalendarService:
                         <hr style="border: none; border-top: 1px dashed #bbf7d0; margin: 3px 0;"/>
                         <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 3px;">
                             <tr>
-                                <td style="font-size: 6.5pt; color: #64748b;"><b>Koç / Öğretmen:</b><br/>.......................</td>
+                                <td style="font-size: 6.5pt; color: #64748b;"><b>Koç / Öğretmen:</b><br/>{koc_imza_html}</td>
                                 <td align="right" style="font-size: 6.5pt; color: #64748b;"><b>Öğrenci / Veli:</b><br/>.......................</td>
                             </tr>
                         </table>
@@ -1392,7 +1406,7 @@ class SmartCalendarService:
                             &nbsp;&nbsp;<span style="font-size: 9.5pt; font-weight: 700; color: #2563eb; background: #eff6ff; padding: 2px 7px; border-radius: 4px; border: 1px solid #bfdbfe;">Öğrenci: {escape(str(student_name))}</span>
                         </td>
                         <td align="right" valign="middle" style="font-size: 7.5pt; color: #64748b;">
-                            <b>Akademik Koçluk & Takip Sistemi</b> &nbsp;•&nbsp; 📅 {date.today().strftime("%d.%m.%Y")}
+                            <b>{escape(kurum_adi or 'Akademik Koçluk & Takip Sistemi')}</b>{f" &nbsp;•&nbsp; 🧑‍🏫 Koç: <b>{escape(koc_adi)}</b>" if koc_adi else ""} &nbsp;•&nbsp; 📅 {date.today().strftime("%d.%m.%Y")}
                         </td>
                     </tr>
                 </table>
@@ -1413,7 +1427,7 @@ class SmartCalendarService:
             {warning}
 
             <div class="footer">
-                Toplam Planlanan Çalışma: <b>{int(total_time/60)} sa {total_time%60} dk</b> &nbsp;|&nbsp; 
+                {f"Eğitim Koçu / Rehberlik: <b>{escape(koc_adi)}</b> &nbsp;|&nbsp; " if koc_adi else ""}Toplam Planlanan Çalışma: <b>{int(total_time/60)} sa {total_time%60} dk</b> &nbsp;|&nbsp; 
                 <i>"Başarı, her gün tekrarlanan küçük disiplinlerin toplamıdır."</i> &nbsp;|&nbsp; 
                 YKS-LGS Ödev Takip v3.5
             </div>
@@ -1435,6 +1449,14 @@ class SmartCalendarService:
         if total >= 150: return "Yoğun Kamp"
         if d.is_school_day and total >= int(d.day_cap * 0.85): return "Okul+Etüt"
         return "Dengeli Çalışma"
+
+    @classmethod
+    def get_latest_bundle(cls) -> Optional[Dict[str, Any]]:
+        return getattr(cls, "_latest_bundle", None)
+
+    @classmethod
+    def get_latest_html(cls) -> str:
+        return getattr(cls, "_latest_html", "")
 
     @staticmethod
     def _coach_note(days: List[_DayPlan], profile: Any = None, *args, **kwargs) -> str:

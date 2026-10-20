@@ -438,6 +438,13 @@ def main() -> None:
         OdevTakipFormu._kume_kaydet_modu_secimi = show_modern_save_mode_dialog
     except Exception:
         pass
+    # V3.5.80+: Haftalık Çalışma Planı PDF dışa aktarma ve otopilot WhatsApp entegrasyonu
+    try:
+        from ui.homework_form import OdevTakipFormu
+        from services.weekly_calendar_export_v35 import wrap_open_smart_calendar_pdf
+        wrap_open_smart_calendar_pdf(OdevTakipFormu)
+    except Exception:
+        pass
     w = AnaPencere()
     w.setWindowTitle("KoçPilot 360 — Bütünleşik Koçluk & Sınav Platformu")
     try:
