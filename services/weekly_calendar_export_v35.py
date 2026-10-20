@@ -403,6 +403,7 @@ class WeeklyPlanWhatsAppDialog(QDialog):
         try:
             success_count = 0
             fail_count = 0
+            import time
             for phone, r_name in selected_numbers:
                 clean = normalize_phone_number(phone)
                 if not clean:
@@ -414,6 +415,8 @@ class WeeklyPlanWhatsAppDialog(QDialog):
                 else:
                     _dispatch_web_autopilot(clean, msg_text, self.pdf_path, self.student_id)
                 success_count += 1
+                if len(selected_numbers) > 1:
+                    time.sleep(2.0)
 
             QMessageBox.information(
                 self,
@@ -430,29 +433,57 @@ class WeeklyPlanWhatsAppDialog(QDialog):
 
 
 def _dispatch_desktop_autopilot(clean_phone: str, message: str, pdf_path: str, student_id: Optional[int]):
-    """Opens desktop WhatsApp, pastes message, triggers auto-send, and presents PDF."""
+    """Opens desktop WhatsApp, sends message, and pastes + sends PDF document in autopilot."""
     encoded = urllib.parse.quote(message)
     uri = f"whatsapp://send?phone={clean_phone}&text={encoded}"
+    abs_pdf = os.path.abspath(pdf_path) if (pdf_path and os.path.exists(pdf_path)) else ""
+    has_pdf = bool(abs_pdf)
 
     if sys.platform == "darwin":
+        # 1. WhatsApp uygulamasını aç ve sohbeti yükle
         subprocess.run(["open", uri], check=False)
-        # Reveal PDF in Finder so teacher can drag or auto-attach
-        if pdf_path and os.path.exists(pdf_path):
-            try:
-                subprocess.run(["open", "-R", pdf_path], check=False)
-            except Exception:
-                pass
-        # Autopilot press Enter via AppleScript after WhatsApp focuses
-        script = """
-        delay 1.0
-        tell application "System Events"
-            set activeApp to name of first application process whose frontmost is true
-        end tell
-        delay 0.5
-        tell application "System Events"
-            key code 36
-        end tell
-        """
+
+        # 2. AppleScript: WhatsApp'ı öne getir, metni gönder (Enter), ardından PDF'i yapıştırıp gönder
+        if has_pdf:
+            script = f"""
+            delay 2.2
+            tell application "WhatsApp"
+                activate
+            end tell
+            delay 0.6
+            tell application "System Events"
+                -- Metin mesajını gönder
+                key code 36
+                delay 1.0
+            end tell
+
+            -- PDF dosyasını panoya dosya URL'si olarak yerleştir
+            set the clipboard to (POSIX file "{abs_pdf}")
+            delay 0.5
+
+            tell application "WhatsApp"
+                activate
+            end tell
+            delay 0.5
+            tell application "System Events"
+                -- PDF dosyasını yapıştır (Command + V)
+                keystroke "v" using command down
+                delay 1.8
+                -- Belge gönderme onayını ver (Enter)
+                key code 36
+            end tell
+            """
+        else:
+            script = """
+            delay 2.2
+            tell application "WhatsApp"
+                activate
+            end tell
+            delay 0.6
+            tell application "System Events"
+                key code 36
+            end tell
+            """
         try:
             subprocess.run(["osascript", "-e", script], check=False)
         except Exception:
@@ -462,16 +493,23 @@ def _dispatch_desktop_autopilot(clean_phone: str, message: str, pdf_path: str, s
             os.startfile(uri)
         except Exception:
             subprocess.run(f'start "" "{uri}"', shell=True)
-        if pdf_path and os.path.exists(pdf_path):
-            try:
-                subprocess.run(f'explorer /select,"{os.path.abspath(pdf_path)}"', shell=True)
-            except Exception:
-                pass
+        import time
+        time.sleep(2.5)
         try:
             import pyautogui as pag
-            import time
-            time.sleep(1.5)
+            # Metin mesajını gönder
             pag.press("enter")
+            time.sleep(1.0)
+            if has_pdf:
+                # PDF dosyasını panoya koy
+                ps_cmd = f"Set-Clipboard -Path '{abs_pdf}'"
+                subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], check=False)
+                time.sleep(0.5)
+                # WhatsApp'a yapıştır (Ctrl + V)
+                pag.hotkey("ctrl", "v")
+                time.sleep(1.8)
+                # Gönderim onayını ver (Enter)
+                pag.press("enter")
         except Exception:
             pass
     else:
@@ -481,16 +519,24 @@ def _dispatch_desktop_autopilot(clean_phone: str, message: str, pdf_path: str, s
 
 
 def _dispatch_web_autopilot(clean_phone: str, message: str, pdf_path: str, student_id: Optional[int]):
-    """Opens WhatsApp Web in default browser and highlights PDF."""
+    """Opens WhatsApp Web in default browser, and sets clipboard to PDF."""
     encoded = urllib.parse.quote(message)
     web_url = f"https://web.whatsapp.com/send?phone={clean_phone}&text={encoded}"
     import webbrowser
     webbrowser.open(web_url)
-    if pdf_path and os.path.exists(pdf_path):
+
+    abs_pdf = os.path.abspath(pdf_path) if (pdf_path and os.path.exists(pdf_path)) else ""
+    if abs_pdf:
         if sys.platform == "darwin":
-            subprocess.run(["open", "-R", pdf_path], check=False)
+            try:
+                subprocess.run(["osascript", "-e", f'set the clipboard to (POSIX file "{abs_pdf}")'], check=False)
+            except Exception:
+                pass
         elif sys.platform == "win32":
-            subprocess.run(f'explorer /select,"{os.path.abspath(pdf_path)}"', shell=True)
+            try:
+                subprocess.run(["powershell", "-NoProfile", "-Command", f"Set-Clipboard -Path '{abs_pdf}'"], check=False)
+            except Exception:
+                pass
 
     _log_whatsapp_dispatch(clean_phone, message, student_id, success=True)
 
