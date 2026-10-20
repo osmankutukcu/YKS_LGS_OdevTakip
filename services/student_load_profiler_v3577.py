@@ -93,7 +93,13 @@ def install_student_load_profiler(form_class: type, *, progress_class: type | No
             start = time.perf_counter_ns() if active is not None else None
             status = 'ok'
             try:
-                result = original(self, *args, **kwargs)
+                try:
+                    result = original(self, *args, **kwargs)
+                except TypeError as te:
+                    if ('positional argument' in str(te) or 'takes 1' in str(te)) and args:
+                        result = original(self)
+                    else:
+                        raise
                 if active is not None and name == '_ders_tab_olustur':
                     active['lesson_tables'] += 1
                     try:
@@ -134,7 +140,7 @@ def install_student_load_profiler(form_class: type, *, progress_class: type | No
     # Attribute names intentionally fixed: no dynamic code execution.
     names = (
         '_ogrenci_degisti_combo_ile', '_bilgileri_getir', '_ders_tab_olustur',
-        '_update_student_snapshot', '_toplam_sure_guncelle', '_mark_overdue_cells',
+        '_update_student_snapshot', '_mark_overdue_cells',
         '_apply_global_done_for_current', '_update_overdue_badges',
         '_tabs_compact_apply', '_tabs_split_long_titles', '_polish_left_tables',
         '_apply_tables_visuals',
