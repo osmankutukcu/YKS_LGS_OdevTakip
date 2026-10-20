@@ -17,6 +17,7 @@ import matplotlib as mpl
 
 from datetime import date, timedelta
 import db
+from services.report_evidence_v3582 import observed_rate_evidence, MIN_REPORT_SAMPLE
 
 # ---------------- Global Matplotlib stili ----------------
 PRIMARY = "#2563eb"   # mavi
@@ -776,8 +777,10 @@ class OgrenciDetayDialog(QDialog):
         self.fig1.clear()
         ax = self.fig1.add_subplot(111)
         xs = [r["gun"] for r in daily]
-        ys = [float(r["ilerleme_pct"] or 0) for r in daily]
-        if xs:
+        # NULL/0% ayrımı: kaydı olmayan günü başarısız gün saymayın.
+        ys = [float(r["ilerleme_pct"]) if r["ilerleme_pct"] is not None else float("nan")
+              for r in daily]
+        if xs and any(r["ilerleme_pct"] is not None for r in daily):
             ax.plot(
                 range(len(xs)),
                 ys,
@@ -965,26 +968,40 @@ class OgrenciDetayDialog(QDialog):
         self.cv4.draw()
 
         # ---- KPI kartları
-        avg_pct = round(sum(ys) / len(ys), 1) if ys else 0.0
-        total_delay_days = sum(vals) if vals else 0
+        avg_pct, valid_days, evidence_state = observed_rate_evidence(
+            [r["ilerleme_pct"] for r in daily]
+        )
         t_count = t
         k_count = k
         y_count = yv
         incomplete_total = sum(dvals) if ders_rows else 0
 
-        self.lblKpiAvg.setText(f"% {avg_pct:.1f}")
+        self.lblKpiAvg.setText(f"% {avg_pct:.1f}" if avg_pct is not None else "—")
         self.lblKpiWeek.setText(str(t_count))
         self.lblKpiMissing.setText(str(incomplete_total))
         self.lblKpiAvgTitle.setText(f"Son {self._range_days} Günde Ortalama İlerleme")
+        self.lblKpiAvg.setToolTip(
+            f"{valid_days} günlük geçerli ölçüm. Günlük yüzdelerin aritmetik ortalaması; "
+            "sınav başarısı değildir. Boş günler %0 sayılmaz."
+        )
         if hasattr(self, 'lblKpiLevel'):
-            if avg_pct >= 85:
-                self.lblKpiLevel.setText("🌟 Mükemmel")
+            if evidence_state == "no_data":
+                self.lblKpiLevel.setText("📋 Veri Yok")
+            elif evidence_state == "limited":
+                self.lblKpiLevel.setText("📋 Sınırlı Veri")
+            elif avg_pct >= 85:
+                self.lblKpiLevel.setText("🌟 Yüksek Tamamlama")
             elif avg_pct >= 70:
-                self.lblKpiLevel.setText("✅ Başarılı")
+                self.lblKpiLevel.setText("✅ İyi Tamamlama")
             elif avg_pct >= 50:
-                self.lblKpiLevel.setText("⚠️ Sınırda")
+                self.lblKpiLevel.setText("⚠️ Kontrol Önerisi")
             else:
-                self.lblKpiLevel.setText("🚨 Riskli")
+                self.lblKpiLevel.setText("⚠️ Görüşme Önerisi")
+            self.lblKpiLevel.setToolTip(
+                f"{valid_days} günlük ölçüme dayanır; en az {MIN_REPORT_SAMPLE} "
+                "günlük gözlem yoksa güçlü yorum yapılmaz. Tıbbi/psikolojik risk veya "
+                "sınav başarısı sınıflaması değildir."
+            )
 
         # ---- AKILLI ANALİZ KARTI (Eski basit özet yerine)
         # Önce eski özeti temizleyelim veya gizleyelim (kodu basitleştirmek için update ediyoruz)
@@ -999,16 +1016,33 @@ class OgrenciDetayDialog(QDialog):
         # Verileri analiz et ve panele gönder
         insights = []
         
-        # 1. Başarı Durumu
-        if avg_pct >= 85:
-            insights.append(("🌟", "Mükemmel İlerleme", "Öğrencimiz son dönemde çok istikrarlı ve başarılı."))
+        # 1. Kanıt düzeyine göre temkinli, kanıtlanabilir yorum.
+        if evidence_state == "no_data":
+            insights.append(("📋", "Ölçüm Bulunamadı",
+                             f"Son {self._range_days} günde geçerli günlük ilerleme ölçümü yok. "
+                             "Bu sonuç başarısızlık anlamına gelmez."))
+        elif evidence_state == "limited":
+            insights.append(("📋", "Sınırlı Veri",
+                             f"Son {self._range_days} günde yalnızca {valid_days} geçerli "
+                             "günlük ölçüm var. Bir eğilim veya güçlü koçluk değerlendirmesi "
+                             "yapmak için daha fazla kayıt gerekir."))
+        elif avg_pct >= 85:
+            insights.append(("🌟", "Yüksek Ödev Tamamlama",
+                             f"{valid_days} günlük ölçümde ortalama %{avg_pct:.1f}. "
+                             "Bu oran sınav başarısı değildir."))
         elif avg_pct >= 70:
-            insights.append(("✅", "İyi Durumda", "Genel ilerleme tatmin edici düzeyde."))
+            insights.append(("✅", "İyi Ödev Tamamlama",
+                             f"{valid_days} günlük ölçümde ortalama %{avg_pct:.1f}."))
         elif avg_pct >= 50:
-            insights.append(("⚠️", "Dikkat", "Başarı ortalaması sınırdır, takviye gerekebilir."))
+            insights.append(("⚠️", "Kontrol Önerisi",
+                             f"{valid_days} günlük ölçümde ortalama %{avg_pct:.1f}. "
+                             "Eksik görevlerin nedenlerini öğrencinizle değerlendirin."))
         else:
-            insights.append(("🚨", "Riskli", "Ödev yapma alışkanlığında ciddi düşüş var, görüşme önerilir."))
-            
+            insights.append(("⚠️", "Görüşme Önerisi",
+                             f"{valid_days} günlük ölçümde ortalama %{avg_pct:.1f}. "
+                             "Ödev tamamlama durumunu öğrenciyle görüşerek doğrulayın; "
+                             "tek başına 'başarı düşüşü' kanıtı değildir."))
+
         # 2. Ders Bazlı Analiz (En çok eksik olan ders)
         if ders_rows:
             worst_lesson = ders_rows[0]["ders"]
@@ -1018,15 +1052,20 @@ class OgrenciDetayDialog(QDialog):
         # 3. Haftalık Trend
         trend_msg = ""
         total_week = t_count + k_count + y_count
-        if total_week > 0:
+        if 0 < total_week < MIN_REPORT_SAMPLE:
+            trend_msg = (f"Bu hafta {total_week} küme kayıtlı. Örneklem küçük; "
+                         "haftalık değişim yorumu için yeterli değil.")
+        elif total_week >= MIN_REPORT_SAMPLE:
             completion_rate = (t_count / total_week) * 100
             if completion_rate > 80:
-                trend_msg = "Bu hafta harika bir performans sergiliyor."
+                trend_msg = (f"Bu hafta {t_count}/{total_week} küme tamamlandı "
+                             f"(%{completion_rate:.0f}); sınav başarısı anlamına gelmez.")
             elif completion_rate < 40:
-                trend_msg = "Bu hafta performans düşüklüğü gözlemleniyor."
+                trend_msg = (f"Bu hafta {t_count}/{total_week} küme tamamlandı "
+                             f"(%{completion_rate:.0f}). Görevlerin durumunu kontrol edin.")
         
         if trend_msg:
-             insights.append(("trend", "Haftalık Trend", trend_msg))
+             insights.append(("trend", "Haftalık Durum", trend_msg))
              
         self._smart_panel.update_insights(insights)
 
@@ -1051,7 +1090,7 @@ class SmartInsightPanel(QWidget):
         self.flay = QVBoxLayout(self.frame)
         self.flay.setContentsMargins(16, 16, 16, 16)
         
-        header = QLabel("💡 Yapay Zeka Destekli Analiz")
+        header = QLabel("💡 Veriye Dayalı Koçluk Analizi")
         header.setStyleSheet("font-size: 14px; font-weight: bold; color: #4338ca; margin-bottom: 8px;")
         self.flay.addWidget(header)
         

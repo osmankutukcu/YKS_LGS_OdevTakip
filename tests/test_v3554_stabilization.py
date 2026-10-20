@@ -43,7 +43,7 @@ class StabilizationTests(TestCase):
                 with fitz.open(pdf) as doc:
                     uris=[link.get('uri') for pg in doc for link in pg.get_links() if link.get('uri')]
                     self.assertFalse(any(u.startswith(('https://wa.me/','tel:')) for u in uris))
-                    self.assertIn('güvenlik için kapatıldı', '\n'.join(pg.get_text() for pg in doc))
+                    self.assertIn('güvenlik için kapatıldı', ' '.join(' '.join(pg.get_text() for pg in doc).split()))
 
     def test_same_student_id_with_different_names_blocks_all_contact(self):
         schedule={'Pazartesi':[ev(21,'Deniz Yılmaz')],

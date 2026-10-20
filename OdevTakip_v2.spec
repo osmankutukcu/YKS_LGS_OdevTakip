@@ -31,6 +31,7 @@ hiddenimports = [
     'pandas',
     'pyautogui',
     'reportlab',
+    'fitz',  # V3.5.87 PDF sayfa onizleme / toplu rapor
     'fastapi',
     'uvicorn',
     'pydantic',

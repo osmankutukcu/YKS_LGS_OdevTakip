@@ -87,6 +87,14 @@ jobs:
           python -m pytest -q tests/test_v3549_offline_mobile_center.py tests/test_v3545_smart_mobile_pdf.py tests/test_v3546_mobile_pdf_bridge.py
           if ($LASTEXITCODE -ne 0) { throw 'Mobil PDF ve alici guvenligi regresyon testleri basarisiz' }
 
+      - name: V3.5.87 Rapor Merkezi kaynak regresyonu ve CI release denetimi
+        shell: pwsh
+        run: |
+          python tools/v3587_ci_preflight.py
+          if ($LASTEXITCODE -ne 0) { throw 'V3.5.87 PDF paketleme/CI kontrolu basarisiz' }
+          python -m unittest tests.test_v3587_stabilization tests.test_bulk_report_v3586 tests.test_report_planner_bridge_v3585 tests.test_integrated_report_v3584 tests.test_professional_pdf_v3583 tests.test_report_center_v3581 tests.test_report_evidence_v3582 -q
+          if ($LASTEXITCODE -ne 0) { throw 'V3.5.87 rapor regresyonu basarisiz' }
+
       - name: V3.5.51 ogretmen geri bildirim merkezi izole yetki testleri
         shell: pwsh
         run: |
@@ -135,8 +143,7 @@ jobs:
         shell: pwsh
         run: |
           python tools/v35_windows_smoke.py --exe dist/OdevTakip_v2/OdevTakip_v2.exe --report dist/v35_windows_smoke.json
-          if ($LASTEXITCODE -ne 0) { Write-Host "Smoke test tamamlandi (CI ortami)" }
-          exit 0
+          if ($LASTEXITCODE -ne 0) { throw "Windows EXE acilis testi basarisiz; kurulum yayinlanamaz" }
 
       - name: Inno Setup kur
         shell: pwsh

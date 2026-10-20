@@ -4,9 +4,10 @@ ui/report_dashboard.py
 Toplu Değerlendirme / Veli Raporu ekranı.
 
 Özellikler:
-- Öğrenci listesi: Toplam Görev / Tamamlanan / Başarı %
-    -> ogrenci_perf_hafta_ders tablosundan, ders bazlı haftalık özetlerin
-       öğrenci bazında toplanmış hali.
+- Öğrenci listesi: Toplam Görev / Tamamlanan / Ödev Tamamlama %
+    -> ogrenci + odev_kume + odev tabloları (mevcut kriter ayarları).
+- Ders grafiği: ogrenci_perf_hafta_ders (haftalık ders özeti).
+    -> Bu iki ölçümün dönemi aynı DEĞİLDİR; arayüzde ayrı belirtilir.
 - Sınıf filtresi: ogrenci.alt_grup alanına göre (11.sınıf, mezun-say vb.)
 - Üst grafik: Öğrencilerin Başarı Yüzdeleri (İlk N)
     -> N: 10 / 20 / 30 / 40 / 50 combobox ile seçilir.
@@ -30,7 +31,8 @@ from typing import List, Optional, Any
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
-    QTableView, QSpinBox, QFileDialog, QMessageBox, QWidget, QSplitter
+    QTableView, QSpinBox, QFileDialog, QMessageBox, QWidget, QSplitter,
+    QScrollArea, QFrame,
 )
 from PyQt6.QtGui import QStandardItemModel, QStandardItem
 
@@ -39,6 +41,9 @@ from matplotlib.figure import Figure
 
 from services.parent_report import generate_parent_report
 from services.report_settings import load_settings
+from services.report_evidence_v3582 import (
+    completion_evidence, cohort_overview, MIN_REPORT_SAMPLE
+)
 from ui.report_settings_dialog import ReportSettingsDialog
 
 from PyQt6.QtWidgets import QDialog
@@ -212,6 +217,11 @@ class ReportDashboard(QDialog):
 
         top_row.addStretch()
 
+        # V3.5.81: yeni ekran yalnızca mevcut raporlara yönlendirir.
+        # Korumalı ana pencere ve temel ödev formları değiştirilmez.
+        self.btn_report_center = QPushButton("📑 Rapor Merkezi")
+        self.btn_report_center.setObjectName("btnPrimary")
+        self.btn_report_center.setToolTip("Amacınıza en uygun mevcut raporu bulun")
         self.btn_settings = QPushButton("⚙️ Kriter Ayarları")
         self.btn_settings.setObjectName("btnInfo")
         self.btn_refresh = QPushButton("🔄 Analizleri Yenile")
@@ -219,6 +229,7 @@ class ReportDashboard(QDialog):
         self.btn_legacy_reports = QPushButton("📄 Detaylı Raporlar")
         self.btn_legacy_reports.setObjectName("btnPrimary")
 
+        top_row.addWidget(self.btn_report_center)
         top_row.addWidget(self.btn_settings)
         top_row.addWidget(self.btn_refresh)
         top_row.addWidget(self.btn_legacy_reports)
@@ -254,14 +265,22 @@ class ReportDashboard(QDialog):
             return w, lv
 
         c1, self.lbl_kpi_total_st = _make_kpi_card("👥 Toplam Öğrenci", "#2563eb")
-        c2, self.lbl_kpi_avg_succ = _make_kpi_card("📈 Sınıf Başarı Ortalaması", "#10b981")
-        c3, self.lbl_kpi_champs = _make_kpi_card("👑 %80+ Şampiyon Kulübü", "#d97706")
-        c4, self.lbl_kpi_at_risk = _make_kpi_card("⚠️ Takip Gerekenler (< %50)", "#ef4444")
+        c2, self.lbl_kpi_avg_succ = _make_kpi_card("📈 Ödev Tamamlama Ortalaması", "#10b981")
+        c3, self.lbl_kpi_champs = _make_kpi_card("👑 %80+ (En Az 5 Görev)", "#d97706")
+        c4, self.lbl_kpi_at_risk = _make_kpi_card("⚠️ Takip Önerisi (< %50)", "#ef4444")
         kpi_ribbon.addWidget(c1)
         kpi_ribbon.addWidget(c2)
         kpi_ribbon.addWidget(c3)
         kpi_ribbon.addWidget(c4)
         main.addLayout(kpi_ribbon)
+        # Rapor hesaplaması ve öğrenci kayıtlarına müdahale etmeyen kanıt etiketi.
+        self.lbl_evidence_note = QLabel("")
+        self.lbl_evidence_note.setWordWrap(True)
+        self.lbl_evidence_note.setStyleSheet(
+            "color:#475569; background:#eff6ff; border:1px solid #bfdbfe; "
+            "border-radius:6px; padding:6px 10px; font-size:11px;"
+        )
+        main.addWidget(self.lbl_evidence_note)
 
         # --- Orta alan: sol tablo, sağ grafikler ---
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -282,7 +301,7 @@ class ReportDashboard(QDialog):
 
         # Üst grafik başlık + top N combobox
         top_title_row = QHBoxLayout()
-        self.lbl_top = QLabel("Öğrencilerin Başarı Yüzdeleri")
+        self.lbl_top = QLabel("Tüm Kayıtlarda Öğrenci Ödev Tamamlama Oranı")
         self.lbl_top.setStyleSheet("font-weight: bold;")
         top_title_row.addWidget(self.lbl_top)
 
@@ -302,7 +321,7 @@ class ReportDashboard(QDialog):
 
         # Alt grafik başlık + mod combobox
         bottom_title_row = QHBoxLayout()
-        self.lbl_ders = QLabel("Derslere Göre Başarı Yüzdeleri")
+        self.lbl_ders = QLabel("Derslere Göre Haftalık Ödev Tamamlama Oranı")
         self.lbl_ders.setStyleSheet("font-weight: bold;")
         bottom_title_row.addWidget(self.lbl_ders)
 
@@ -317,7 +336,16 @@ class ReportDashboard(QDialog):
 
         self.canvas_ders = _MatCanvas(right_widget)
         self.ax_ders = self.canvas_ders.ax
-        right_layout.addWidget(self.canvas_ders, stretch=2)
+        # Çok sayıda dersin birbirine girmesini engelle; tüm dersler korunur.
+        self.canvas_ders.setMinimumHeight(280)
+        self.ders_scroll = QScrollArea(right_widget)
+        self.ders_scroll.setWidgetResizable(True)
+        self.ders_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.ders_scroll.setWidget(self.canvas_ders)
+        self.ders_scroll.setToolTip(
+            "Tüm dersleri görmek için grafik içinde aşağı kaydırabilirsiniz."
+        )
+        right_layout.addWidget(self.ders_scroll, stretch=2)
 
         splitter.addWidget(right_widget)
         splitter.setStretchFactor(0, 3)
@@ -343,6 +371,7 @@ class ReportDashboard(QDialog):
 
         # --- Bağlantılar ---
         self.btn_refresh.clicked.connect(self.refresh_data)
+        self.btn_report_center.clicked.connect(self._open_report_center)
         self.btn_settings.clicked.connect(self._open_settings)
         self.btn_parent.clicked.connect(self._make_single_parent_pdf)
         self.btn_parent_all.clicked.connect(self._make_bulk_parent_pdf)
@@ -362,6 +391,14 @@ class ReportDashboard(QDialog):
             lambda *_: self._update_ders_chart(self._selected_student_id())
         )
 
+
+    def _open_report_center(self):
+        """Mevcut raporları değiştirmeyen amaca göre seçim penceresi."""
+        from ui.report_center_v3581 import ReportCenterDialog
+        # Üst pencere ana uygulamadır; bütün mevcut rapor girişleri ondadır.
+        host = self.parent()
+        dialog = ReportCenterDialog(host)
+        dialog.exec()
 
     def _open_legacy_reports(self):
         """Üstteki 'Detaylı Raporlar (Eski)' butonu."""
@@ -441,105 +478,8 @@ class ReportDashboard(QDialog):
 
     # ---------- Özet satırları çekme ----------
 
-    def _get_summary_rows(self):
-        """
-        Öğrenci listesi için özet satırları getirir.
-
-        Kaynak:
-            - ogrenci
-            - odev_kume
-            - odev
-
-        Toplam Görev  = o öğrencinin tüm kümelerindeki odev satır sayısı
-        Tamamlanan    = durum'a göre "yapıldı" kabul edilen satırlar
-                        (Kriter ayarlarına göre 'aktarildi' satırları
-                         tamam kabul edilebilir veya edilmeyebilir.)
-        Başarı %      = 100 * Tamamlanan / Toplam Görev
-        """
-        # --- Filtreler ---
-        sinif_val = self.cmb_sinif.currentData()
-        sinif_filter = (sinif_val or "").strip()
-        min_pct = int(self.spin_min_pct.value())
-
-        where_ogr = ["o.aktif = 1"]
-        params: list[Any] = []
-
-        if sinif_filter:
-            where_ogr.append("COALESCE(o.alt_grup,'') = ?")
-            params.append(sinif_filter)
-
-        where_sql = " AND ".join(where_ogr)
-
-        # --- Kriter ayarlarını oku ---
-        settings = getattr(self, "settings", {}) or {}
-        aktar_mod = settings.get("aktarilan_sayilma_sekli", "done")
-
-        # Her durumda "tamam" kabul edilen durumlar
-        base_done_statuses = [
-            "yapildi", "yapıldı", "tamam", "bitti", "done",
-            "tamamlandı", "✓", "ok", "1", "true", "evet"
-        ]
-
-        done_statuses = list(base_done_statuses)
-
-        # Eğer kullanıcı "YAPILDI kabul et" seçtiyse
-        # → 'aktarildi' / 'aktarıldı' durumları da tamam kabul edilir
-        if aktar_mod == "done":
-            done_statuses += ["aktarildi", "aktarıldı", "aktarim", "aktarım"]
-
-        # SQL IN (...) listesi için placeholder üret
-        in_placeholders = ", ".join("?" for _ in done_statuses)
-
-        sql = f"""
-            SELECT
-                o.id AS ogrenci_id,
-                (o.ad || ' ' || o.soyad)                AS ad_soyad,
-                COALESCE(o.alt_grup, '')               AS sinif_grup,
-                COUNT(d.id)                            AS gorev_toplam,
-                SUM(
-                    CASE
-                        WHEN LOWER(TRIM(COALESCE(d.durum,''))) IN ({in_placeholders})
-                        THEN 1 ELSE 0
-                    END
-                )                                      AS gorev_bitti
-            FROM ogrenci o
-            LEFT JOIN odev_kume k
-                   ON k.ogrenci_id = o.id
-            LEFT JOIN odev d
-                   ON d.kume_id = k.id
-            WHERE {where_sql}
-            GROUP BY o.id, o.ad, o.soyad, o.alt_grup
-        """
-
-        # Sınıf filtresi parametreleri + durum listesi parametreleri
-        all_params: list[Any] = list(params) + done_statuses
-
-        cur = self.con.execute(sql, all_params)
-        rows = []
-
-        for r in cur.fetchall():
-            toplam = int(r["gorev_toplam"] or 0)
-            bitti = int(r["gorev_bitti"] or 0)
-            if toplam <= 0:
-                basari_pct = 0.0
-            else:
-                basari_pct = round(100.0 * bitti / toplam, 1)
-
-            if min_pct and basari_pct < min_pct:
-                continue
-
-            rows.append({
-                "ogrenci_id": r["ogrenci_id"],
-                "ad_soyad": r["ad_soyad"] or "",
-                "sinif_grup": r["sinif_grup"] or "",
-                "gorev_toplam": toplam,
-                "gorev_bitti": bitti,
-                "basari_pct": basari_pct,
-            })
-
-        # Başarıya göre büyükten küçüğe sırala
-        rows.sort(key=lambda x: (-x["basari_pct"], x["ad_soyad"].lower()))
-        return rows
+    # V3.5.82: Çalışmayan/üstüne yazılan ilk yöntem kaldırıldı.
+    # Aşağıdaki ikinci yöntem orijinal etkili SQL davranışını korur.
 
     def _get_summary_rows(self):
         """
@@ -622,10 +562,9 @@ class ReportDashboard(QDialog):
         for r in cur.fetchall():
             toplam = int(r["gorev_toplam"] or 0)
             bitti = int(r["gorev_bitti"] or 0)
-            if toplam <= 0:
-                basari_pct = 0.0
-            else:
-                basari_pct = round(100.0 * bitti / toplam, 1)
+            # Tamamlanma oranı aynı kalır; 0/0 artık kanıtsız olarak işaretlenir.
+            evidence = completion_evidence(bitti, toplam)
+            basari_pct = evidence.percent if evidence.percent is not None else 0.0
 
             # --- Sınıf filtresini PYTHON tarafında uygula ---
             sinif_grup = (r["sinif_grup"] or "").strip()
@@ -643,10 +582,12 @@ class ReportDashboard(QDialog):
                 "gorev_toplam": toplam,
                 "gorev_bitti": bitti,
                 "basari_pct": basari_pct,
+                "veri_var": evidence.percent is not None,
+                "kanit_durumu": evidence.status,
             })
 
         # Başarıya göre büyükten küçüğe sırala
-        rows.sort(key=lambda x: (-x["basari_pct"], x["ad_soyad"].lower()))
+        rows.sort(key=lambda x: (not x["veri_var"], -x["basari_pct"], x["ad_soyad"].lower()))
         return rows
 
     def refresh_data(self) -> None:
@@ -657,7 +598,7 @@ class ReportDashboard(QDialog):
         # Tabloyu doldur
         self.table_model.clear()
         headers = ["Öğrenci ID", "Ad Soyad", "Sınıf/Grup",
-                   "Toplam Görev", "Tamamlanan", "Başarı %"]
+                   "Toplam Görev", "Tamamlanan", "Ödev Tamamlama %"]
         self.table_model.setHorizontalHeaderLabels(headers)
 
         for r in rows:
@@ -667,24 +608,53 @@ class ReportDashboard(QDialog):
                 QStandardItem(r["sinif_grup"]),
                 QStandardItem(str(r["gorev_toplam"])),
                 QStandardItem(str(r["gorev_bitti"])),
-                QStandardItem(f"{r['basari_pct']:.1f}"),
+                QStandardItem(f"{r['basari_pct']:.1f}" if r["veri_var"] else "—"),
             ]
             for it in items:
                 it.setEditable(False)
+            if r["kanit_durumu"] == "limited":
+                items[-1].setToolTip(
+                    f"Yalnızca {r['gorev_toplam']} görev: oran yorumlanırken "
+                    f"en az {MIN_REPORT_SAMPLE} görev önerilir."
+                )
+            elif r["kanit_durumu"] == "no_data":
+                items[-1].setToolTip("Henüz ödev kaydı yok; %0 olarak değerlendirilmez.")
+            else:
+                items[-1].setToolTip(
+                    f"{r['gorev_bitti']}/{r['gorev_toplam']} görev tamamlandı. "
+                    "Sınav başarısı anlamına gelmez."
+                )
             self.table_model.appendRow(items)
 
         self.table.resizeColumnsToContents()
 
-        # Update KPI Ribbon
+        # Ödev kaydı olmayan ve küçük örneklemli öğrenciler riske/ödüle eklenmez.
+        overview = cohort_overview(rows)
         if hasattr(self, 'lbl_kpi_total_st'):
-            total_st = len(rows)
-            avg_pct = round(sum(r["basari_pct"] for r in rows) / total_st, 1) if total_st > 0 else 0.0
-            champs = sum(1 for r in rows if r["basari_pct"] >= 80.0)
-            at_risk = sum(1 for r in rows if r["basari_pct"] < 50.0)
-            self.lbl_kpi_total_st.setText(f"{total_st} Öğrenci")
-            self.lbl_kpi_avg_succ.setText(f"% {avg_pct:.1f}")
-            self.lbl_kpi_champs.setText(f"{champs} Öğrenci")
-            self.lbl_kpi_at_risk.setText(f"{at_risk} Öğrenci")
+            self.lbl_kpi_total_st.setText(f"{overview['total']} Öğrenci")
+            self.lbl_kpi_avg_succ.setText(
+                f"% {overview['avg']:.1f}" if overview['avg'] is not None else "—"
+            )
+            self.lbl_kpi_champs.setText(f"{overview['high']} Öğrenci")
+            self.lbl_kpi_at_risk.setText(f"{overview['followup']} Öğrenci")
+            self.lbl_kpi_avg_succ.setToolTip(
+                f"{overview['measured']} öğrencinin ödev tamamlama yüzdelerinin "
+                "aritmetik ortalaması. Ödev sayısına göre ağırlıklandırılmamıştır."
+            )
+            self.lbl_kpi_champs.setToolTip(
+                f"En az {MIN_REPORT_SAMPLE} görev bulunan, tamamlama oranı %80+ öğrenciler."
+            )
+            self.lbl_kpi_at_risk.setToolTip(
+                f"En az {MIN_REPORT_SAMPLE} görev bulunan ve ödev tamamlama oranı %50 altı "
+                "öğrenciler. Bu otomatik tanı veya sınav başarısı değildir."
+            )
+        self.lbl_evidence_note.setText(
+            f"📋 Seçili listede: {overview['measured']} öğrencide görev verisi, "
+            f"{overview['no_data']} öğrencide kayıt yok, "
+            f"{overview['limited']} öğrencide sınırlı örneklem "
+            f"(1–{MIN_REPORT_SAMPLE - 1} görev). "
+            "Yüzdeler tüm kayıtların ödev tamamlama oranıdır; akademik başarı ölçümü değildir."
+        )
 
         # Grafikler
         self._update_student_chart(rows)
@@ -717,8 +687,9 @@ class ReportDashboard(QDialog):
         ax = self.canvas_students.ax
         ax.clear()
 
+        rows = [r for r in rows if r.get("veri_var", True)]
         if not rows:
-            ax.text(0.5, 0.5, "Veri yok",
+            ax.text(0.5, 0.5, "Ödev kaydı bulunan öğrenci yok",
                     ha="center", va="center", fontsize=9)
             ax.set_xticks([])
             ax.set_yticks([])
@@ -746,7 +717,11 @@ class ReportDashboard(QDialog):
 
         # Yüzdeleri çubukların yanına yaz
         for i, v in enumerate(pcts):
-            ax.text(v + 1, i, f"{v:.1f}%", va="center", fontsize=8)
+            # %100 etiketlerini grafik dışına taşırmayın.
+            ax.text(v - 1 if v >= 93 else v + 1, i, f"{v:.1f}%",
+                    ha="right" if v >= 93 else "left",
+                    color="white" if v >= 93 else "#334155",
+                    va="center", fontsize=8)
 
         # En başarılı öğrenci en üstte görünsün
         ax.invert_yaxis()
@@ -806,7 +781,8 @@ class ReportDashboard(QDialog):
         ax.clear()
 
         if not rows:
-            ax.text(0.5, 0.5, "Veri yok", ha="center", va="center")
+            self.canvas_ders.setMinimumHeight(280)
+            ax.text(0.5, 0.5, "Bu seçim için ders verisi yok", ha="center", va="center")
             ax.set_xticks([])
             ax.set_yticks([])
             self.canvas_ders.draw()
@@ -814,6 +790,12 @@ class ReportDashboard(QDialog):
 
         dersler = [r["ders"] for r in rows]
         pct_list = [float(r["pct"] or 0) for r in rows]
+        self.canvas_ders.setMinimumHeight(max(280, min(1800, len(dersler) * 34 + 85)))
+        self.lbl_ders.setToolTip(
+            f"{len(dersler)} ders görüntüleniyor. Haftalık ödev verilerinden hesaplanır; "
+            "öğrencinin sınav başarısı değildir."
+        )
+        self.canvas_ders.figure.subplots_adjust(left=0.31, right=0.96, bottom=0.13, top=0.97)
         y_pos = range(len(dersler))
 
         ax.barh(list(y_pos), pct_list)
@@ -823,7 +805,9 @@ class ReportDashboard(QDialog):
         ax.set_xlabel("%")
 
         for i, v in enumerate(pct_list):
-            ax.text(v + 1, i, f"{v:.1f}%", va="center")
+            ax.text(v - 1 if v >= 93 else v + 1, i, f"{v:.1f}%",
+                    ha="right" if v >= 93 else "left",
+                    color="white" if v >= 93 else "#334155", va="center", fontsize=9)
 
         self.canvas_ders.draw()
 
