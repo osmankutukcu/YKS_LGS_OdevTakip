@@ -558,6 +558,39 @@ class PlanSettingsDialog(QDialog):
                                       'font-weight:700;padding:5px 9px;border-radius:5px;}')
         btn_pdf_preview.clicked.connect(self._create_plan)
         h_prof.addWidget(btn_pdf_preview)
+
+        btn_save_pdf_top = QPushButton("💾 PDF Kaydet")
+        btn_save_pdf_top.setToolTip("Haftalık planı doğrudan bilgisayara PDF olarak kaydeder.")
+        btn_save_pdf_top.setStyleSheet("""
+            QPushButton {
+                background: #f8fafc;
+                color: #1e293b;
+                font-weight: 700;
+                padding: 5px 9px;
+                border: 1px solid #cbd5e1;
+                border-radius: 5px;
+            }
+            QPushButton:hover { background: #e2e8f0; }
+        """)
+        btn_save_pdf_top.clicked.connect(self._direct_save_pdf)
+        h_prof.addWidget(btn_save_pdf_top)
+
+        btn_wa_top = QPushButton("📱 WhatsApp Gönder")
+        btn_wa_top.setToolTip("Haftalık plan PDF'ini öğrenci veya veliye WhatsApp ile otomatik gönderir.")
+        btn_wa_top.setStyleSheet("""
+            QPushButton {
+                background: #ecfdf5;
+                color: #065f46;
+                font-weight: 700;
+                padding: 5px 9px;
+                border: 1px solid #a7f3d0;
+                border-radius: 5px;
+            }
+            QPushButton:hover { background: #d1fae5; }
+        """)
+        btn_wa_top.clicked.connect(self._direct_send_whatsapp)
+        h_prof.addWidget(btn_wa_top)
+
         h_prof.addWidget(btn_del_prof)
         head_lay.addLayout(h_prof)
         
@@ -1264,6 +1297,43 @@ class PlanSettingsDialog(QDialog):
         btn_create.clicked.connect(self._create_plan)
         
         foot_lay.addWidget(btn_cancel)
+
+        btn_save_pdf_foot = QPushButton("💾 PDF Kaydet")
+        btn_save_pdf_foot.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_save_pdf_foot.setToolTip("Haftalık planı doğrudan bilgisayara PDF olarak kaydeder.")
+        btn_save_pdf_foot.setStyleSheet("""
+            QPushButton {
+                background: #ffffff;
+                color: #1e293b;
+                font-weight: 700;
+                padding: 8px 16px;
+                font-size: 12px;
+                border: 1px solid #cbd5e1;
+                border-radius: 6px;
+            }
+            QPushButton:hover { background: #f1f5f9; }
+        """)
+        btn_save_pdf_foot.clicked.connect(self._direct_save_pdf)
+        foot_lay.addWidget(btn_save_pdf_foot)
+
+        btn_wa_foot = QPushButton("📱 WhatsApp Gönder")
+        btn_wa_foot.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_wa_foot.setToolTip("Haftalık plan PDF'ini öğrenci veya veliye WhatsApp ile otomatik gönderir.")
+        btn_wa_foot.setStyleSheet("""
+            QPushButton {
+                background: #059669;
+                color: #ffffff;
+                font-weight: 700;
+                padding: 8px 16px;
+                font-size: 12px;
+                border: none;
+                border-radius: 6px;
+            }
+            QPushButton:hover { background: #047857; }
+        """)
+        btn_wa_foot.clicked.connect(self._direct_send_whatsapp)
+        foot_lay.addWidget(btn_wa_foot)
+
         foot_lay.addWidget(btn_create)
         main_layout.addWidget(footer_widget)
 
@@ -1914,7 +1984,7 @@ class PlanSettingsDialog(QDialog):
         if index == 0 and hasattr(self, 'weekly_overview'):
             self.weekly_overview.refresh()
 
-    def _create_plan(self):
+    def _get_serialized_details(self) -> Optional[str]:
         data = self._gather_data()
         approved = getattr(self, '_approved_topic_focus', [])
         if approved:
@@ -1923,20 +1993,67 @@ class PlanSettingsDialog(QDialog):
                     and str(parent._secili_ogrenci_id() or '') != str(self.student_id or '')):
                 QMessageBox.warning(self, 'Öğrenci Değişti',
                                     'Öğrenci seçimi değişti. Adaptif öncelikler uygulanmadı.')
-                return
+                return None
             from services.weekly_topic_priority_v35 import accepted_topic_pairs
-            # Only currently assigned exact pairs; the shared profile is unchanged.
             data['adaptive_topic_focus_v35'] = accepted_topic_pairs(self.homework_list, approved)
         try:
             availability = availability_for_week(data)
         except ValueError as err:
             QMessageBox.warning(self, 'Takvim Kuralları Geçersiz', str(err))
-            return
+            return None
         if not any(availability.values()):
             QMessageBox.warning(self, 'Çalışma Saati Bulunamadı',
                                 'Seçilen rutinlerle haftanın hiçbir gününde çalışma saati kalmıyor.')
+            return None
+        return serialize_details(data)
+
+    def _generate_plan_html(self) -> Optional[str]:
+        details = self._get_serialized_details()
+        if not details:
+            return None
+        from services.smart_calendar import SmartCalendarService
+        s_name = self.student_name or "Öğrenci"
+        plan_bundle = SmartCalendarService.create_weekly_plan_data(s_name, self.homework_list, details)
+        if not plan_bundle or not plan_bundle.get("html"):
+            QMessageBox.warning(self, "Plan Üretilemedi", "Haftalık plan oluşturulamadı.")
+            return None
+        return plan_bundle["html"]
+
+    def _direct_save_pdf(self):
+        """Haftalık planı doğrudan bilgisayara PDF olarak kaydeder."""
+        html = self._generate_plan_html()
+        if not html:
             return
-        self.result_details = serialize_details(data)
+        from services.weekly_calendar_export_v35 import save_weekly_calendar_pdf_file
+        save_weekly_calendar_pdf_file(html, self.student_name or "Ogrenci", parent=self)
+
+    def _direct_send_whatsapp(self):
+        """Haftalık planı doğrudan WhatsApp otopilot ile gönderir."""
+        html = self._generate_plan_html()
+        if not html:
+            return
+        import tempfile, datetime
+        from services.weekly_calendar_export_v35 import (
+            export_html_to_pdf_file,
+            _sanitize_filename,
+            WeeklyPlanWhatsAppDialog,
+        )
+        tmp_dir = tempfile.gettempdir()
+        s_name = self.student_name or "Ogrenci"
+        safe_name = _sanitize_filename(s_name)
+        date_str = datetime.date.today().strftime("%Y_%m_%d")
+        temp_pdf = os.path.join(tmp_dir, f"{safe_name}_Haftalik_Calisma_Plani_{date_str}.pdf")
+        export_html_to_pdf_file(html, temp_pdf)
+
+        s_id = int(self.student_id) if self.student_id and str(self.student_id).isdigit() else None
+        dlg = WeeklyPlanWhatsAppDialog(self, s_id, s_name, temp_pdf)
+        dlg.exec()
+
+    def _create_plan(self):
+        details = self._get_serialized_details()
+        if not details:
+            return
+        self.result_details = details
         self.accept()
 
     def get_details(self) -> str:
