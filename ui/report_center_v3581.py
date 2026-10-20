@@ -229,20 +229,66 @@ class ReportCenterDialog(QDialog):
         return card
 
     def _launch(self, method_name):
+        import sys
         parent = self.parent()
         if method_name == "_open_advanced_from_center":
-            # Merkez Detaylı Raporlar içinden açıldığı için pencere referansı
-            # ana pencerededir. Var olan gelişmiş rapor akışını yeniden kullan.
+            # Merkez Detaylı Raporlar içinden veya doğrudan ana ekrandan açılabilir
             dashboard = getattr(parent, "_report_dashboard", None)
-            target = getattr(dashboard, "_open_legacy_reports", None)
+            if dashboard is None and hasattr(parent, "_rapor_ac"):
+                parent._rapor_ac()
+                dashboard = getattr(parent, "_report_dashboard", None)
+            if dashboard is not None and hasattr(dashboard, "_open_legacy_reports"):
+                target = dashboard._open_legacy_reports
+            else:
+                try:
+                    from ui.reports import RaporlarFormu
+                    def _open_direct_legacy():
+                        legacy = RaporlarFormu(parent)
+                        legacy.setWindowTitle("Gelişmiş Grafik ve Detaylı Raporlar — KoçPilot 360")
+                        legacy.setWindowFlag(Qt.WindowType.Window, True)
+                        legacy.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+                        legacy.resize(1200, 700)
+                        legacy.show()
+                        legacy.raise_()
+                        legacy.activateWindow()
+                        return legacy
+                    target = _open_direct_legacy
+                except Exception:
+                    target = None
         else:
             target = getattr(parent, method_name, None)
+
         if not callable(target):
             QMessageBox.warning(self, "Rapor açılamadı", "Seçilen rapor bu kurulumda kullanılamıyor.")
             return
-        self.accept()
-        # Mevcut rapor modüllerinin orijinal giriş noktasını kullan.
-        target()
+
+        # Rapor Merkezi'ni arka plana çek; açılan rapor kapanınca tekrar öne getir
+        self.hide()
+        def _reopen():
+            try:
+                self.show()
+                self.raise_()
+                self.activateWindow()
+            except Exception:
+                pass
+
+        if method_name in ("_rapor_ac", "_open_advanced_from_center"):
+            # Non-modal pencere durumu
+            res = target()
+            target_win = res or getattr(parent, "_report_dashboard", None)
+            if target_win is not None:
+                if hasattr(target_win, "finished"):
+                    target_win.finished.connect(lambda *_: _reopen())
+                elif hasattr(target_win, "destroyed"):
+                    target_win.destroyed.connect(lambda *_: _reopen())
+            else:
+                _reopen()
+        else:
+            # Senkron modal diyaloglar (exec bloklar; pencere kapatılınca burası tamamlanır)
+            try:
+                target()
+            finally:
+                _reopen()
 
     def _show_guide(self):
         parent = self.parent()
@@ -250,33 +296,66 @@ class ReportCenterDialog(QDialog):
         if not callable(target):
             QMessageBox.warning(self, "Rehber açılamadı", "Rehber bu kurulumda bulunamadı.")
             return
-        self.accept()
-        target()
+        self.hide()
+        try:
+            target()
+        finally:
+            self.show()
+            self.raise_()
+            self.activateWindow()
 
     def _open_professional_pdf(self):
         """Rapor merkezinden isteğe bağlı yeni şablonlar; ana pencere değişmez."""
+        import sys
         parent = self.parent()
         dashboard = getattr(parent, "_report_dashboard", None)
         con = getattr(dashboard, "con", None)
         if con is None:
-            QMessageBox.warning(self, "Bağlantı bulunamadı", "Detaylı Raporlar ekranından tekrar açın.")
+            try:
+                db_mod = sys.modules.get("db")
+                if db_mod and hasattr(db_mod, "get_conn"):
+                    con = db_mod.get_conn()
+            except Exception:
+                con = None
+        if con is None:
+            QMessageBox.warning(self, "Bağlantı bulunamadı", "Veritabanı bağlantısı açılamadı.")
             return
         try:
             from ui.professional_pdf_dialog_v3583 import ProfessionalPDFDialog
-            ProfessionalPDFDialog(con, self).exec()
+            self.hide()
+            try:
+                ProfessionalPDFDialog(con, self).exec()
+            finally:
+                self.show()
+                self.raise_()
+                self.activateWindow()
         except Exception as exc:
             QMessageBox.warning(self, "PDF atölyesi açılamadı", str(exc))
 
     def _open_bulk_pdf(self):
         """V3586 opt-in: new dialog, never alters any legacy export path."""
+        import sys
         parent = self.parent()
         dashboard = getattr(parent, "_report_dashboard", None)
         con = getattr(dashboard, "con", None)
         if con is None:
-            QMessageBox.warning(self, "Bağlantı bulunamadı", "Detaylı Raporlar ekranından tekrar açın.")
+            try:
+                db_mod = sys.modules.get("db")
+                if db_mod and hasattr(db_mod, "get_conn"):
+                    con = db_mod.get_conn()
+            except Exception:
+                con = None
+        if con is None:
+            QMessageBox.warning(self, "Bağlantı bulunamadı", "Veritabanı bağlantısı açılamadı.")
             return
         try:
             from ui.bulk_report_dialog_v3586 import BulkReportDialog
-            BulkReportDialog(con, self).exec()
+            self.hide()
+            try:
+                BulkReportDialog(con, self).exec()
+            finally:
+                self.show()
+                self.raise_()
+                self.activateWindow()
         except Exception as exc:
             QMessageBox.warning(self, "Toplu rapor açılamadı", str(exc))
