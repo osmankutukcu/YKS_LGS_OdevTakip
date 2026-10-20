@@ -22,6 +22,7 @@ def read_coaching_snapshot(con: sqlite3.Connection, student_id: int, *, today: d
         'student_id': student_id,
         'source': 'shared_academic_decision_v3530',
         'read_only': True,
+        'state': str(card.get('state') or 'UNVERIFIED'),
         'academic_card': card,
         'disclaimer': 'Ödevin tamamlanması tek başına öğrenme kanıtı değildir.',
     }

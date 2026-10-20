@@ -67,6 +67,8 @@ def read_coaching_evidence_hub(con: sqlite3.Connection, student_id: int, *,
         summary = None
     elif summary.get('state') == _LINK_REVIEW:
         coaching_state = _LINK_REVIEW
+    elif summary.get('state'):
+        coaching_state = str(summary['state'])
 
     home = action.get('homework') if action else None
     if isinstance(home, dict) and home.get('student_id') != sid:
