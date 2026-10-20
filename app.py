@@ -412,6 +412,11 @@ def main() -> None:
         splash.set_progress(80, "Arayüz oluşturuluyor...")
 
     # 4) Ana pencere (EN AĞIR KISIM BURASI - Pandas vb. burada yükleniyor)
+    try:
+        from ui.app_settings import _enhance_modern_settings
+        _enhance_modern_settings()
+    except Exception:
+        pass
     from main_window import AnaPencere
     w = AnaPencere()
     w.setWindowTitle("KoçPilot 360 — Bütünleşik Koçluk & Sınav Platformu")

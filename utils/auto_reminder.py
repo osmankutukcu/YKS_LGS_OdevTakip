@@ -18,10 +18,14 @@ def collect_numbers(ogrenci_id):
     row = con.execute("SELECT veli_tel1, veli_tel2, ogr_tel FROM ogrenci WHERE id=?", (ogrenci_id,)).fetchone()
     nums = []
     if row:
+        from utils import settings as appset
+        allow_dup = (appset.ayar_get('reminder_allow_duplicate_nums', '1') == '1')
         for i in range(3):
             v = row[i]
-            if v and str(v).strip() and str(v).strip() not in nums:
-                nums.append(str(v).strip())
+            if v and str(v).strip():
+                s = str(v).strip()
+                if allow_dup or s not in nums:
+                    nums.append(s)
     return nums
 
 def build_message(sablon, ozet_list):

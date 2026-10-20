@@ -1471,6 +1471,26 @@ class UygulamaAyarlar(QWidget):
         g2.addWidget(b2, 1, 2)
         root.addWidget(gb_wp)
 
+        # Otomatik Hatırlatıcı Ayarları
+        gb_rem = QGroupBox("⏰ Otomatik WhatsApp Hatırlatıcısı")
+        g_rem = QGridLayout(gb_rem)
+        g_rem.setContentsMargins(12, 10, 12, 10)
+        g_rem.setHorizontalSpacing(10)
+        g_rem.setVerticalSpacing(8)
+        self.chkAutoReminder = QCheckBox("Uygulama açıkken arka planda otomatik hatırlatıcı çalışsın")
+        self.chkAutoReminder.setChecked(appset.ayar_get('timer_enabled', '0') == '1')
+        self.spinInterval = QSpinBox()
+        self.spinInterval.setRange(5, 1440)
+        self.spinInterval.setValue(int(appset.ayar_get('timer_interval_min', '60') or 60))
+        self.spinInterval.setSuffix(" dakika")
+        self.chkAllowDup = QCheckBox("Aynı numara hem öğrenci hem velide kayıtlıysa her birine ayrı ayrı gönder (Mükerrer gönderim izni)")
+        self.chkAllowDup.setChecked(appset.ayar_get('reminder_allow_duplicate_nums', '1') == '1')
+        g_rem.addWidget(self.chkAutoReminder, 0, 0, 1, 2)
+        g_rem.addWidget(QLabel("Kontrol Aralığı:"), 1, 0)
+        g_rem.addWidget(self.spinInterval, 1, 1)
+        g_rem.addWidget(self.chkAllowDup, 2, 0, 1, 2)
+        root.addWidget(gb_rem)
+
         # alt bar
         bar = QHBoxLayout()
         bar.addStretch(1)
@@ -1560,6 +1580,12 @@ class UygulamaAyarlar(QWidget):
         appset.ayar_set('kurum_web', self.txtWeb.text().strip())
         appset.ayar_set('wp_search_img', self.txtWpSearch.text().strip())
         appset.ayar_set('wp_error_img', self.txtWpError.text().strip())
+        if hasattr(self, 'chkAutoReminder'):
+            appset.ayar_set('timer_enabled', '1' if self.chkAutoReminder.isChecked() else '0')
+        if hasattr(self, 'spinInterval'):
+            appset.ayar_set('timer_interval_min', str(self.spinInterval.value()))
+        if hasattr(self, 'chkAllowDup'):
+            appset.ayar_set('reminder_allow_duplicate_nums', '1' if self.chkAllowDup.isChecked() else '0')
         # temayı uygula (varsa)
         try:
             _, _, apply_theme = _theme_api()
@@ -1582,3 +1608,66 @@ def ayar_get(anahtar, varsayilan=None):
 
 def ayar_set(anahtar, deger):
     return appset.ayar_set(anahtar, deger)
+
+
+def _enhance_modern_settings():
+    try:
+        import ui.modern_settings as ms
+        if getattr(ms.ModernSettingsDialog, '_auto_reminder_hooked', False):
+            return
+
+        orig_init = ms.ModernSettingsDialog.__init__
+
+        def new_init(self, *args, **kwargs):
+            orig_init(self, *args, **kwargs)
+            try:
+                page = getattr(self, 'page_integration', None)
+                if page and not getattr(page, '_auto_reminder_enhanced', False):
+                    from PyQt6.QtWidgets import QGroupBox, QGridLayout, QCheckBox, QSpinBox, QLabel
+                    gb_auto = QGroupBox("⏰ Otomatik Arka Plan WhatsApp Hatırlatıcısı")
+                    gl_auto = QGridLayout(gb_auto)
+                    gl_auto.setVerticalSpacing(10)
+                    gl_auto.setHorizontalSpacing(14)
+
+                    page.chkTimerEnabled = QCheckBox("Uygulama açıkken arka planda otomatik hatırlatıcı çalışsın")
+                    page.chkTimerEnabled.setChecked(appset.ayar_get('timer_enabled', '0') == '1')
+                    page.chkTimerEnabled.setStyleSheet("font-weight: 600; color: #1e293b;")
+
+                    page.spinInterval = QSpinBox()
+                    page.spinInterval.setRange(5, 1440)
+                    page.spinInterval.setValue(int(appset.ayar_get('timer_interval_min', '60') or 60))
+                    page.spinInterval.setSuffix(" dakika")
+
+                    page.chkAllowDup = QCheckBox("Aynı numara hem öğrenci hem velide kayıtlıysa her birine ayrı ayrı gönder (Mükerrer gönderim izni)")
+                    page.chkAllowDup.setChecked(appset.ayar_get('reminder_allow_duplicate_nums', '1') == '1')
+
+                    gl_auto.addWidget(page.chkTimerEnabled, 0, 0, 1, 2)
+                    gl_auto.addWidget(QLabel("Kontrol Aralığı:"), 1, 0)
+                    gl_auto.addWidget(page.spinInterval, 1, 1)
+                    gl_auto.addWidget(page.chkAllowDup, 2, 0, 1, 2)
+
+                    page.layout().insertWidget(1, gb_auto)
+
+                    orig_save = page.save
+                    def new_save(*sargs, **skw):
+                        orig_save(*sargs, **skw)
+                        try:
+                            if hasattr(page, 'chkTimerEnabled'):
+                                appset.ayar_set('timer_enabled', '1' if page.chkTimerEnabled.isChecked() else '0')
+                            if hasattr(page, 'spinInterval'):
+                                appset.ayar_set('timer_interval_min', str(page.spinInterval.value()))
+                            if hasattr(page, 'chkAllowDup'):
+                                appset.ayar_set('reminder_allow_duplicate_nums', '1' if page.chkAllowDup.isChecked() else '0')
+                        except Exception:
+                            pass
+                    page.save = new_save
+                    page._auto_reminder_enhanced = True
+            except Exception:
+                pass
+
+        ms.ModernSettingsDialog.__init__ = new_init
+        ms.ModernSettingsDialog._auto_reminder_hooked = True
+    except Exception:
+        pass
+
+_enhance_modern_settings()
