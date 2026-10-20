@@ -438,37 +438,40 @@ class WeeklyPlanWhatsAppDialog(QDialog):
 
     # ------------------------------------------------------------------
     def _handle_missing_accessibility(self, selected_numbers, msg_text: str, ax_err: str):
-        """macOS Erişilebilirlik izni yoksa: PDF'i panoya koy, sohbeti aç, kullanıcıyı yönlendir."""
+        """macOS Erişilebilirlik izni yoksa: PDF'i panoya koy, sohbeti aç, kullanıcıyı yönlendir.
+
+        Not: Bu pencere yalnızca macOS'ta çıkar. Windows'ta böyle bir izin gerekmez.
+        """
         app_name = _mac_host_app_name()
         abs_pdf = _prepare_shareable_pdf(self.pdf_path)
         clip_ok = _copy_file_to_clipboard(abs_pdf) if abs_pdf else False
 
-        box = QMessageBox(self)
-        box.setWindowTitle("Otopilot İzni Gerekli")
-        box.setIcon(QMessageBox.Icon.Warning)
-        box.setText(
-            "macOS, uygulamanın WhatsApp'ta sizin yerinize tuşlara basmasına henüz izin vermiyor.\n"
-            "Bu nedenle mesaj kutuya yazılıyor ama gönderilemiyor ve PDF eklenemiyordu."
+        dlg = AutopilotNoticeDialog(
+            self,
+            kind="warning",
+            title="Otopilot İzni Gerekli",
+            subtitle="macOS, programın WhatsApp'ta sizin yerinize tuşlara basmasına henüz izin vermiyor. "
+                     "Bu yüzden mesaj kutuya yazılıyor ama gönderilemiyor.",
+            steps_title="Kalıcı çözüm (yalnızca bir kez yapılır)",
+            steps=[
+                "Sistem Ayarları › Gizlilik ve Güvenlik › Erişilebilirlik bölümünü açın.",
+                f"Listede <b>{app_name}</b> anahtarını <b>AÇIK</b> yapın (yoksa + ile ekleyin).",
+                f"<b>{app_name}</b> uygulamasını tamamen kapatıp (⌘Q) programı yeniden başlatın.",
+            ],
+            note=("PDF panoya kopyalandı. Şimdilik WhatsApp sohbetinde ⌘V ile yapıştırıp Enter'a basabilirsiniz."
+                  if clip_ok else "Şimdilik PDF dosyasını WhatsApp sohbetine sürükleyip bırakabilirsiniz."),
+            details=ax_err,
+            buttons=[
+                ("close", "Kapat", "secondary"),
+                ("manual", "Sohbeti Aç (Elle Gönder)", "secondary"),
+                ("settings", "Erişilebilirlik Ayarlarını Aç", "primary"),
+            ],
         )
-        box.setInformativeText(
-            "Kalıcı çözüm (bir kez yapılır):\n"
-            f"1) Sistem Ayarları › Gizlilik ve Güvenlik › Erişilebilirlik\n"
-            f"2) Listede '{app_name}' anahtarını AÇIK yapın (yoksa + ile ekleyin)\n"
-            f"3) '{app_name}' uygulamasını tamamen kapatıp programı yeniden başlatın.\n\n"
-            + ("Şimdilik: PDF panoya kopyalandı. WhatsApp sohbetinde ⌘V ile yapıştırıp Enter'a basabilirsiniz."
-               if clip_ok else "Şimdilik: PDF dosyasını WhatsApp sohbetine sürükleyip bırakabilirsiniz.")
-        )
-        if ax_err:
-            box.setDetailedText(ax_err)
-        btn_settings = box.addButton("Erişilebilirlik Ayarlarını Aç", QMessageBox.ButtonRole.ActionRole)
-        btn_manual = box.addButton("Sohbeti Aç (Elle Gönder)", QMessageBox.ButtonRole.ActionRole)
-        box.addButton("Kapat", QMessageBox.ButtonRole.RejectRole)
-        box.exec()
+        dlg.exec()
 
-        clicked = box.clickedButton()
-        if clicked is btn_settings:
+        if dlg.choice == "settings":
             _open_mac_accessibility_settings()
-        elif clicked is btn_manual:
+        elif dlg.choice == "manual":
             for phone, _r in selected_numbers[:1]:
                 clean = normalize_phone_number(phone)
                 if clean:
@@ -477,24 +480,37 @@ class WeeklyPlanWhatsAppDialog(QDialog):
 
     def _report_results(self, results: List[Dict[str, Any]], use_desktop: bool):
         """Gerçek sonuca göre dürüst bilgi verir (sahte 'gönderildi' yok)."""
+        paste_key = "⌘V" if sys.platform == "darwin" else "Ctrl+V"
+        pdf_name = os.path.basename(self.pdf_path or "")
         full_ok = [r for r in results if r.get("text_sent") and r.get("pdf_sent")]
         if results and len(full_ok) == len(results):
-            QMessageBox.information(
+            AutopilotNoticeDialog(
                 self,
-                "WhatsApp Gönderimi Tamamlandı",
-                f"Mesaj ve haftalık plan PDF'i {len(full_ok)} alıcıya otopilot ile gönderildi.\n"
-                f"Ekli dosya: {os.path.basename(self.pdf_path)}",
-            )
+                kind="success",
+                title="Gönderim Tamamlandı",
+                subtitle=f"Mesaj ve haftalık plan PDF'i {len(full_ok)} alıcıya otopilot ile gönderildi.",
+                rows=[(r.get("name", ""), "Mesaj + PDF gönderildi", "ok") for r in full_ok],
+                note=f"Ekli dosya: {pdf_name}",
+                buttons=[("ok", "Tamam", "primary")],
+            ).exec()
             self.accept()
             return
 
         if not use_desktop:
-            QMessageBox.information(
+            AutopilotNoticeDialog(
                 self,
-                "WhatsApp Web Açıldı",
-                "WhatsApp Web sohbeti açıldı ve mesaj kutuya yazıldı.\n"
-                "PDF dosyası panoya kopyalandı: sohbete tıklayıp ⌘V / Ctrl+V ile yapıştırın ve Enter'a basın.",
-            )
+                kind="info",
+                title="WhatsApp Web Açıldı",
+                subtitle="Sohbet tarayıcıda açıldı ve mesaj kutuya yazıldı.",
+                steps_title="Gönderimi tamamlamak için",
+                steps=[
+                    "Mesajı göndermek için Enter'a basın.",
+                    f"PDF panoya kopyalandı: sohbete tıklayıp <b>{paste_key}</b> ile yapıştırın.",
+                    "Belge önizlemesi açılınca Enter'a basın.",
+                ],
+                note=f"Ekli dosya: {pdf_name}",
+                buttons=[("ok", "Tamam", "primary")],
+            ).exec()
             self.accept()
             return
 
@@ -503,16 +519,179 @@ class WeeklyPlanWhatsAppDialog(QDialog):
             self._handle_missing_accessibility([], "", err)
             return
 
-        lines = []
+        rows = []
         for r in results:
             if r.get("text_sent") and r.get("pdf_sent"):
-                durum = "✅ Mesaj + PDF gönderildi"
+                rows.append((r.get("name", ""), "Mesaj + PDF gönderildi", "ok"))
             elif r.get("text_sent"):
-                durum = "⚠️ Mesaj gönderildi, PDF eklenemedi (PDF panoda: ⌘V + Enter)"
+                rows.append((r.get("name", ""), f"Mesaj gitti, PDF eklenemedi — PDF panoda ({paste_key} + Enter)", "warn"))
             else:
-                durum = f"❌ Gönderilemedi: {r.get('error') or 'bilinmeyen hata'}"
-            lines.append(f"• {r.get('name', '')}: {durum}")
-        QMessageBox.warning(self, "WhatsApp Gönderim Sonucu", "\n".join(lines) or "Gönderim yapılmadı.")
+                rows.append((r.get("name", ""), f"Gönderilemedi: {r.get('error') or 'bilinmeyen hata'}", "fail"))
+        AutopilotNoticeDialog(
+            self,
+            kind="warning",
+            title="Gönderim Kısmen Tamamlandı",
+            subtitle="Bazı adımlar otomatik tamamlanamadı. Alıcı bazında sonuç aşağıdadır.",
+            rows=rows,
+            note="İpucu: Otopilot çalışırken fareye ve klavyeye dokunmayın; WhatsApp penceresi önde kalmalıdır.",
+            buttons=[("ok", "Tamam", "primary")],
+        ).exec()
+
+
+# ----------------------------------------------------------------------
+# Profesyonel, temadan bağımsız bilgi penceresi (Windows + macOS aynı görünür)
+# ----------------------------------------------------------------------
+class AutopilotNoticeDialog(QDialog):
+    """QMessageBox yerine kullanılan, yüksek kontrastlı ve kesilmeyen butonlu bilgi penceresi."""
+
+    _PALETTE = {
+        "warning": ("#b45309", "#fffbeb", "#fde68a", "!"),
+        "success": ("#047857", "#ecfdf5", "#a7f3d0", "✓"),
+        "info":    ("#1d4ed8", "#eff6ff", "#bfdbfe", "i"),
+        "error":   ("#b91c1c", "#fef2f2", "#fecaca", "×"),
+    }
+    _ROW_STYLE = {
+        "ok":   ("#047857", "#ecfdf5", "✓", "#a7f3d0"),
+        "warn": ("#b45309", "#fffbeb", "!", "#fde68a"),
+        "fail": ("#b91c1c", "#fef2f2", "×", "#fecaca"),
+    }
+
+    def __init__(self, parent=None, *, kind: str = "info", title: str = "", subtitle: str = "",
+                 steps_title: str = "", steps: Optional[List[str]] = None,
+                 rows: Optional[List[Tuple[str, str, str]]] = None,
+                 note: str = "", details: str = "",
+                 buttons: Optional[List[Tuple[str, str, str]]] = None):
+        super().__init__(parent)
+        self.choice: str = ""
+        accent, soft, border, glyph = self._PALETTE.get(kind, self._PALETTE["info"])
+        self.setWindowTitle(title or "Bilgi")
+        self.setModal(True)
+        self.setMinimumWidth(560)
+        self.setMaximumWidth(680)
+        self.setObjectName("apNotice")
+
+        font_family = "Segoe UI" if sys.platform == "win32" else ".AppleSystemUIFont"
+        self.setStyleSheet(f"""
+            QDialog#apNotice {{ background: #ffffff; }}
+            QDialog#apNotice QLabel {{ color: #0f172a; background: transparent; font-family: "{font_family}"; }}
+            QDialog#apNotice QLabel#apTitle {{ font-size: 17px; font-weight: 700; color: #0f172a; }}
+            QDialog#apNotice QLabel#apSubtitle {{ font-size: 13px; color: #334155; }}
+            QDialog#apNotice QLabel#apSection {{ font-size: 12px; font-weight: 700; color: #475569; letter-spacing: 0.5px; }}
+            QDialog#apNotice QLabel#apStepNum {{ background: {accent}; color: #ffffff; border-radius: 11px;
+                                font-size: 12px; font-weight: 700; min-width: 22px; max-width: 22px;
+                                min-height: 22px; max-height: 22px; }}
+            QDialog#apNotice QLabel#apStepText {{ font-size: 13px; color: #0f172a; }}
+            QFrame#apHeader {{ background: {soft}; border: none; border-bottom: 1px solid {border}; }}
+            QDialog#apNotice QLabel#apBadge {{ background: {accent}; color: #ffffff; border-radius: 20px; font-size: 20px;
+                              font-weight: 800; min-width: 40px; max-width: 40px; min-height: 40px; max-height: 40px; }}
+            QFrame#apSteps {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; }}
+            QFrame#apNote {{ background: #f1f5f9; border-left: 4px solid {accent}; border-radius: 6px; }}
+            QDialog#apNotice QLabel#apNoteText {{ font-size: 12px; color: #1e293b; }}
+            QFrame#apFooter {{ background: #f8fafc; border-top: 1px solid #e2e8f0; }}
+            QPushButton {{ font-family: "{font_family}"; font-size: 13px; font-weight: 600;
+                           padding: 8px 16px; border-radius: 8px; min-height: 20px; }}
+            QPushButton[apRole="primary"] {{ background: {accent}; color: #ffffff; border: 1px solid {accent}; }}
+            QPushButton[apRole="primary"]:hover {{ background: #0f172a; border-color: #0f172a; }}
+            QPushButton[apRole="secondary"] {{ background: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; }}
+            QPushButton[apRole="secondary"]:hover {{ background: #f1f5f9; border-color: #94a3b8; }}
+            QPushButton#apDetailsBtn {{ background: transparent; color: #475569; border: none;
+                                        padding: 4px 0; font-weight: 500; text-decoration: underline; }}
+            QTextEdit#apDetails {{ background: #0f172a; color: #e2e8f0; border-radius: 6px;
+                                   font-family: Consolas, Menlo, monospace; font-size: 11px; padding: 6px; }}
+        """)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # Başlık bandı
+        header = QFrame(); header.setObjectName("apHeader")
+        hl = QHBoxLayout(header); hl.setContentsMargins(22, 18, 22, 18); hl.setSpacing(14)
+        badge = QLabel(glyph); badge.setObjectName("apBadge"); badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hl.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
+        tv = QVBoxLayout(); tv.setSpacing(4)
+        lt = QLabel(title); lt.setObjectName("apTitle"); lt.setWordWrap(True)
+        tv.addWidget(lt)
+        if subtitle:
+            ls = QLabel(subtitle); ls.setObjectName("apSubtitle"); ls.setWordWrap(True)
+            tv.addWidget(ls)
+        hl.addLayout(tv, 1)
+        root.addWidget(header)
+
+        body = QVBoxLayout(); body.setContentsMargins(22, 16, 22, 16); body.setSpacing(12)
+
+        if steps:
+            if steps_title:
+                sec = QLabel(steps_title.upper()); sec.setObjectName("apSection")
+                body.addWidget(sec)
+            box = QFrame(); box.setObjectName("apSteps")
+            bl = QVBoxLayout(box); bl.setContentsMargins(14, 12, 14, 12); bl.setSpacing(10)
+            for i, s in enumerate(steps, 1):
+                row = QHBoxLayout(); row.setSpacing(10)
+                n = QLabel(str(i)); n.setObjectName("apStepNum"); n.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                t = QLabel(s); t.setObjectName("apStepText"); t.setWordWrap(True)
+                t.setTextFormat(Qt.TextFormat.RichText)
+                row.addWidget(n, 0, Qt.AlignmentFlag.AlignTop); row.addWidget(t, 1)
+                bl.addLayout(row)
+            body.addWidget(box)
+
+        if rows:
+            for name, text, status in rows:
+                fg, bg, g, bd = self._ROW_STYLE.get(status, self._ROW_STYLE["warn"])
+                fr = QFrame()
+                fr.setStyleSheet(f"QFrame {{ background: {bg}; border: 1px solid {bd}; border-radius: 8px; }}")
+                rl = QHBoxLayout(fr); rl.setContentsMargins(12, 9, 12, 9); rl.setSpacing(10)
+                ic = QLabel(g); ic.setAlignment(Qt.AlignmentFlag.AlignCenter); ic.setFixedSize(22, 22)
+                ic.setStyleSheet(f"background: {fg}; color: #ffffff; border-radius: 11px; font-weight: 800; border: none;")
+                nm = QLabel(f"<b>{name}</b>"); nm.setStyleSheet("color: #0f172a; font-size: 13px; border: none;")
+                tx = QLabel(text); tx.setWordWrap(True); tx.setStyleSheet(f"color: {fg}; font-size: 12px; font-weight: 600; border: none;")
+                rl.addWidget(ic, 0, Qt.AlignmentFlag.AlignTop); rl.addWidget(nm); rl.addWidget(tx, 1)
+                body.addWidget(fr)
+
+        if note:
+            nf = QFrame(); nf.setObjectName("apNote")
+            nl = QHBoxLayout(nf); nl.setContentsMargins(12, 10, 12, 10)
+            nt = QLabel(note); nt.setObjectName("apNoteText"); nt.setWordWrap(True)
+            nl.addWidget(nt)
+            body.addWidget(nf)
+
+        if details:
+            self._details = QTextEdit(); self._details.setObjectName("apDetails")
+            self._details.setReadOnly(True); self._details.setPlainText(details)
+            self._details.setFixedHeight(90); self._details.setVisible(False)
+            dbtn = QPushButton("Teknik ayrıntıları göster"); dbtn.setObjectName("apDetailsBtn")
+            dbtn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+
+            def _toggle():
+                vis = not self._details.isVisible()
+                self._details.setVisible(vis)
+                dbtn.setText("Teknik ayrıntıları gizle" if vis else "Teknik ayrıntıları göster")
+                self.adjustSize()
+            dbtn.clicked.connect(_toggle)
+            body.addWidget(dbtn, 0, Qt.AlignmentFlag.AlignLeft)
+            body.addWidget(self._details)
+
+        root.addLayout(body)
+
+        # Alt buton çubuğu (butonlar asla kesilmez: metne göre genişler)
+        footer = QFrame(); footer.setObjectName("apFooter")
+        fl = QHBoxLayout(footer); fl.setContentsMargins(22, 12, 22, 12); fl.setSpacing(10)
+        fl.addStretch(1)
+        for key, text, role in (buttons or [("ok", "Tamam", "primary")]):
+            b = QPushButton(text)
+            b.setProperty("apRole", role)
+            b.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            b.setMinimumWidth(max(96, b.fontMetrics().horizontalAdvance(text) + 40))
+            b.setAutoDefault(False)
+            if role == "primary":
+                b.setDefault(True)
+            b.clicked.connect(lambda _=False, k=key: self._choose(k))
+            fl.addWidget(b)
+        root.addWidget(footer)
+
+    def _choose(self, key: str):
+        self.choice = key
+        self.accept()
 
 
 # ----------------------------------------------------------------------
@@ -629,6 +808,56 @@ def _copy_file_to_clipboard(abs_path: str) -> bool:
     return False
 
 
+def _win_focus_whatsapp(attempts: int = 12) -> bool:
+    """Windows: WhatsApp masaüstü penceresini bulup öne getirir; önde olduğunu doğrular.
+
+    ctypes ile (ek paket gerektirmez). Windows'un 'foreground lock' kısıtını aşmak için
+    kısa bir ALT tuşu simülasyonu kullanılır.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        import time
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+
+        def _title(hwnd) -> str:
+            n = user32.GetWindowTextLengthW(hwnd)
+            buf = ctypes.create_unicode_buffer(n + 1)
+            user32.GetWindowTextW(hwnd, buf, n + 1)
+            return buf.value or ""
+
+        def _is_wa(hwnd) -> bool:
+            return bool(hwnd) and "whatsapp" in _title(hwnd).lower()
+
+        for _ in range(attempts):
+            fg = user32.GetForegroundWindow()
+            if _is_wa(fg):
+                return True
+            found = []
+            EnumProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+            def _cb(hwnd, _lp):
+                if user32.IsWindowVisible(hwnd) and _is_wa(hwnd):
+                    found.append(hwnd)
+                    return False
+                return True
+            user32.EnumWindows(EnumProc(_cb), 0)
+            if found:
+                hwnd = found[0]
+                if user32.IsIconic(hwnd):
+                    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                user32.keybd_event(0x12, 0, 0, 0)       # ALT basılı
+                user32.SetForegroundWindow(hwnd)
+                user32.keybd_event(0x12, 0, 0x0002, 0)  # ALT bırak
+            time.sleep(0.35)
+        return _is_wa(user32.GetForegroundWindow())
+    except Exception:
+        # Doğrulama yapılamıyorsa eski davranışı koru (gönderimi engelleme)
+        return True
+
+
 def _dispatch_desktop_autopilot(clean_phone: str, message: str, pdf_path: str, student_id: Optional[int]) -> Dict[str, Any]:
     """Opens desktop WhatsApp, sends message, and pastes + sends PDF document in autopilot.
 
@@ -714,23 +943,35 @@ def _dispatch_desktop_autopilot(clean_phone: str, message: str, pdf_path: str, s
         time.sleep(3.0)
         try:
             import pyautogui as pag
-            # Metin mesajını gönder
-            pag.press("enter")
-            result["text_sent"] = True
-            time.sleep(1.5)
-            if has_pdf and clip_ok:
-                # WhatsApp'a yapıştır (Ctrl + V)
-                pag.hotkey("ctrl", "v")
-                time.sleep(2.8)
-                # Gönderim onayını ver (Enter)
-                pag.press("enter")
-                result["pdf_sent"] = True
-            elif not has_pdf:
-                result["pdf_sent"] = True
-            else:
-                result["error"] = "PDF panoya kopyalanamadı"
-        except Exception as exc:
-            result["error"] = f"pyautogui: {exc}"
+        except Exception:
+            result["error"] = "pyautogui kurulu değil (pip install pyautogui)"
+            pag = None
+        if pag is not None:
+            try:
+                # Her tuştan önce WhatsApp'ın gerçekten önde olduğunu doğrula
+                if not _win_focus_whatsapp():
+                    result["error"] = "WhatsApp penceresi öne getirilemedi"
+                else:
+                    pag.press("enter")  # Metin mesajını gönder
+                    result["text_sent"] = True
+                    time.sleep(1.5)
+                    if has_pdf and clip_ok:
+                        if not _win_focus_whatsapp():
+                            result["error"] = "PDF yapıştırılırken WhatsApp odağı kayboldu"
+                        else:
+                            pag.hotkey("ctrl", "v")  # PDF'i yapıştır
+                            time.sleep(2.8)
+                            if _win_focus_whatsapp():
+                                pag.press("enter")  # Belge gönderimini onayla
+                                result["pdf_sent"] = True
+                            else:
+                                result["error"] = "PDF onaylanırken WhatsApp odağı kayboldu"
+                    elif not has_pdf:
+                        result["pdf_sent"] = True
+                    else:
+                        result["error"] = "PDF panoya kopyalanamadı"
+            except Exception as exc:
+                result["error"] = f"pyautogui: {exc}"
     else:
         subprocess.run(["xdg-open", uri], check=False)
         result["error"] = "Bu platformda otomatik gönderim desteklenmiyor"
