@@ -91,11 +91,52 @@ def detect_grade(student):
     return int(m['grade']) if m else None
 
 
+SUBJECT_CANONICAL = {
+    'tyt matematik': 'matematik',
+    'ayt matematik': 'matematik',
+    'tyt_matematik': 'matematik',
+    'ayt_matematik': 'matematik',
+    'matematik': 'matematik',
+    'geometri': 'matematik',
+    'problemler': 'matematik',
+    'tyt fizik': 'fizik',
+    'ayt fizik': 'fizik',
+    'fizik': 'fizik',
+    'tyt kimya': 'kimya',
+    'ayt kimya': 'kimya',
+    'kimya': 'kimya',
+    'tyt biyoloji': 'biyoloji',
+    'ayt biyoloji': 'biyoloji',
+    'biyoloji': 'biyoloji',
+    'turkce': 'türkçe',
+    'türkçe': 'türkçe',
+    'tyt turkce': 'türkçe',
+    'tyt türkçe': 'türkçe',
+    'paragraf': 'türkçe',
+    'edebiyat': 'türk dili ve edebiyatı',
+    'türk dili ve edebiyatı': 'türk dili ve edebiyatı',
+    'ayt edebiyat': 'türk dili ve edebiyatı',
+    'tarih': 'tarih',
+    'ayt tarih': 'tarih',
+    'tyt tarih': 'tarih',
+    'cografya': 'coğrafya',
+    'coğrafya': 'coğrafya',
+    'tyt cografya': 'coğrafya',
+    'ayt cografya': 'coğrafya',
+    'felsefe': 'felsefe',
+    'tyt felsefe': 'felsefe',
+    'ayt felsefe': 'felsefe',
+}
+
+
 def exact_outcome(subject, topic, grade, catalog):
     if grade is None or not _key(topic) or not _key(subject):
         return None
+    k_subj = ' '.join(_key(subject).replace('_', ' ').split())
+    canon_subj = SUBJECT_CANONICAL.get(k_subj, k_subj)
+    allowed_subjects = {_key(subject), k_subj, canon_subj}
     options = [v for v in catalog
-               if v['grade'] == grade and _key(v['subject']) == _key(subject)
+               if v['grade'] == grade and _key(v['subject']) in allowed_subjects
                and _key(topic) in {_key(k) for k in v['topic_aliases']}]
     # Multiple matches are ambiguous, not auto-decided.
     return options[0] if len(options) == 1 else None

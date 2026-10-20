@@ -248,20 +248,37 @@ class SmartWizardDialog(QDialog):
             "Öneriler öğretmen onayı olmadan hiçbir kaydı değiştirmez.")
         info.setWordWrap(True)
         layout.addWidget(info)
-        grade_line = QHBoxLayout()
-        grade_line.addWidget(QLabel("Sınıf doğrulaması:"))
+
+        ctrl_box = QHBoxLayout()
+        ctrl_box.addWidget(QLabel("📚 Müfredat Modeli:"))
+        self.cmbCurriculumModel = QComboBox()
+        from services.curriculum_catalog_registry import list_available_catalogs, get_active_catalog_id
+        active_cat_id = get_active_catalog_id()
+        for cat in list_available_catalogs():
+            self.cmbCurriculumModel.addItem(f"{cat['badge']} - {cat['short_title']}", cat['id'])
+        idx = self.cmbCurriculumModel.findData(active_cat_id)
+        if idx >= 0:
+            self.cmbCurriculumModel.setCurrentIndex(idx)
+        self.cmbCurriculumModel.currentIndexChanged.connect(self._on_curriculum_model_changed)
+        ctrl_box.addWidget(self.cmbCurriculumModel, 2)
+
+        ctrl_box.addSpacing(12)
+        ctrl_box.addWidget(QLabel("🎯 Sınıf doğrulaması:"))
         self.cmbCurriculumGrade = QComboBox()
-        self.cmbCurriculumGrade.addItem("Öğrencinin kayıtlı sınıfı", None)
-        for grade in range(1, 13):
-            self.cmbCurriculumGrade.addItem(f"{grade}. sınıf (yalnızca önizleme)", grade)
+        self.cmbCurriculumGrade.addItem("Öğrencinin kayıtlı sınıfı (Otomatik)", None)
+        for grade in range(12, 0, -1):
+            suffix = " (YKS Mezun / AYT)" if grade == 12 else (" (AYT)" if grade == 11 else (" (TYT)" if grade in (9, 10) else ""))
+            self.cmbCurriculumGrade.addItem(f"{grade}. sınıf{suffix}", grade)
         self.cmbCurriculumGrade.currentIndexChanged.connect(self._run_curriculum_review)
-        grade_line.addWidget(self.cmbCurriculumGrade)
-        grade_line.addStretch(1)
-        layout.addLayout(grade_line)
+        ctrl_box.addWidget(self.cmbCurriculumGrade, 2)
+        ctrl_box.addStretch(1)
+        layout.addLayout(ctrl_box)
+
         self.txtCurriculum = QTextBrowser()
         self.txtCurriculum.setOpenExternalLinks(True)
         self.txtCurriculum.setHtml("<p>Kazanım kontrolü için öğrenci seçiniz.</p>")
         layout.addWidget(self.txtCurriculum, 1)
+
         line = QHBoxLayout()
         refresh = QPushButton("🔎 Kazanım Kontrolünü Yenile")
         refresh.clicked.connect(self._run_curriculum_review)
@@ -271,12 +288,19 @@ class SmartWizardDialog(QDialog):
         line.addWidget(copy)
         line.addStretch(1)
         layout.addLayout(line)
-        foot = QLabel(
-            "Katalog şu anda sadece kaynaklı örnek Fizik kazanımlarını kapsıyor; "
-            "tüm sınıf ve dersler için otomatik doğrulama iddiası yoktur. "
+
+        self.lblCurriculumFoot = QLabel(
+            "Resmî MEB Talim ve Terbiye Kurulu programı kaynak alınır. "
             "Resmî öğretim programı sürümü ayrıca kontrol edilmelidir.")
-        foot.setWordWrap(True)
-        layout.addWidget(foot)
+        self.lblCurriculumFoot.setWordWrap(True)
+        self.lblCurriculumFoot.setStyleSheet("color: #64748b; font-size: 11px;")
+        layout.addWidget(self.lblCurriculumFoot)
+
+    def _on_curriculum_model_changed(self):
+        cat_id = self.cmbCurriculumModel.currentData()
+        from services.curriculum_catalog_registry import set_active_catalog_id
+        set_active_catalog_id(cat_id)
+        self._run_curriculum_review()
 
     def _run_curriculum_review(self):
         oid = self._get_current_oid()
@@ -285,11 +309,59 @@ class SmartWizardDialog(QDialog):
             self.txtCurriculum.setPlainText("Önce öğrenci seçin.")
             return
         from services.coach_curriculum_v7 import build_outcome_review, outcome_as_html
+        from services.curriculum_catalog_registry import (
+            get_active_catalog_data, is_curriculum_enabled, get_catalog_metadata
+        )
         con = db.get_conn()
         try:
+            if not is_curriculum_enabled():
+                self.curriculum_report = None
+                self.txtCurriculum.setHtml(
+                    "<div style='padding:25px; text-align:center; font-family:sans-serif;'>"
+                    "<div style='font-size:36px; margin-bottom:8px;'>⚪</div>"
+                    "<h3 style='color:#334155; margin:0 0 10px 0;'>Kazanım ve Müfredat Kontrolü Devre Dışı</h3>"
+                    "<p style='color:#64748b; max-width:480px; margin:0 auto; line-height:1.5;'>"
+                    "Müfredat kontrolü kullanıcı tercihiyle kapatılmıştır. Yalnızca manuel koçluk notları kullanılır.<br><br>"
+                    "Yeniden etkinleştirmek için yukarıdaki <b>Müfredat Modeli</b> kutusundan "
+                    "<b>MEB YKS Tam Müfredat</b> veya <b>Türkiye Yüzyılı Maarif Modeli</b> seçebilirsiniz."
+                    "</p></div>"
+                )
+                self.lblCurriculumFoot.setText("Durum: Müfredat kontrolü kullanıcı ayarlarından kapatıldı.")
+                return
+
+            grade_override = self.cmbCurriculumGrade.currentData()
+            if grade_override is None:
+                # Akıllı sınıf tespiti: YKS veya Mezun ise otomatik 12. sınıf öner
+                stu_row = con.execute("SELECT ana_grup, alt_grup FROM ogrenci WHERE id=?", (oid,)).fetchone()
+                if stu_row:
+                    alt_g = str(stu_row['alt_grup'] or '').lower()
+                    ana_g = str(stu_row['ana_grup'] or '').lower()
+                    target_g = None
+                    if 'mezun' in alt_g or 'yks' in alt_g or 'yks' in ana_g:
+                        target_g = 12
+                    elif '11' in alt_g:
+                        target_g = 11
+                    elif '10' in alt_g:
+                        target_g = 10
+                    elif '9' in alt_g:
+                        target_g = 9
+                    if target_g is not None:
+                        idx = self.cmbCurriculumGrade.findData(target_g)
+                        if idx >= 0 and self.cmbCurriculumGrade.currentIndex() == 0:
+                            self.cmbCurriculumGrade.blockSignals(True)
+                            self.cmbCurriculumGrade.setCurrentIndex(idx)
+                            self.cmbCurriculumGrade.blockSignals(False)
+                            grade_override = target_g
+
+            catalog = get_active_catalog_data()
+            meta = get_catalog_metadata()
             self.curriculum_report = build_outcome_review(
-                con, oid, grade_override=self.cmbCurriculumGrade.currentData())
+                con, oid, catalog=catalog, grade_override=grade_override)
             self.txtCurriculum.setHtml(outcome_as_html(self.curriculum_report))
+            self.lblCurriculumFoot.setText(
+                f"Aktif Model: {meta['title']} · Doğrulama Kaynağı: {meta['official_domain']} · "
+                f"Eşleşen Konu: {self.curriculum_report.get('mapped_topics', 0)}"
+            )
         except Exception as exc:
             self.curriculum_report = None
             self.txtCurriculum.setPlainText("Kazanım kontrolü hazırlanamadı: " + str(exc))

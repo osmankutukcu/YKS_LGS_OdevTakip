@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "coverage_note": "MEB Talim ve Terbiye Kurulu Başkanlığı - Türkiye Yüzyılı Maarif Modeli Öğretim Programları",
+  "outcomes": [
+    {
+      "subject": "Fizik",
+      "grade": 9,
+      "code": "FİZ.9.1.1",
+      "outcome": "Fizik biliminin yöntemlerini ve fiziksel nicelikleri bilimsel gözlem ve çıkarımlarla analiz edebilme.",
+      "topic_aliases": [
+        "Fizik Bilimine Giriş",
+        "Fiziksel Nicelikler"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/fizik"
+    },
+    {
+      "subject": "Fizik",
+      "grade": 9,
+      "code": "FİZ.9.2.1",
+      "outcome": "Maddenin kütle, hacim ve özkütle özelliklerini deneysel verilerle modelleyebilme.",
+      "topic_aliases": [
+        "Madde ve Özellikleri",
+        "Özkütle"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/fizik"
+    },
+    {
+      "subject": "Fizik",
+      "grade": 9,
+      "code": "FİZ.9.3.1",
+      "outcome": "Kuvvet ve doğrusal hareket ilişkisini tümevarımsal akıl yürütmeyle yorumlayabilme.",
+      "topic_aliases": [
+        "Hareket ve Kuvvet",
+        "Doğrusal Hareket"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/fizik"
+    },
+    {
+      "subject": "Fizik",
+      "grade": 9,
+      "code": "FİZ.9.4.1",
+      "outcome": "İş, mekanik enerji ve güç arasındaki dönüşümleri korunum ilkesi çerçevesinde değerlendirebilme.",
+      "topic_aliases": [
+        "Enerji",
+        "İş ve Enerji"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/fizik"
+    },
+    {
+      "subject": "Kimya",
+      "grade": 9,
+      "code": "KİM.9.1.1",
+      "outcome": "Kimyanın temel yöntemlerini, güvenlik kurallarını ve simyadan kimyaya dönüşüm sürecini açıklayabilme.",
+      "topic_aliases": [
+        "Kimya Bilimi",
+        "Kimya Disiplinleri"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/kimya"
+    },
+    {
+      "subject": "Kimya",
+      "grade": 9,
+      "code": "KİM.9.2.1",
+      "outcome": "Atom modellerinin tarihsel gelişimini ve atom altı taneciklerin yapısal özelliklerini karşılaştırabilme.",
+      "topic_aliases": [
+        "Atom ve Yapısı",
+        "Atom Modelleri"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/kimya"
+    },
+    {
+      "subject": "Kimya",
+      "grade": 9,
+      "code": "KİM.9.3.1",
+      "outcome": "Periyodik sistemdeki periyodik eğilimleri ve elementlerin kimyasal özelliklerini ilişkilendirebilme.",
+      "topic_aliases": [
+        "Periyodik Sistem",
+        "Periyodik Tablo"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/kimya"
+    },
+    {
+      "subject": "Biyoloji",
+      "grade": 9,
+      "code": "BİY.9.1.1",
+      "outcome": "Canlıların ortak özelliklerini biyolojik organizasyon basamaklarıyla bütünleştirerek açıklayabilme.",
+      "topic_aliases": [
+        "Canlıların Ortak Özellikleri"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/biyoloji"
+    },
+    {
+      "subject": "Biyoloji",
+      "grade": 9,
+      "code": "BİY.9.2.1",
+      "outcome": "İnorganik ve organik bileşiklerin canlı organizmalar için yapısal ve işlevsel önemini analiz edebilme.",
+      "topic_aliases": [
+        "İnorganik ve Organik Bileşikler",
+        "Temel Bileşenler"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/biyoloji"
+    },
+    {
+      "subject": "Biyoloji",
+      "grade": 9,
+      "code": "BİY.9.3.1",
+      "outcome": "Hücre teorisi ve hücre organellerinin hücresel fonksiyonlarını deneysel kanıtlarla modelleyebilme.",
+      "topic_aliases": [
+        "Hücre ve Organeller",
+        "Hücre Teorisi"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/biyoloji"
+    },
+    {
+      "subject": "Matematik",
+      "grade": 9,
+      "code": "MAT.9.1.1",
+      "outcome": "Önermeler, mantık ilkeleri ve küme işlemlerini matematiksel akıl yürütme süreçlerinde kullanabilme.",
+      "topic_aliases": [
+        "Kümeler",
+        "Mantık"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/matematik"
+    },
+    {
+      "subject": "Matematik",
+      "grade": 9,
+      "code": "MAT.9.2.1",
+      "outcome": "Gerçek sayılar kümesinde aralık, mutlak değer ve eşitsizlik ilişkilerini cebirsel ve grafiksel olarak modelleyebilme.",
+      "topic_aliases": [
+        "Temel Kavramlar",
+        "Sayı Kümeleri",
+        "Mutlak Değer"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/matematik"
+    },
+    {
+      "subject": "Matematik",
+      "grade": 9,
+      "code": "MAT.9.3.1",
+      "outcome": "Birinci dereceden denklem ve eşitsizlik sistemlerini problem çözme süreçlerine aktarabilme.",
+      "topic_aliases": [
+        "1. Dereceden Denklemler",
+        "Denklem ve Eşitsizlikler"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/matematik"
+    },
+    {
+      "subject": "Türk Dili ve Edebiyatı",
+      "grade": 9,
+      "code": "TDE.9.1.1",
+      "outcome": "Edebiyatın bilim dallarıyla ilişkisini, güzel sanatlar içindeki yerini ve metin türlerini ayırt edebilme.",
+      "topic_aliases": [
+        "Güzel Sanatlar ve Edebiyat",
+        "Metinlerin Sınıflandırılması"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/turk-dili-ve-edebiyati"
+    },
+    {
+      "subject": "Türk Dili ve Edebiyatı",
+      "grade": 9,
+      "code": "TDE.9.2.1",
+      "outcome": "Şiir metinlerinde ahenk unsurlarını, nazım biçimlerini ve imgesel dili çözümleyebilme.",
+      "topic_aliases": [
+        "Şiir Bilgisi",
+        "Edebi Sanatlar"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/turk-dili-ve-edebiyati"
+    },
+    {
+      "subject": "Tarih",
+      "grade": 9,
+      "code": "TAR.9.1.1",
+      "outcome": "Tarihsel bilgiye ulaşma yöntemlerini ve zaman algısını birincil ve ikincil kaynaklar üzerinden değerlendirebilme.",
+      "topic_aliases": [
+        "Tarih ve Zaman",
+        "Tarih Bilimine Giriş"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/tarih"
+    },
+    {
+      "subject": "Coğrafya",
+      "grade": 9,
+      "code": "COĞ.9.1.1",
+      "outcome": "Doğa ve insan etkileşimini coğrafyanın temel ilkeleri ve güncel çevre sorunları perspektifinden yorumlayabilme.",
+      "topic_aliases": [
+        "Doğa ve İnsan",
+        "Coğrafi Beceriler"
+      ],
+      "review_status": "official_excerpt",
+      "source_url": "https://tymm.meb.gov.tr/programlar/cografya"
+    }
+  ]
+}
