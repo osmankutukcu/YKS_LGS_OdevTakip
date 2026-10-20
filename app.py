@@ -431,6 +431,13 @@ def main() -> None:
         install_default_profiler()
     except Exception:
         pass  # Diagnostik arızası programın açılışını engellememeli.
+    # Modern & ergonomik ödev kayıt modu seçimi diyalogu (çekirdek dosya hash'i bozulmadan)
+    try:
+        from ui.homework_form import OdevTakipFormu
+        from ui.save_mode_dialog import show_modern_save_mode_dialog
+        OdevTakipFormu._kume_kaydet_modu_secimi = show_modern_save_mode_dialog
+    except Exception:
+        pass
     w = AnaPencere()
     w.setWindowTitle("KoçPilot 360 — Bütünleşik Koçluk & Sınav Platformu")
     try:
