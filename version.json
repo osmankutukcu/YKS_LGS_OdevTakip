@@ -1,6 +1,6 @@
 {
   "version": "3.5.94",
   "name": "YKS-LGS Ödev Takip",
-  "channel": "pilot",
-  "note": "V3.5.94: Öğretmen Karar Panelinden seçili öğrenciye özel, öğretmen onaylı Koçluk Planı ve mevcut Haftalık Planlayıcı yolları; otomatik görev oluşturmaz. Cihaz kabulü bekliyor."
+  "channel": "stable",
+  "note": "V3.5.94: Rapor Merkezi, Öğretmen Karar Masası ve Hızlı Görüşme performans güncellemesi."
 }

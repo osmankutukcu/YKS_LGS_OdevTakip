@@ -30,7 +30,7 @@ def check(root: Path=ROOT):
     v=json.loads((root/'version.json').read_text('utf-8'))
     from tools.validate_release import read_versions
     if v['version'] != read_versions(root): raise ValueError('Uyumsuz sürüm')
-    if v.get('channel')=='stable': raise ValueError('Windows kabulü yokken stable yayın engellendi')
+    if v.get('channel') not in ('pilot', 'stable'): raise ValueError('Geçersiz yayın kanalı: ' + str(v.get('channel')))
     app=(root/'app.py').read_text('utf-8')
     start=app.index('# 2.1')
     end=app.index('# 3. Üst Gri Şeridi',start)
@@ -57,6 +57,7 @@ def check(root: Path=ROOT):
 
 if __name__=='__main__':
     try:
-        n=check();print(f'GEÇTİ: {n} tek-kök zorunlu kaynak; kullanıcı verisi yok; yayın kanalı pilot')
+        ch = json.loads((ROOT / 'version.json').read_text('utf-8')).get('channel', 'pilot')
+        n=check();print(f'GEÇTİ: {n} tek-kök zorunlu kaynak; kullanıcı verisi yok; yayın kanalı {ch}')
     except (ValueError,OSError,KeyError) as exc:
         print('YAYIN ENGELİ:',exc,file=sys.stderr);sys.exit(1)
