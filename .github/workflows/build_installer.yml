@@ -33,6 +33,12 @@ jobs:
             python tools/validate_release.py --check-tracked
           }
 
+      - name: Tek kok ve rapor kaynak denetimi
+        shell: pwsh
+        run: |
+          python tools/v3588_unified_preflight.py
+          if ($LASTEXITCODE -ne 0) { throw 'V3.5.88 tam kaynak butunlugu engeli' }
+
       - name: Korunan kaynak denetimi (manuel kabul yerine gecmez)
         shell: pwsh
         run: python tools/v35_release_gate.py
@@ -215,8 +221,7 @@ jobs:
               Remove-Item release/windows_acceptance_v35.json -ErrorAction SilentlyContinue
             }
           } else {
-            python tools/v35_release_gate.py
-            if ($LASTEXITCODE -ne 0) { throw 'Kaynak kapisi gecemedi; Release engellendi' }
+            throw 'Gercek Windows manuel kabul kaydi bulunmuyor; etiketli Release engellendi'
           }
 
       - name: Etiket icin Mac ve mobil cihaz kabul kaydi zorunlu
@@ -234,8 +239,7 @@ jobs:
               Remove-Item release/mobile_pdf_device_acceptance.json -ErrorAction SilentlyContinue
             }
           } else {
-            python tools/v3553_mobile_acceptance.py --check-source
-            if ($LASTEXITCODE -ne 0) { throw 'Mobil PDF kaynak kapisi gecemedi; Release engellendi' }
+            throw 'Mac/mobil manuel cihaz kabul kaydi yok; etiketli Release engellendi'
           }
 
       - name: v3.5.4 gibi etiketlerde Release yayinla

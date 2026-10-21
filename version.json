@@ -1,6 +1,6 @@
 {
   "version": "3.5.88",
   "name": "YKS-LGS Ödev Takip",
-  "channel": "stable",
-  "note": "KoçPilot 360 v3.5.88: Bütünleşik Rapor Merkezi (V3.5.81-V3.5.87), Kanıta Dayalı Ölçüm Motoru, Profesyonel & Toplu PDF Önizleme, Sadeleştirilmiş Sol Panel, WhatsApp Otopilot Odak Koruması ve Otomatik PDF Ek Gönderimi."
+  "channel": "pilot",
+  "note": "V3.5.88 tek kök entegrasyonu ve test adayı; Windows/macOS manuel kabulü bekleniyor. Canlıya yayımlamayın."
 }
