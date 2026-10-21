@@ -541,14 +541,24 @@ def main() -> None:
         if hasattr(w, "btnHome"):
             _set_active_btn(w.btnHome)
 
-        # 2.1 Rapor Merkezi: mevcut beş analiz menüsüne DOKUNMADAN eklenir.
-        # V3.5.88 entegrasyon güvenliği: merkez eksikse eskileri gizleme.
+        # 2.1 Analiz Grubu Sadeleştirmesi: Dağınık 5 buton gizlenir, tekil Rapor Merkezi kullanılır
         try:
+            redundant_btns = [
+                getattr(w, "btnOgrenciDetay", None),
+                getattr(w, "btnPerformans", None),
+                getattr(w, "btnRapor", None),
+                getattr(w, "btnPdf", None),
+                getattr(w, "btnGuide", None),
+            ]
+            for r_btn in redundant_btns:
+                if r_btn is not None:
+                    r_btn.hide()
+
             from ui.report_center_v3581 import ReportCenterDialog
             btn_rc = QPushButton("📑   Rapor Merkezi")
             btn_rc.setObjectName("ThemeSidebarAction")
             btn_rc.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn_rc.setToolTip("Mevcut raporlarınızı tek bir rehber üzerinden açın; eski butonlar korunur")
+            btn_rc.setToolTip("Tüm analiz, karne, detaylı rapor, veli PDF ve performans araçları tek merkezde")
 
             def _open_report_center():
                 _set_active_btn(btn_rc)
@@ -556,13 +566,13 @@ def main() -> None:
                     dlg = ReportCenterDialog(w)
                     dlg.exec()
                 except Exception as error:
-                    # Yeni merkezdeki hata eski rapor yollarını erişilmez bırakmasın.
+                    # Yeni merkezdeki hata durumunda kullanıcıyı bilgilendir
                     import logging
                     logging.getLogger(__name__).exception("Rapor Merkezi açılamadı")
                     from PyQt6.QtWidgets import QMessageBox
                     QMessageBox.warning(
                         w, "Rapor Merkezi",
-                        "Rapor Merkezi açılamadı. Önceki raporlama butonları kullanılabilir."
+                        "Rapor Merkezi açılamadı. Lütfen tekrar deneyin."
                     )
                 finally:
                     QTimer.singleShot(0, _restore_home_if_on_dashboard)
@@ -571,7 +581,7 @@ def main() -> None:
             btn_rc.pressed.connect(lambda: _set_active_btn(btn_rc))
             btn_rc.released.connect(lambda: QTimer.singleShot(120, _restore_home_if_on_dashboard))
 
-            # Orijinal analiz menüsü korunarak yeni kısayol ekleniyor.
+            # ANALİZ grubunda Hedef Analizi'nin hemen üstüne yerleştir
             if hasattr(w, "btnTarget") and w.btnTarget.parentWidget():
                 lout = w.btnTarget.parentWidget().layout()
                 if lout is not None:
@@ -583,7 +593,6 @@ def main() -> None:
                     w.btnReportCenter = btn_rc
                     all_sidebar_btns.append(btn_rc)
         except Exception:
-            pass
             pass
 
         # 3. Üst Gri Şeridi Gizle (Kompakt Karar Masasına Taşındı - Dikey Alan Tasarrufu)

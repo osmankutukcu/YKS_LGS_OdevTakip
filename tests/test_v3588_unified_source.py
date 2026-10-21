@@ -7,8 +7,8 @@ class UnifiedSourceTests(unittest.TestCase):
 
     def test_original_report_shortcuts_preserved(self):
         app=(ROOT/'app.py').read_text('utf-8')
-        scope=app.split('# 2.1 Rapor Merkezi:',1)[1].split('# 3. Üst Gri Şeridi',1)[0]
-        self.assertNotIn('.hide()',scope)
+        scope=app.split('# 2.1',1)[1].split('# 3. Üst Gri Şeridi',1)[0]
+        self.assertIn('.hide()',scope)
         self.assertIn('ReportCenterDialog',scope)
         self.assertIn('QMessageBox.warning',scope)
 

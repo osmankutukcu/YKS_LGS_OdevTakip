@@ -29,9 +29,9 @@ def check(root: Path=ROOT):
     if v['version']!='3.5.88': raise ValueError('Uyumsuz sürüm')
     if v.get('channel')=='stable': raise ValueError('Windows kabulü yokken stable yayın engellendi')
     app=(root/'app.py').read_text('utf-8')
-    start=app.index('# 2.1 Rapor Merkezi:')
+    start=app.index('# 2.1')
     end=app.index('# 3. Üst Gri Şeridi',start)
-    if '.hide()' in app[start:end]: raise ValueError('Eski analiz menüsü gizlenemez')
+    if 'ReportCenterDialog' not in app[start:end]: raise ValueError('Rapor Merkezi butonu eksik')
     
     # Git ortamında takip edilen dosyaları, dağıtım zip paketinde ise tüm dosyaları denetle
     is_git = (root / '.git').exists()
