@@ -88,6 +88,15 @@ class ReportCenterDialog(QDialog):
         self.pending_route = None
         self.setObjectName("ReportCenterV3581")
         self.setWindowTitle("KoçPilot 360 • Rapor Merkezi")
+        self.setWindowFlags(
+            Qt.WindowType.Window |
+            Qt.WindowType.WindowTitleHint |
+            Qt.WindowType.WindowSystemMenuHint |
+            Qt.WindowType.WindowMinMaxButtonsHint |
+            Qt.WindowType.WindowCloseButtonHint
+        )
+        self.setModal(False)
+        self.setWindowModality(Qt.WindowModality.NonModal)
         self.resize(1050, 760)
         self.setMinimumSize(720, 560)
         self._set_theme()
@@ -277,26 +286,58 @@ class ReportCenterDialog(QDialog):
 
     def _launch(self, method_name):
         import logging
+        from PyQt6.QtCore import QTimer
         parent = self.parent()
         allowed = {r["method"] for r in REPORT_ROUTES} | {"_open_advanced_from_center", "_open_legacy_reports"}
         if method_name not in allowed:
             QMessageBox.warning(self, "Rapor açılamadı", "Seçilen rapor bu kurulumda kullanılamıyor.")
             return
 
-        # Modal döngü kilidini önlemek için hedef rotayı kaydet ve pencereyi accept() ile temizce kapat.
-        # Bu sayede ana pencere ve açılan rapor penceresi Qt modal kilidine takılmaz.
         self.pending_route = method_name
-        if self.isVisible():
-            self.accept()
-        elif parent is not None:
+
+        def _dispatch():
+            if method_name == "_open_advanced_from_center":
+                dashboard = getattr(parent, "_report_dashboard", None)
+                if dashboard is None and hasattr(parent, "_rapor_ac"):
+                    parent._rapor_ac()
+                    dashboard = getattr(parent, "_report_dashboard", None)
+                if dashboard is not None and hasattr(dashboard, "_open_legacy_reports"):
+                    dashboard._open_legacy_reports()
+                else:
+                    try:
+                        from ui.safe_reports_v3589 import AciklanabilirRaporlarFormu
+                        legacy = AciklanabilirRaporlarFormu(parent)
+                        legacy.setWindowTitle("Gelişmiş Grafik ve Detaylı Raporlar — KoçPilot 360")
+                        legacy.setWindowFlag(Qt.WindowType.Window, True)
+                        legacy.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+                        legacy.resize(1200, 700)
+                        legacy.show()
+                        legacy.raise_()
+                        legacy.activateWindow()
+                    except Exception:
+                        logging.getLogger(__name__).exception("Gelişmiş rapor açılamadı")
+                        QMessageBox.warning(self, "Rapor açılamadı",
+                                            "Seçilen rapor şu anda açılamadı. Diğer raporları kullanabilirsiniz.")
+                return
+
             target = getattr(parent, method_name, None)
-            if callable(target):
-                try:
-                    target()
-                except Exception:
-                    logging.getLogger(__name__).exception("Rapor ekranı açılamadı: %s", method_name)
-                    QMessageBox.warning(self, "Rapor açılamadı",
-                                        "Seçilen rapor şu anda açılamadı. Diğer raporları kullanabilirsiniz.")
+            if not callable(target):
+                QMessageBox.warning(self, "Rapor açılamadı", "Seçilen rapor bu kurulumda kullanılamıyor.")
+                return
+
+            try:
+                target()
+            except Exception:
+                logging.getLogger(__name__).exception("Rapor ekranı açılamadı: %s", method_name)
+                QMessageBox.warning(self, "Rapor açılamadı",
+                                    "Seçilen rapor şu anda açılamadı. Diğer raporları kullanabilirsiniz.")
+
+        # Rapor Merkezini kapat ve ana ekran üzerinde hedefi güvenle çalıştır
+        self.close()
+        if self.isModal():
+            self.accept()
+        if parent is not None:
+            QTimer.singleShot(0, _dispatch)
 
     @staticmethod
     def _open_official(url):
@@ -345,13 +386,12 @@ class ReportCenterDialog(QDialog):
             QMessageBox.warning(self, "Rehber açılamadı", "Rehber bu kurulumda bulunamadı.")
             return
         self.pending_route = "_show_report_guide"
-        if self.isVisible():
+        self.close()
+        if self.isModal():
             self.accept()
-        else:
-            try:
-                target()
-            except Exception:
-                pass
+        if parent is not None:
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, target)
 
     def _open_professional_pdf(self):
         """Rapor merkezinden isteğe bağlı yeni şablonlar; ana pencere değişmez."""
@@ -413,22 +453,22 @@ class ReportCenterDialog(QDialog):
                 owns_connection = True
             from ui.teacher_decision_dialog_v3593 import TeacherDecisionDialog
             dialog = TeacherDecisionDialog(con, self)
-            self.hide()
-            try:
-                dialog.exec()
-                intent = dialog.approved_navigation
-                if intent is not None:
-                    self.approved_navigation = intent
-            finally:
-                if self.approved_navigation is None:
-                    self.show()
-                    self.raise_()
-                    self.activateWindow()
-            if self.approved_navigation is not None:
+            dialog.exec()
+            intent = dialog.approved_navigation
+            if intent is not None:
+                self.approved_navigation = intent
+                self.close()
                 self.accept()  # Return to app.py before opening legacy form.
+                def _open_nav():
+                    try:
+                        from ui.report_navigation_bridge_v3594 import open_confirmed_navigation
+                        open_confirmed_navigation(parent, intent)
+                    except Exception:
+                        pass
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, _open_nav)
         except Exception:
             self.approved_navigation = None
-            self.show()
             QMessageBox.warning(self, "Karar Paneli açılamadı",
                                 "Yerel öğrenci kayıtlarına erişilemedi. "
                                 "Mevcut raporlar kullanılmaya devam edebilir.")

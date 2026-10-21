@@ -95,6 +95,13 @@ class ReportCenterModalAndPerfTests(unittest.TestCase):
         self.assertEqual(polish_counts[btn1], 2)
         self.assertEqual(polish_counts[btn2], 1)
 
+    def test_report_center_is_non_modal_window(self):
+        parent = MockParent()
+        dlg = ReportCenterDialog(parent)
+        self.assertFalse(dlg.isModal())
+        self.assertTrue(bool(dlg.windowFlags() & dlg.windowFlags().Window))
+        dlg.close()
+
 
 if __name__ == "__main__":
     unittest.main()

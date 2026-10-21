@@ -622,75 +622,60 @@ def main() -> None:
                     QTimer.singleShot(0, _open_fallback_report_access)
 
             def _open_report_center():
+                existing = getattr(w, "_report_center_dialog", None)
+                if existing is not None and existing.isVisible():
+                    try:
+                        existing.raise_()
+                        existing.activateWindow()
+                        _set_active_btn(btn_rc)
+                    except Exception:
+                        pass
+                    return
+
                 _set_active_btn(btn_rc)
                 try:
                     # Tembel yükleme: eksik/bozuk yeni modül ana menüyü bozamaz.
                     from ui.report_center_v3581 import ReportCenterDialog
                     dlg = ReportCenterDialog(w)
-                    dlg.exec()
-                    pending = getattr(dlg, "pending_route", None)
-                    intent = dlg.approved_navigation
-                    if pending is not None:
-                        def _open_selected_route(route_name=pending):
-                            if route_name == "_open_advanced_from_center":
-                                dashboard = getattr(w, "_report_dashboard", None)
-                                if dashboard is None and hasattr(w, "_rapor_ac"):
-                                    w._rapor_ac()
-                                    dashboard = getattr(w, "_report_dashboard", None)
-                                if dashboard is not None and hasattr(dashboard, "_open_legacy_reports"):
-                                    dashboard._open_legacy_reports()
-                                else:
-                                    try:
-                                        from ui.safe_reports_v3589 import AciklanabilirRaporlarFormu
-                                        legacy = AciklanabilirRaporlarFormu(w)
-                                        legacy.setWindowTitle("Gelişmiş Grafik ve Detaylı Raporlar — KoçPilot 360")
-                                        legacy.setWindowFlag(Qt.WindowType.Window, True)
-                                        legacy.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-                                        legacy.resize(1200, 700)
-                                        legacy.show()
-                                        legacy.raise_()
-                                        legacy.activateWindow()
-                                    except Exception:
-                                        import logging
-                                        logging.getLogger(__name__).exception("Gelişmiş rapor açılamadı")
-                                        from PyQt6.QtWidgets import QMessageBox
-                                        QMessageBox.warning(w, "Rapor açılamadı",
-                                                            "Seçilen rapor şu anda açılamadı. Diğer raporları kullanabilirsiniz.")
-                                return
-                            target = getattr(w, route_name, None)
-                            if not callable(target):
-                                from PyQt6.QtWidgets import QMessageBox
-                                QMessageBox.warning(w, "Rapor açılamadı", "Seçilen rapor bu kurulumda kullanılamıyor.")
-                                return
-                            try:
-                                target()
-                            except Exception:
-                                import logging
-                                logging.getLogger(__name__).exception("Rapor ekranı açılamadı: %s", route_name)
-                                from PyQt6.QtWidgets import QMessageBox
-                                QMessageBox.warning(w, "Rapor açılamadı",
-                                                    "Seçilen rapor şu anda açılamadı. Diğer raporları kullanabilirsiniz.")
-                        QTimer.singleShot(0, _open_selected_route)
-                    elif intent is not None:
-                        # Modal pencere kapandıktan sonra mevcut formlar çağrılır.
-                        def _go_to_selected_student(request=intent):
-                            try:
-                                from ui.report_navigation_bridge_v3594 import open_confirmed_navigation
-                                open_confirmed_navigation(w, request)
-                            except Exception:
-                                import logging
-                                logging.getLogger(__name__).exception('Kontrollü rapor geçişi engellendi')
-                                from PyQt6.QtWidgets import QMessageBox
-                                QMessageBox.warning(w, 'Geçiş tamamlanamadı',
-                                    'Öğrenci kimliği veya hedef ekran doğrulanamadı. '
-                                    'Mevcut kayıtlar değiştirilmedi.')
-                        QTimer.singleShot(0, _go_to_selected_student)
+                    dlg.setWindowFlags(
+                        Qt.WindowType.Window |
+                        Qt.WindowType.WindowTitleHint |
+                        Qt.WindowType.WindowSystemMenuHint |
+                        Qt.WindowType.WindowMinMaxButtonsHint |
+                        Qt.WindowType.WindowCloseButtonHint
+                    )
+                    dlg.setModal(False)
+                    dlg.setWindowModality(Qt.WindowModality.NonModal)
+
+                    def _on_rc_closed(*_):
+                        setattr(w, "_report_center_dialog", None)
+                        intent = getattr(dlg, "approved_navigation", None)
+                        if intent is not None:
+                            def _go_to_selected_student(request=intent):
+                                try:
+                                    from ui.report_navigation_bridge_v3594 import open_confirmed_navigation
+                                    open_confirmed_navigation(w, request)
+                                except Exception:
+                                    import logging
+                                    logging.getLogger(__name__).exception('Kontrollü rapor geçişi engellendi')
+                                    from PyQt6.QtWidgets import QMessageBox
+                                    QMessageBox.warning(w, 'Geçiş tamamlanamadı',
+                                        'Öğrenci kimliği veya hedef ekran doğrulanamadı. '
+                                        'Mevcut kayıtlar değiştirilmedi.')
+                            QTimer.singleShot(0, _go_to_selected_student)
+                        else:
+                            QTimer.singleShot(0, _restore_home_if_on_dashboard)
+
+                    if hasattr(dlg, "finished"):
+                        dlg.finished.connect(_on_rc_closed)
+                    w._report_center_dialog = dlg
+                    dlg.show()
+                    dlg.raise_()
+                    dlg.activateWindow()
                 except Exception:
                     import logging
                     logging.getLogger(__name__).exception("Rapor Merkezi açılamadı")
                     _report_center_open_failed()
-                finally:
-                    QTimer.singleShot(0, _restore_home_if_on_dashboard)
 
             btn_rc.clicked.connect(_open_report_center)
             btn_rc.pressed.connect(lambda: _set_active_btn(btn_rc))
