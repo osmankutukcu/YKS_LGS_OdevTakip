@@ -777,9 +777,29 @@ def _prepare_shareable_pdf(pdf_path: str) -> str:
 
 
 def _copy_file_to_clipboard(abs_path: str) -> bool:
-    """Dosyayı panoya Finder'daki 'Kopyala' ile aynı şekilde (dosya nesnesi olarak) koyar."""
+    """Dosyayı panoya Finder/Gezgin'deki 'Kopyala' ile aynı şekilde (dosya nesnesi olarak) koyar.
+    
+    macOS: AppKit NSPasteboard (NSURL)
+    Windows: PyQt6 QMimeData + QUrl (Native CF_HDROP) ve .NET SetFileDropList yedekleri
+    """
     if not abs_path or not os.path.exists(abs_path):
         return False
+
+    # 1. PyQt6 Yerel Pano (Tüm platformlarda doğrudan ve en hızlı yöntem)
+    try:
+        from PyQt6.QtWidgets import QApplication
+        from PyQt6.QtCore import QMimeData, QUrl
+        app = QApplication.instance()
+        if app is not None:
+            mime = QMimeData()
+            norm_p = os.path.normpath(os.path.abspath(abs_path))
+            mime.setUrls([QUrl.fromLocalFile(norm_p)])
+            app.clipboard().setMimeData(mime)
+            if sys.platform == "win32":
+                return True
+    except Exception:
+        pass
+
     if sys.platform == "darwin":
         safe = abs_path.replace("\\", "\\\\").replace('"', '\\"')
         script = (
@@ -795,16 +815,39 @@ def _copy_file_to_clipboard(abs_path: str) -> bool:
             return True
         ok2, _o, _e = _run_osascript(f'set the clipboard to (POSIX file "{safe}")', timeout=15)
         return ok2
+
     if sys.platform == "win32":
+        norm_p = os.path.normpath(os.path.abspath(abs_path))
+        # 2. Windows PowerShell 5.1 & .NET evrensel FileDropList yöntemi (Tüm Win10/Win11 varsayılanı)
         try:
-            ps_path = abs_path.replace("'", "''")
-            proc = subprocess.run(
-                ["powershell", "-NoProfile", "-STA", "-Command", f"Set-Clipboard -LiteralPath '{ps_path}'"],
-                capture_output=True, text=True, timeout=20,
+            ps_path = norm_p.replace("'", "''")
+            ps_cmd = (
+                f"Add-Type -AssemblyName System.Windows.Forms; "
+                f"$c = New-Object System.Collections.Specialized.StringCollection; "
+                f"$c.Add('{ps_path}'); "
+                f"[System.Windows.Forms.Clipboard]::SetFileDropList($c)"
             )
-            return proc.returncode == 0
+            proc = subprocess.run(
+                ["powershell", "-NoProfile", "-STA", "-Command", ps_cmd],
+                capture_output=True, text=True, timeout=15,
+            )
+            if proc.returncode == 0:
+                return True
         except Exception:
-            return False
+            pass
+
+        # 3. Modern PowerShell 7+ veya Set-Clipboard desteği
+        try:
+            ps_path = norm_p.replace("'", "''")
+            proc = subprocess.run(
+                ["powershell", "-NoProfile", "-STA", "-Command", f"Set-Clipboard -Path '{ps_path}'"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if proc.returncode == 0:
+                return True
+        except Exception:
+            pass
+        return False
     return False
 
 
