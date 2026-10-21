@@ -85,6 +85,7 @@ class ReportCenterDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.approved_navigation = None
+        self.pending_route = None
         self.setObjectName("ReportCenterV3581")
         self.setWindowTitle("KoçPilot 360 • Rapor Merkezi")
         self.resize(1050, 760)
@@ -270,79 +271,32 @@ class ReportCenterDialog(QDialog):
         inner.addLayout(bottom)
         return card
 
-    def _launch(self, method_name):
-        import sys
-        parent = self.parent()
-        if method_name == "_open_advanced_from_center":
-            # Merkez Detaylı Raporlar içinden veya doğrudan ana ekrandan açılabilir
-            dashboard = getattr(parent, "_report_dashboard", None)
-            if dashboard is None and hasattr(parent, "_rapor_ac"):
-                parent._rapor_ac()
-                dashboard = getattr(parent, "_report_dashboard", None)
-            if dashboard is not None and hasattr(dashboard, "_open_legacy_reports"):
-                target = dashboard._open_legacy_reports
-            else:
-                try:
-                    from ui.safe_reports_v3589 import AciklanabilirRaporlarFormu
-                    def _open_direct_legacy():
-                        legacy = AciklanabilirRaporlarFormu(parent)
-                        legacy.setWindowTitle("Gelişmiş Grafik ve Detaylı Raporlar — KoçPilot 360")
-                        legacy.setWindowFlag(Qt.WindowType.Window, True)
-                        legacy.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-                        legacy.resize(1200, 700)
-                        legacy.show()
-                        legacy.raise_()
-                        legacy.activateWindow()
-                        return legacy
-                    target = _open_direct_legacy
-                except Exception:
-                    target = None
-        else:
-            target = getattr(parent, method_name, None)
+    def _open_legacy_reports(self):
+        """Mevcut detaylı/grafik raporlarına güvenli yönlendirme."""
+        self._launch("_open_advanced_from_center")
 
-        if not callable(target):
+    def _launch(self, method_name):
+        import logging
+        parent = self.parent()
+        allowed = {r["method"] for r in REPORT_ROUTES} | {"_open_advanced_from_center", "_open_legacy_reports"}
+        if method_name not in allowed:
             QMessageBox.warning(self, "Rapor açılamadı", "Seçilen rapor bu kurulumda kullanılamıyor.")
             return
 
-        # Rapor Merkezi'ni arka plana çek; açılan rapor kapanınca tekrar öne getir
-        self.hide()
-        def _reopen():
-            try:
-                self.show()
-                self.raise_()
-                self.activateWindow()
-            except Exception:
-                pass
-
-        if method_name in ("_rapor_ac", "_open_advanced_from_center"):
-            # Non-modal rapor penceresi: hedef açılmazsa merkezi yeniden göster.
-            try:
-                res = target()
-                target_win = res or getattr(parent, "_report_dashboard", None)
-                if target_win is not None:
-                    if hasattr(target_win, "finished"):
-                        target_win.finished.connect(lambda *_: _reopen())
-                    elif hasattr(target_win, "destroyed"):
-                        target_win.destroyed.connect(lambda *_: _reopen())
-                else:
-                    _reopen()
-            except Exception:
-                import logging
-                logging.getLogger(__name__).exception("Rapor ekranı açılamadı: %s", method_name)
-                _reopen()
-                QMessageBox.warning(self, "Rapor açılamadı",
-                                    "Seçilen rapor şu anda açılamadı. Diğer raporları kullanabilirsiniz.")
-        else:
-            # Modal pencere kapanana kadar bekle; hata olsa da merkezi geri getir.
-            try:
-                target()
-            except Exception:
-                import logging
-                logging.getLogger(__name__).exception("Rapor ekranı açılamadı: %s", method_name)
-                QMessageBox.warning(self, "Rapor açılamadı",
-                                    "Seçilen rapor şu anda açılamadı. Diğer raporları kullanabilirsiniz.")
-            finally:
-                _reopen()
+        # Modal döngü kilidini önlemek için hedef rotayı kaydet ve pencereyi accept() ile temizce kapat.
+        # Bu sayede ana pencere ve açılan rapor penceresi Qt modal kilidine takılmaz.
+        self.pending_route = method_name
+        if self.isVisible():
+            self.accept()
+        elif parent is not None:
+            target = getattr(parent, method_name, None)
+            if callable(target):
+                try:
+                    target()
+                except Exception:
+                    logging.getLogger(__name__).exception("Rapor ekranı açılamadı: %s", method_name)
+                    QMessageBox.warning(self, "Rapor açılamadı",
+                                        "Seçilen rapor şu anda açılamadı. Diğer raporları kullanabilirsiniz.")
 
     @staticmethod
     def _open_official(url):
@@ -390,13 +344,14 @@ class ReportCenterDialog(QDialog):
         if not callable(target):
             QMessageBox.warning(self, "Rehber açılamadı", "Rehber bu kurulumda bulunamadı.")
             return
-        self.hide()
-        try:
-            target()
-        finally:
-            self.show()
-            self.raise_()
-            self.activateWindow()
+        self.pending_route = "_show_report_guide"
+        if self.isVisible():
+            self.accept()
+        else:
+            try:
+                target()
+            except Exception:
+                pass
 
     def _open_professional_pdf(self):
         """Rapor merkezinden isteğe bağlı yeni şablonlar; ana pencere değişmez."""
@@ -416,13 +371,8 @@ class ReportCenterDialog(QDialog):
             return
         try:
             from ui.professional_pdf_dialog_v3583 import ProfessionalPDFDialog
-            self.hide()
-            try:
-                ProfessionalPDFDialog(con, self).exec()
-            finally:
-                self.show()
-                self.raise_()
-                self.activateWindow()
+            dialog = ProfessionalPDFDialog(con, self)
+            dialog.exec()
         except Exception as exc:
             QMessageBox.warning(self, "PDF atölyesi açılamadı", str(exc))
 
@@ -444,13 +394,8 @@ class ReportCenterDialog(QDialog):
             return
         try:
             from ui.bulk_report_dialog_v3586 import BulkReportDialog
-            self.hide()
-            try:
-                BulkReportDialog(con, self).exec()
-            finally:
-                self.show()
-                self.raise_()
-                self.activateWindow()
+            dialog = BulkReportDialog(con, self)
+            dialog.exec()
         except Exception as exc:
             QMessageBox.warning(self, "Toplu rapor açılamadı", str(exc))
 

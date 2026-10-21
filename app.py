@@ -489,12 +489,16 @@ def main() -> None:
         def _set_active_btn(target_btn):
             for btn in all_sidebar_btns:
                 is_act = (btn == target_btn)
-                btn.setProperty("active", "true" if is_act else "false")
-                if not is_act and btn.hasFocus():
-                    btn.clearFocus()
-                btn.style().unpolish(btn)
-                btn.style().polish(btn)
-                btn.update()
+                curr_act = (btn.property("active") == "true")
+                if is_act != curr_act:
+                    btn.setProperty("active", "true" if is_act else "false")
+                    if not is_act and btn.hasFocus():
+                        btn.clearFocus()
+                    style = btn.style()
+                    if style is not None:
+                        style.unpolish(btn)
+                        style.polish(btn)
+                    btn.update()
 
         def _restore_home_if_on_dashboard():
             if not hasattr(w, "btnHome"):
@@ -522,15 +526,17 @@ def main() -> None:
                         pass
                 QTimer.singleShot(0, _restore_home_if_on_dashboard)
             btn.clicked.connect(_on_sidebar_btn_AfterClick)
-            btn.released.connect(lambda: QTimer.singleShot(120, _restore_home_if_on_dashboard))
 
         class _SidebarNavigationSyncGuard(QObject):
             def eventFilter(self, watched, event):
                 et = event.type()
                 if watched is w and et in (QEvent.Type.WindowActivate, QEvent.Type.Show):
                     QTimer.singleShot(0, _restore_home_if_on_dashboard)
-                elif et in (QEvent.Type.Hide, QEvent.Type.Close) and watched is not w:
-                    QTimer.singleShot(20, _restore_home_if_on_dashboard)
+                elif et == QEvent.Type.Close and watched is not w:
+                    # Yalnızca üst düzey bağımsız pencereler kapandığında ana ekran durumunu senkronize et;
+                    # alt widget/açılır kutu/ipucu olaylarını filtrele (UI takılmalarını önler).
+                    if hasattr(watched, "isWindow") and watched.isWindow():
+                        QTimer.singleShot(20, _restore_home_if_on_dashboard)
                 return False
 
         _nav_guard = _SidebarNavigationSyncGuard(w)
@@ -622,8 +628,50 @@ def main() -> None:
                     from ui.report_center_v3581 import ReportCenterDialog
                     dlg = ReportCenterDialog(w)
                     dlg.exec()
+                    pending = getattr(dlg, "pending_route", None)
                     intent = dlg.approved_navigation
-                    if intent is not None:
+                    if pending is not None:
+                        def _open_selected_route(route_name=pending):
+                            if route_name == "_open_advanced_from_center":
+                                dashboard = getattr(w, "_report_dashboard", None)
+                                if dashboard is None and hasattr(w, "_rapor_ac"):
+                                    w._rapor_ac()
+                                    dashboard = getattr(w, "_report_dashboard", None)
+                                if dashboard is not None and hasattr(dashboard, "_open_legacy_reports"):
+                                    dashboard._open_legacy_reports()
+                                else:
+                                    try:
+                                        from ui.safe_reports_v3589 import AciklanabilirRaporlarFormu
+                                        legacy = AciklanabilirRaporlarFormu(w)
+                                        legacy.setWindowTitle("Gelişmiş Grafik ve Detaylı Raporlar — KoçPilot 360")
+                                        legacy.setWindowFlag(Qt.WindowType.Window, True)
+                                        legacy.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+                                        legacy.resize(1200, 700)
+                                        legacy.show()
+                                        legacy.raise_()
+                                        legacy.activateWindow()
+                                    except Exception:
+                                        import logging
+                                        logging.getLogger(__name__).exception("Gelişmiş rapor açılamadı")
+                                        from PyQt6.QtWidgets import QMessageBox
+                                        QMessageBox.warning(w, "Rapor açılamadı",
+                                                            "Seçilen rapor şu anda açılamadı. Diğer raporları kullanabilirsiniz.")
+                                return
+                            target = getattr(w, route_name, None)
+                            if not callable(target):
+                                from PyQt6.QtWidgets import QMessageBox
+                                QMessageBox.warning(w, "Rapor açılamadı", "Seçilen rapor bu kurulumda kullanılamıyor.")
+                                return
+                            try:
+                                target()
+                            except Exception:
+                                import logging
+                                logging.getLogger(__name__).exception("Rapor ekranı açılamadı: %s", route_name)
+                                from PyQt6.QtWidgets import QMessageBox
+                                QMessageBox.warning(w, "Rapor açılamadı",
+                                                    "Seçilen rapor şu anda açılamadı. Diğer raporları kullanabilirsiniz.")
+                        QTimer.singleShot(0, _open_selected_route)
+                    elif intent is not None:
                         # Modal pencere kapandıktan sonra mevcut formlar çağrılır.
                         def _go_to_selected_student(request=intent):
                             try:
@@ -646,7 +694,6 @@ def main() -> None:
 
             btn_rc.clicked.connect(_open_report_center)
             btn_rc.pressed.connect(lambda: _set_active_btn(btn_rc))
-            btn_rc.released.connect(lambda: QTimer.singleShot(120, _restore_home_if_on_dashboard))
 
             # Hedef Analizi'nin önüne ekleme başarılı olursa eski BEŞ butonu gizle.
             # Yerleştirme başarısızsa eski menü kullanılabilir kalır.

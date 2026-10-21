@@ -399,6 +399,15 @@ class ReportDashboard(QDialog):
         host = self.parent()
         dialog = ReportCenterDialog(host)
         dialog.exec()
+        route = getattr(dialog, "pending_route", None)
+        if route and host is not None:
+            if route == "_open_advanced_from_center":
+                if hasattr(self, "_open_legacy_reports"):
+                    self._open_legacy_reports()
+            else:
+                target = getattr(host, route, None)
+                if callable(target):
+                    target()
 
     def _open_legacy_reports(self):
         """Üstteki 'Detaylı Raporlar (Eski)' butonu."""
