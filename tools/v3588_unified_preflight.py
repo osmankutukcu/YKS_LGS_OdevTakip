@@ -44,6 +44,8 @@ def check(root: Path=ROOT):
     for path in paths:
         if not path.is_file(): continue
         rel=path.relative_to(root)
+        if '__pycache__' in rel.parts or path.name.endswith(('.pyc', '.pyo')):
+            continue
         if any(part in OMIT_FOLDERS for part in rel.parts):
             raise ValueError('Özel/çalışma klasörü pakette: '+str(rel))
         if str(path.name).lower().endswith(SENSITIVE):
