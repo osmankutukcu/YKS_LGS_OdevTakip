@@ -168,6 +168,16 @@ class PerformansPaneli(QDialog):
         tb_layout.addWidget(self.btnYenile)
 
         root.addWidget(toolbar)
+        self.lbl_measure_definition_v3589 = QLabel(
+            "Ölçüm rehberi: Teslimi gelen ödev, tamamlanan ödev ve geciken açık görev farklıdır. "
+            "'Veri yok' başarısızlık değildir. Deneme netleri ödev yüzdesiyle birleştirilmez."
+        )
+        self.lbl_measure_definition_v3589.setWordWrap(True)
+        self.lbl_measure_definition_v3589.setStyleSheet(
+            "background:#eff6ff; color:#334155; padding:6px 20px; font-size:11px; "
+            "border-bottom:1px solid #dbeafe;"
+        )
+        root.addWidget(self.lbl_measure_definition_v3589)
 
         # İçerik Alanı (Paddingli)
         content_area = QWidget()

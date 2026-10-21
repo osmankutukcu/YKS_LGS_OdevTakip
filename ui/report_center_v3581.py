@@ -6,11 +6,11 @@ Yalnızca mevcut, çalışma biçimi korunmuş rapor modüllerini açar.
 """
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPalette
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QPalette, QDesktopServices
 from PyQt6.QtWidgets import (
     QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel,
-    QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget,
+    QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget, QMenu,
 )
 
 # Basit, test edilebilir yönlendirme kataloğu. Yeni rapor motoru yerine mevcut
@@ -84,6 +84,7 @@ class ReportCenterDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.approved_navigation = None
         self.setObjectName("ReportCenterV3581")
         self.setWindowTitle("KoçPilot 360 • Rapor Merkezi")
         self.resize(1050, 760)
@@ -133,7 +134,48 @@ class ReportCenterDialog(QDialog):
         head.setSpacing(5)
         name = QLabel("📑  RAPOR MERKEZİ")
         name.setStyleSheet("font-size: 21px; font-weight: 800; color: #ffffff;")
-        head.addWidget(name)
+        header_line = QHBoxLayout()
+        header_line.addWidget(name)
+        header_line.addStretch()
+        check_sources = QPushButton("🔎 Veri Kontrolü")
+        check_sources.setToolTip("Yalnızca yerel kayıtları okuyan çakışma ön denetimi")
+        check_sources.setStyleSheet(
+            "QPushButton { color:#eff6ff; background:#223e61; "
+            "padding:7px 12px; border-radius:6px; }"
+        )
+        check_sources.clicked.connect(self._inspect_local_data)
+        header_line.addWidget(check_sources)
+        sources = QPushButton("🌐 Resmî Kaynaklar")
+        sources.setToolTip(
+            "ÖSYM sınav takvimi ve MEB öğretim programlarını resmî sitede açar. "
+            "Öğrenci bilgileri gönderilmez."
+        )
+        sources.setStyleSheet(
+            "QPushButton { color:#eff6ff; background:#223e61; "
+            "padding:7px 12px; border-radius:6px; }"
+        )
+        official_menu = QMenu(sources)
+        official_menu.addAction(
+            "ÖSYM - Sınav Takvimi",
+            lambda: self._open_official("https://www.osym.gov.tr/Sayfa/SinavTakvimi/tr-TR")
+        )
+        official_menu.addAction(
+            "MEB - Öğretim Programları",
+            lambda: self._open_official("https://tymm.meb.gov.tr/ogretim-programlari")
+        )
+        sources.setMenu(official_menu)
+        header_line.addWidget(sources)
+        # V3593: read-only decision panel; original six report routes stay intact.
+        advisor = QPushButton("🧭 Öğretmen Karar Paneli")
+        advisor.setAccessibleName("Öğrenciyi seçerek kanıta dayalı öğretmen önerilerini görüntüle")
+        advisor.setToolTip("Öğrenci bazlı deneme/konu kanıtı ve kontrollü sonraki adımlar")
+        advisor.setStyleSheet(
+            "QPushButton { color:#ffffff; background:#1366ce; "
+            "padding:7px 12px; border-radius:6px; font-weight:700; }"
+        )
+        advisor.clicked.connect(self._open_teacher_decision)
+        header_line.addWidget(advisor)
+        head.addLayout(header_line)
         intro = QLabel("Önce ne yapmak istediğinizi seçin. KoçPilot sizi doğru rapora götürsün.")
         intro.setWordWrap(True)
         intro.setStyleSheet("color: #dbeafe; font-size: 12px;")
@@ -241,9 +283,9 @@ class ReportCenterDialog(QDialog):
                 target = dashboard._open_legacy_reports
             else:
                 try:
-                    from ui.reports import RaporlarFormu
+                    from ui.safe_reports_v3589 import AciklanabilirRaporlarFormu
                     def _open_direct_legacy():
-                        legacy = RaporlarFormu(parent)
+                        legacy = AciklanabilirRaporlarFormu(parent)
                         legacy.setWindowTitle("Gelişmiş Grafik ve Detaylı Raporlar — KoçPilot 360")
                         legacy.setWindowFlag(Qt.WindowType.Window, True)
                         legacy.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -273,22 +315,74 @@ class ReportCenterDialog(QDialog):
                 pass
 
         if method_name in ("_rapor_ac", "_open_advanced_from_center"):
-            # Non-modal pencere durumu
-            res = target()
-            target_win = res or getattr(parent, "_report_dashboard", None)
-            if target_win is not None:
-                if hasattr(target_win, "finished"):
-                    target_win.finished.connect(lambda *_: _reopen())
-                elif hasattr(target_win, "destroyed"):
-                    target_win.destroyed.connect(lambda *_: _reopen())
-            else:
+            # Non-modal rapor penceresi: hedef açılmazsa merkezi yeniden göster.
+            try:
+                res = target()
+                target_win = res or getattr(parent, "_report_dashboard", None)
+                if target_win is not None:
+                    if hasattr(target_win, "finished"):
+                        target_win.finished.connect(lambda *_: _reopen())
+                    elif hasattr(target_win, "destroyed"):
+                        target_win.destroyed.connect(lambda *_: _reopen())
+                else:
+                    _reopen()
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception("Rapor ekranı açılamadı: %s", method_name)
                 _reopen()
+                QMessageBox.warning(self, "Rapor açılamadı",
+                                    "Seçilen rapor şu anda açılamadı. Diğer raporları kullanabilirsiniz.")
         else:
-            # Senkron modal diyaloglar (exec bloklar; pencere kapatılınca burası tamamlanır)
+            # Modal pencere kapanana kadar bekle; hata olsa da merkezi geri getir.
             try:
                 target()
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception("Rapor ekranı açılamadı: %s", method_name)
+                QMessageBox.warning(self, "Rapor açılamadı",
+                                    "Seçilen rapor şu anda açılamadı. Diğer raporları kullanabilirsiniz.")
             finally:
                 _reopen()
+
+    @staticmethod
+    def _open_official(url):
+        """Yalnızca sabit resmî HTTPS adresleri; öğrenci verisi/parametre yok."""
+        allowed = {
+            "https://www.osym.gov.tr/Sayfa/SinavTakvimi/tr-TR",
+            "https://tymm.meb.gov.tr/ogretim-programlari",
+        }
+        if url in allowed:
+            QDesktopServices.openUrl(QUrl(url))
+
+    def _inspect_local_data(self):
+        """V3590: Mevcut kanonik motor ile kişisel veri içermeyen kaynak denetimi."""
+        from importlib import import_module
+        from services.report_integrity_v3590 import (
+            audit_cohort_report_sources, explain_cohort_audit,
+        )
+        conn = None
+        owns_connection = False
+        try:
+            dashboard = getattr(self.parent(), "_report_dashboard", None)
+            conn = getattr(dashboard, "con", None)
+            if conn is None:
+                conn = import_module("db").get_conn()
+                owns_connection = True
+            result = audit_cohort_report_sources(conn)
+            QMessageBox.information(
+                self, "Rapor Kaynakları ve Kanıt Denetimi",
+                explain_cohort_audit(result)
+            )
+        except Exception:
+            # SQL details or names should not appear in end-user error messages.
+            QMessageBox.warning(
+                self, "Denetim tamamlanamadı",
+                "Yerel kayıtlar doğrulanamadı. Veri kaynağını kontrol edin; "
+                "hiçbir kayıt değiştirilmedi."
+            )
+        finally:
+            if owns_connection and conn is not None:
+                conn.close()
 
     def _show_guide(self):
         parent = self.parent()
@@ -359,3 +453,43 @@ class ReportCenterDialog(QDialog):
                 self.activateWindow()
         except Exception as exc:
             QMessageBox.warning(self, "Toplu rapor açılamadı", str(exc))
+
+    def _open_teacher_decision(self):
+        """V3593: an opt-in, read-only decision view with connection ownership."""
+        from importlib import import_module
+        con = None
+        owns_connection = False
+        try:
+            parent = self.parent()
+            dashboard = getattr(parent, "_report_dashboard", None)
+            con = getattr(dashboard, "con", None)
+            if con is None:
+                con = import_module("db").get_conn()
+                owns_connection = True
+            from ui.teacher_decision_dialog_v3593 import TeacherDecisionDialog
+            dialog = TeacherDecisionDialog(con, self)
+            self.hide()
+            try:
+                dialog.exec()
+                intent = dialog.approved_navigation
+                if intent is not None:
+                    self.approved_navigation = intent
+            finally:
+                if self.approved_navigation is None:
+                    self.show()
+                    self.raise_()
+                    self.activateWindow()
+            if self.approved_navigation is not None:
+                self.accept()  # Return to app.py before opening legacy form.
+        except Exception:
+            self.approved_navigation = None
+            self.show()
+            QMessageBox.warning(self, "Karar Paneli açılamadı",
+                                "Yerel öğrenci kayıtlarına erişilemedi. "
+                                "Mevcut raporlar kullanılmaya devam edebilir.")
+        finally:
+            if owns_connection and con is not None:
+                try:
+                    con.close()
+                except Exception:
+                    pass

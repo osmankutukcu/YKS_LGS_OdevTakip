@@ -1,6 +1,6 @@
 {
-  "version": "3.5.88",
+  "version": "3.5.94",
   "name": "YKS-LGS Ödev Takip",
   "channel": "pilot",
-  "note": "V3.5.88 tek kök entegrasyonu ve test adayı; Windows/macOS manuel kabulü bekleniyor. Canlıya yayımlamayın."
+  "note": "V3.5.94: Öğretmen Karar Panelinden seçili öğrenciye özel, öğretmen onaylı Koçluk Planı ve mevcut Haftalık Planlayıcı yolları; otomatik görev oluşturmaz. Cihaz kabulü bekliyor."
 }

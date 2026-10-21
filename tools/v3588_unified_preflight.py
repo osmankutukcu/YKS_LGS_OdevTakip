@@ -9,6 +9,8 @@ import sys
 sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 REQUIRED = ('app.py', 'main_window.py', 'db.py', 'version.py', 'version.json',
             'ui/homework_form.py', 'ui/odev_kontrol.py', 'ui/report_center_v3581.py',
             'services/professional_pdf_v3583.py', 'services/integrated_report_v3584.py',
@@ -26,7 +28,8 @@ def check(root: Path=ROOT):
     if (root/'YKS_LGS_HomeworkManager v2').exists():
         raise ValueError('Eski iç proje kökü hâlâ bulunuyor')
     v=json.loads((root/'version.json').read_text('utf-8'))
-    if v['version']!='3.5.88': raise ValueError('Uyumsuz sürüm')
+    from tools.validate_release import read_versions
+    if v['version'] != read_versions(root): raise ValueError('Uyumsuz sürüm')
     if v.get('channel')=='stable': raise ValueError('Windows kabulü yokken stable yayın engellendi')
     app=(root/'app.py').read_text('utf-8')
     start=app.index('# 2.1')

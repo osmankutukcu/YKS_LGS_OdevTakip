@@ -39,6 +39,12 @@ jobs:
           python tools/v3588_unified_preflight.py
           if ($LASTEXITCODE -ne 0) { throw 'V3.5.88 tam kaynak butunlugu engeli' }
 
+      - name: V3.5.94 kontrollu ogrenci yonlendirmesi ve karar paneli testleri
+        shell: pwsh
+        run: |
+          python -m pytest -q tests/test_report_center_recovery_v3594.py tests/test_report_navigation_v3594.py tests/test_teacher_decision_v3593.py tests/test_report_intervention_plan_v3592.py tests/test_report_academic_bridge_v3591.py tests/test_report_integrity_v3590.py tests/test_report_interpretation_v3589.py tests/test_integrated_report_v3584.py tests/test_v3535_canonical_evidence.py
+          if ($LASTEXITCODE -ne 0) { throw 'Rapor veri kaynagi dogrulama testleri basarisiz' }
+
       - name: Korunan kaynak denetimi (manuel kabul yerine gecmez)
         shell: pwsh
         run: python tools/v35_release_gate.py
@@ -84,6 +90,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements_win.txt pytest httpx
+
+      - name: V3.5.94 gercek Qt karar paneli ve yonlendirme regresyonu (zorunlu)
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -c "from PyQt6.QtWidgets import QApplication; print('Qt hazir')"
+          if ($LASTEXITCODE -ne 0) { throw 'PyQt6 bulunamadi; karar paneli testi atlanamaz' }
+          python -m pytest -q tests/test_report_center_recovery_v3594.py tests/test_teacher_decision_v3593.py tests/test_report_navigation_v3594.py
+          if ($LASTEXITCODE -ne 0) { throw 'Ogretmen Karar Paneli Qt regresyonu basarisiz' }
 
       - name: V3.5.49 cevrimdisi mobil PDF ve alici guvenligi testleri
         shell: pwsh

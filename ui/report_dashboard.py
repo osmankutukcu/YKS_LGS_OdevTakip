@@ -321,7 +321,7 @@ class ReportDashboard(QDialog):
 
         # Alt grafik başlık + mod combobox
         bottom_title_row = QHBoxLayout()
-        self.lbl_ders = QLabel("Derslere Göre Haftalık Ödev Tamamlama Oranı")
+        self.lbl_ders = QLabel("Ders Bazlı Ödev Tamamlama · Tüm Kaydedilmiş Haftalar")
         self.lbl_ders.setStyleSheet("font-weight: bold;")
         bottom_title_row.addWidget(self.lbl_ders)
 
@@ -415,7 +415,8 @@ class ReportDashboard(QDialog):
         self.hide()
 
         # Eski rapor penceresini oluştur
-        legacy = RaporlarFormu(self)
+        from ui.safe_reports_v3589 import AciklanabilirRaporlarFormu
+        legacy = AciklanabilirRaporlarFormu(self)
         legacy.setWindowTitle("Detaylı Raporlar")
         legacy.setWindowFlag(Qt.WindowType.Window, True)
         legacy.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -653,7 +654,9 @@ class ReportDashboard(QDialog):
             f"{overview['no_data']} öğrencide kayıt yok, "
             f"{overview['limited']} öğrencide sınırlı örneklem "
             f"(1–{MIN_REPORT_SAMPLE - 1} görev). "
-            "Yüzdeler tüm kayıtların ödev tamamlama oranıdır; akademik başarı ölçümü değildir."
+            "Üst grafik tüm kayıtları, alt grafik ise kayıtlı tüm haftaların ders verisini kullanır; "
+            "sınıf filtresi alt grafiğin GENEL moduna uygulanmaz. Aynı veri kaynağı "
+            "veya dönem değillerdir; akademik başarı ölçümü değildir."
         )
 
         # Grafikler
@@ -740,6 +743,7 @@ class ReportDashboard(QDialog):
         cur = self.con.cursor()
 
         if ogrenci_id is None or self.cmb_ders_mode.currentData() == "genel":
+            self.lbl_ders.setText("Dersler · Tüm Öğrenciler / Tüm Kaydedilmiş Haftalar")
             # GENEL MOD: tüm öğrenciler için ders bazında
             sql = """
                 SELECT
@@ -757,6 +761,7 @@ class ReportDashboard(QDialog):
             """
             cur.execute(sql)
         else:
+            self.lbl_ders.setText("Dersler · Seçili Öğrenci / Tüm Kaydedilmiş Haftalar")
             # SEÇİLİ ÖĞRENCİ MODU
             sql = """
                 SELECT
@@ -793,7 +798,7 @@ class ReportDashboard(QDialog):
         self.canvas_ders.setMinimumHeight(max(280, min(1800, len(dersler) * 34 + 85)))
         self.lbl_ders.setToolTip(
             f"{len(dersler)} ders görüntüleniyor. Haftalık ödev verilerinden hesaplanır; "
-            "öğrencinin sınav başarısı değildir."
+            "öğrencinin sınav başarısı değildir; tek haftaya filtrelenmez."
         )
         self.canvas_ders.figure.subplots_adjust(left=0.31, right=0.96, bottom=0.13, top=0.97)
         y_pos = range(len(dersler))

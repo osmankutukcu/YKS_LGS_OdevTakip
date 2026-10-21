@@ -1,10 +1,18 @@
+## V3.5.92 – Öğretmenin kontrollü izleme ve ölçüm rehberi (PİLOT)
+
+V3.5.91 akademik kanıtlarından, **yeni kazanım teşhisi üretmeden** öğretmene veri kontrolü, yanlış/boş soru incelemesi ve yeniden ölçüm gündemi önerir. Bütünleşik PDF'de kısa öneri olarak yer alır. Ödev/deneme sayıları, korunan formlar ve plan kayıtları değişmez. Gerçek Windows/macOS kabulü yapılmamıştır.
+
+## V3.5.91 – akademik kanıt bağlamı (PİLOT)
+
+Yalnızca öğrenci ID üzerinden eşleştirilen deneme dersi neti ile öğretmen konu işaretleri bütünleşik öğrenci raporunda açıklamalı olarak yan yana gösterilir. Net ve konu işaretleri arasında nedensellik kurulmaz. V3.5.90 üzerine güvenli ek modüldür. Gerçek cihaz kabulü tamamlanmadı.
+
 # 🎓 KoçPilot 360 — YKS & LGS Ödev ve Bütünleşik Koçluk Sistemi
 
 [![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue.svg)](https://www.python.org/)
 [![Framework](https://img.shields.io/badge/GUI-PyQt6-green.svg)](https://riverbankcomputing.com/software/pyqt/)
 [![Database](https://img.shields.io/badge/Database-SQLite-lightgrey.svg)](https://sqlite.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/Release-v3.5.88-indigo.svg)](https://github.com/osmankutukcu/YKS_LGS_OdevTakip/releases)
+[![Release](https://img.shields.io/badge/Release-v3.5.92--pilot-indigo.svg)](https://github.com/osmankutukcu/YKS_LGS_OdevTakip/releases)
 
 **KoçPilot 360**, YKS ve LGS hazırlık sürecindeki öğrencilerin ödev takip, koçluk, deneme sınavı analizi, haftalık çalışma programı ve veli bilgilendirme süreçlerini tek bir merkezden yöneten profesyonel bir masaüstü uygulamasıdır.
 
@@ -136,3 +144,32 @@ Ticari modüller ve kurum lisanslama altyapısı KoçPilot 360 telif haklarına 
 - **Öğrenci 360° Müdahale Etkililiği (Aşama 7):** Uygulanan rehberlik desteklerinin sonuçlarını ve sonraki pedagojik adımları izleyen yan panel.
 - **Ortak Karar Masası & Haftalık Uyum (Aşama 8-11):** Ana ekran karar masası ve haftalık planlayıcı ile koçluk verilerinin tam senkronizasyonu.
 - **Baileys Windows Akıllı Kurulumu (Aşama 17):** Windows üzerinde Node.js 20+ ve npm bağımlılıklarını tek tıkla (`winget` üzerinden) otomatik kuran, UI kilitlenmesini engelleyen modern asenkron arayüz.
+
+
+## V3.5.93 – Öğretmen Karar Paneli (Pilot)
+
+**Rapor Merkezi → Öğretmen Karar Paneli** menüsünden öğrenciyi ve son 30/90/180 günlük
+ölçüm dönemini seçin. Deneme netleri ve konu işaretleri ayrı kanıtlardır;
+rapor, öğretmenin veri kontrolü ve yeniden ölçüm adımlarını gösterir.
+Öğrenci/dönem değişiminde önceki panel temizlenir. Veri değiştirme,
+otomatik ödev verme veya öğrenci bilgilerini internet üzerinden paylaşma yoktur.
+Mevcut altı rapor yönlendirmesi ve PDF/Excel/çıktı işlevleri aynen durur.
+
+Kaynak kabul testleri: `python -m pytest -q tests/test_teacher_decision_v3593.py`
+Gerçek Qt GUI kabulü için PyQt6 gerekir; Windows CI üzerinde bağımlılıklar kurulduktan sonra zorunlu test tanımlıdır.
+Müşteri dağıtımı: gerçek Windows/macOS, yazdırma ve EXE kabulü yapılmadan yasak.
+
+
+## V3.5.94 – Öğretmen onaylı karar → mevcut planlama geçişi (Pilot)
+
+Rapor Merkezi → Öğretmen Karar Paneli → öğrenciyi seçip kanıtı görüntüle →
+**Koçluk Planı’na Git** veya **Haftalık Planlayıcı’ya Git**.
+
+- Her iki buton da açık onay ister; seçili öğrenci kimliği ikinci kez doğrulanır.
+- Koçluk, **mevcut CoachingManager** ekranında sayısal öğrenci ID’sine göre seçilir.
+- Haftalık Planlayıcı, **mevcut Ödev Takip** formunu seçili öğrenciyle açar; öğretmen
+  oradaki mevcut Haftalık Planlayıcı düğmesini ayrıca kullanır. Otomatik program oluşturulmaz.
+- Geçiş isteği 120 saniye geçerlidir; yanlış/kapalı/kayıp öğrenci veya farklı hedef reddedilir.
+- Ödev Takip, Ödev Kontrol, ana pencere, rapor motorları ve PDF hesaplamaları değiştirilmedi.
+- `python -m pytest -q tests/test_report_navigation_v3594.py` güvenlik/geriye uyum testi.
+- Gerçek Windows/macOS Qt ve EXE kabulü tamamlanmadan canlıya alınmamalıdır.

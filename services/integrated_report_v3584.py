@@ -18,6 +18,9 @@ from services.student360_v16.reader import read_student_overview
 from services.student360_v16.advisor import suggestions
 from services.target_analysis_v24.student_target import read_saved_target
 from services.report_planner_bridge_v3585 import read_planner_evidence
+from services.report_integrity_v3590 import audit_student_integrity
+from services.report_academic_bridge_v3591 import read_academic_evidence
+from services.report_intervention_plan_v3592 import plan_teacher_review
 
 
 @dataclass(frozen=True)
@@ -70,6 +73,14 @@ def read_integrated_report(con: sqlite3.Connection, student_id: int, *,
     hw = get_report_snapshot(con, student_id, period_days, day)
     sections: list[SourceSection] = []
     notes = list(hw.warnings)
+    # V3590: separate read-only ownership check. Do not change or substitute
+    # legacy PDF numerators, student identity, or due-date period semantics.
+    integrity = audit_student_integrity(con, student_id)
+    if integrity.state != 'checked':
+        notes.append('Ödev kaynak güvenilirliği: ' + (
+            'Sahiplik/çift sayım incelemesi gerekli.' if integrity.state == 'review'
+            else 'Kısmi veri veya şema; kesin yorum yapılamaz.'))
+        notes.extend(integrity.reasons)
     actions: tuple[str, ...] = ()
 
     # V16's reader validates the exact active student ID and reuses V14/V15
@@ -130,6 +141,34 @@ def read_integrated_report(con: sqlite3.Connection, student_id: int, *,
         ):
             sections.append(SourceSection(title, 'Veri doğrulanamadı; tahmin yapılmadı.',
                              source, 'İsteğe bağlı modül', 'doğrulanamadı'))
+
+    # V3591: sidecar academic evidence. No inferred cause/effect from exam nets
+    # to teacher topic markings, and no changes to any legacy PDF numerators.
+    try:
+        academic = read_academic_evidence(con, student_id, reference_day=day)
+        sections.append(SourceSection('Ders ölçümleri ve konu işaretleri', academic.value,
+                        'Deneme Sınavları / V15 + Koçluk konu takibi / V3591',
+                        academic.scope, academic.status))
+        notes.extend(academic.warnings)
+        # V3592 opt-in sidecar: explanatory teacher review, not a diagnosis
+        # and not a mutation of earlier coaching or PDF success metrics.
+        review = plan_teacher_review(academic)
+        sections.append(SourceSection('Öğretmen için kontrollü sonraki adımlar',
+                        ' | '.join(f'{i+1}. {step.short}'
+                                   for i, step in enumerate(review.steps)),
+                        'V3592 öğretmen rehberi / V3591 ders kanıtı',
+                        'Öneri; tanı veya otomatik atama değildir. Öğretmen doğrulamalıdır.',
+                        'kayıt' if review.level == 'ölçüm var'
+                        else 'doğrulanamadı' if review.level == 'önce doğrula' else 'eksik'))
+    except (sqlite3.Error, ValueError, TypeError, OverflowError):
+        sections.append(SourceSection('Ders ölçümleri ve konu işaretleri',
+                        'Ölçüm ve konu kaynağı doğrulanamadı; tahmin üretilmedi.',
+                        'Deneme Sınavları / Koçluk', 'Yerel kayıtlar', 'doğrulanamadı'))
+        notes.append('Ders ölçümü/konu eşleştirme kaynağı okunamadı; öğretmen kontrolü gerekli.')
+        sections.append(SourceSection('Öğretmen için kontrollü sonraki adımlar',
+                        'Önce aynı öğrenciye ait sınav ve konu kayıtlarını doğrulayın; '
+                        'eksik veya okunamayan kaynaktan otomatik müdahale belirlenmedi.',
+                        'V3592 doğrulama rehberi', 'Öğretmen incelemesi', 'doğrulanamadı'))
 
     # Target columns are optional across supported old databases. Absence must
     # be labeled instead of presenting teacher targets as calculated results.

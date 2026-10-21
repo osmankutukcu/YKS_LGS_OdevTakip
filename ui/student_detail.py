@@ -804,7 +804,7 @@ class OgrenciDetayDialog(QDialog):
             ax.text(
                 0.99,
                 hedef / 100.0,
-                " Hedef %80",
+                " Örnek referans %80",
                 ha="right",
                 va="bottom",
                 transform=ax.get_yaxis_transform(),
@@ -979,6 +979,11 @@ class OgrenciDetayDialog(QDialog):
         self.lblKpiAvg.setText(f"% {avg_pct:.1f}" if avg_pct is not None else "—")
         self.lblKpiWeek.setText(str(t_count))
         self.lblKpiMissing.setText(str(incomplete_total))
+        self.lblKpiMissing.setToolTip(
+            "Tamamlanmamış kayıtlar; teslim tarihi geçmiş görevlerle aynı şey değildir. "
+            "Ders kırılımı odev ve odev_satir satırlarını birlikte okur: "
+            "aynı ödev iki kaynakta bulunursa sayım tekrar kontrol edilmelidir."
+        )
         self.lblKpiAvgTitle.setText(f"Son {self._range_days} Günde Ortalama İlerleme")
         self.lblKpiAvg.setToolTip(
             f"{valid_days} günlük geçerli ölçüm. Günlük yüzdelerin aritmetik ortalaması; "

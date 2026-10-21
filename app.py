@@ -541,7 +541,10 @@ def main() -> None:
         if hasattr(w, "btnHome"):
             _set_active_btn(w.btnHome)
 
-        # 2.1 Analiz Grubu Sadeleştirmesi: Dağınık 5 buton gizlenir, tekil Rapor Merkezi kullanılır
+        # 2.1 Rapor Merkezi: normal kullanımda YALNIZCA tek menü girişi görünür.
+        # Eski rapor butonları ve bağlı orijinal fonksiyonları korunur. Yeni merkez
+        # açılamazsa kullanıcıya sadece o an geçici bir yedek erişim sunulur.
+        # Not: Bu blok Ödev Takip, Ödev Kontrol veya diğer analiz kodlarına dokunmaz.
         try:
             redundant_btns = [
                 getattr(w, "btnOgrenciDetay", None),
@@ -550,30 +553,94 @@ def main() -> None:
                 getattr(w, "btnPdf", None),
                 getattr(w, "btnGuide", None),
             ]
-            for r_btn in redundant_btns:
-                if r_btn is not None:
-                    r_btn.hide()
-
-            from ui.report_center_v3581 import ReportCenterDialog
             btn_rc = QPushButton("📑   Rapor Merkezi")
             btn_rc.setObjectName("ThemeSidebarAction")
             btn_rc.setCursor(Qt.CursorShape.PointingHandCursor)
             btn_rc.setToolTip("Tüm analiz, karne, detaylı rapor, veli PDF ve performans araçları tek merkezde")
 
+            def _open_fallback_report_access():
+                """Only invoked after Report Center fails, never a sidebar entry."""
+                import logging
+                from PyQt6.QtWidgets import QInputDialog, QMessageBox
+                from services.report_entry_guard_v3594 import (
+                    available_legacy_routes, open_legacy_route,
+                )
+                routes = available_legacy_routes(w)
+                if not routes:
+                    QMessageBox.warning(
+                        w, "Yedek rapor erişimi",
+                        "Mevcut rapor pencereleri bu kurulumda açılamıyor. "
+                        "Ödev ve öğrenci kayıtları değiştirilmedi."
+                    )
+                    return
+                options = [title for title, _ in routes]
+                selected, ok = QInputDialog.getItem(
+                    w, "Yedek Rapor Erişimi",
+                    "Rapor Merkezi geçici olarak açılamadı. Kullanmak istediğiniz mevcut raporu seçin:",
+                    options, 0, False
+                )
+                if not ok or selected not in options:
+                    return
+                method = routes[options.index(selected)][1]
+                def _open_original():
+                    try:
+                        open_legacy_route(w, method)
+                    except Exception:
+                        logging.getLogger(__name__).exception(
+                            "Yedek rapor yolu açılamadı: %s", method
+                        )
+                        QMessageBox.warning(
+                            w, "Rapor açılamadı",
+                            "Seçilen rapor şu anda açılamadı. Lütfen daha sonra tekrar deneyin."
+                        )
+                # Modal geçici seçim penceresi tamamen kapandıktan sonra aç.
+                QTimer.singleShot(0, _open_original)
+
+            def _report_center_open_failed():
+                from PyQt6.QtWidgets import QMessageBox
+                dialog = QMessageBox(w)
+                dialog.setIcon(QMessageBox.Icon.Warning)
+                dialog.setWindowTitle("Rapor Merkezi")
+                dialog.setText("Rapor Merkezi şu anda açılamadı.")
+                dialog.setInformativeText(
+                    "Mevcut raporlar silinmedi. Tekrar deneyebilir veya "
+                    "yalnızca bu hata durumunda yedek rapor listesine erişebilirsiniz."
+                )
+                retry_btn = dialog.addButton("Tekrar Dene", QMessageBox.ButtonRole.AcceptRole)
+                fallback_btn = dialog.addButton("Yedek Rapor Erişimi", QMessageBox.ButtonRole.ActionRole)
+                dialog.addButton("Kapat", QMessageBox.ButtonRole.RejectRole)
+                dialog.exec()
+                if dialog.clickedButton() is retry_btn:
+                    QTimer.singleShot(0, _open_report_center)
+                elif dialog.clickedButton() is fallback_btn:
+                    QTimer.singleShot(0, _open_fallback_report_access)
+
             def _open_report_center():
                 _set_active_btn(btn_rc)
                 try:
+                    # Tembel yükleme: eksik/bozuk yeni modül ana menüyü bozamaz.
+                    from ui.report_center_v3581 import ReportCenterDialog
                     dlg = ReportCenterDialog(w)
                     dlg.exec()
-                except Exception as error:
-                    # Yeni merkezdeki hata durumunda kullanıcıyı bilgilendir
+                    intent = dlg.approved_navigation
+                    if intent is not None:
+                        # Modal pencere kapandıktan sonra mevcut formlar çağrılır.
+                        def _go_to_selected_student(request=intent):
+                            try:
+                                from ui.report_navigation_bridge_v3594 import open_confirmed_navigation
+                                open_confirmed_navigation(w, request)
+                            except Exception:
+                                import logging
+                                logging.getLogger(__name__).exception('Kontrollü rapor geçişi engellendi')
+                                from PyQt6.QtWidgets import QMessageBox
+                                QMessageBox.warning(w, 'Geçiş tamamlanamadı',
+                                    'Öğrenci kimliği veya hedef ekran doğrulanamadı. '
+                                    'Mevcut kayıtlar değiştirilmedi.')
+                        QTimer.singleShot(0, _go_to_selected_student)
+                except Exception:
                     import logging
                     logging.getLogger(__name__).exception("Rapor Merkezi açılamadı")
-                    from PyQt6.QtWidgets import QMessageBox
-                    QMessageBox.warning(
-                        w, "Rapor Merkezi",
-                        "Rapor Merkezi açılamadı. Lütfen tekrar deneyin."
-                    )
+                    _report_center_open_failed()
                 finally:
                     QTimer.singleShot(0, _restore_home_if_on_dashboard)
 
@@ -581,19 +648,35 @@ def main() -> None:
             btn_rc.pressed.connect(lambda: _set_active_btn(btn_rc))
             btn_rc.released.connect(lambda: QTimer.singleShot(120, _restore_home_if_on_dashboard))
 
-            # ANALİZ grubunda Hedef Analizi'nin hemen üstüne yerleştir
+            # Hedef Analizi'nin önüne ekleme başarılı olursa eski BEŞ butonu gizle.
+            # Yerleştirme başarısızsa eski menü kullanılabilir kalır.
+            lout = None
             if hasattr(w, "btnTarget") and w.btnTarget.parentWidget():
                 lout = w.btnTarget.parentWidget().layout()
-                if lout is not None:
-                    t_idx = lout.indexOf(w.btnTarget)
-                    if t_idx >= 0:
-                        lout.insertWidget(t_idx, btn_rc)
-                    else:
-                        lout.addWidget(btn_rc)
-                    w.btnReportCenter = btn_rc
-                    all_sidebar_btns.append(btn_rc)
+            if lout is not None:
+                t_idx = lout.indexOf(w.btnTarget)
+                if t_idx >= 0:
+                    lout.insertWidget(t_idx, btn_rc)
+                else:
+                    lout.addWidget(btn_rc)
+                w.btnReportCenter = btn_rc
+                all_sidebar_btns.append(btn_rc)
+                for r_btn in redundant_btns:
+                    if r_btn is not None:
+                        r_btn.hide()
         except Exception:
-            pass
+            # Arızalı menü entegrasyonu eski rapor girişlerini yok edemez.
+            import logging
+            logging.getLogger(__name__).exception("Rapor Merkezi menü entegrasyonu tamamlanamadı")
+            for r_btn in (
+                getattr(w, "btnOgrenciDetay", None),
+                getattr(w, "btnPerformans", None),
+                getattr(w, "btnRapor", None),
+                getattr(w, "btnPdf", None),
+                getattr(w, "btnGuide", None),
+            ):
+                if r_btn is not None:
+                    r_btn.show()
 
         # 3. Üst Gri Şeridi Gizle (Kompakt Karar Masasına Taşındı - Dikey Alan Tasarrufu)
         if hasattr(w, "_today_focus_v4"):
